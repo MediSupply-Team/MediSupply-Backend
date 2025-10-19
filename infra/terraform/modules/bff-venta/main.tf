@@ -242,12 +242,13 @@ resource "aws_ecs_task_definition" "td" {
         ]
       )
 
+      # 👇 health del contenedor (ajustado)
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:${var.bff_app_port}/health || exit 1"]
-        interval    = 30
+        command     = ["CMD-SHELL", "curl -sf http://localhost:${var.bff_app_port}/health || exit 1"]
+        interval    = 15
         timeout     = 5
-        retries     = 3
-        startPeriod = 20
+        retries     = 5
+        startPeriod = 90
       }
     }
   ])
@@ -259,12 +260,15 @@ resource "aws_ecs_task_definition" "td" {
   }
 }
 
+
 resource "aws_ecs_service" "svc" {
   name            = "${local.bff_id}-svc"
   cluster         = var.ecs_cluster_arn
   task_definition = aws_ecs_task_definition.td.arn
-  desired_count   = 1
+  desired_count   = 2 # ⬅️ subimos a 2 para rollouts suaves
   launch_type     = "FARGATE"
+
+  health_check_grace_period_seconds = 120 # ⬅️ la “gracia” vive en el service
 
   network_configuration {
     subnets          = var.private_subnets
@@ -281,12 +285,7 @@ resource "aws_ecs_service" "svc" {
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
 
-  # margen para health del ALB al arrancar
-  health_check_grace_period_seconds = 60
-
-  depends_on = [
-    aws_lb_listener.http
-  ]
+  depends_on = [aws_lb_listener.http]
 
   tags = {
     Project   = var.project
