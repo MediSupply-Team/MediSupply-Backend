@@ -60,7 +60,7 @@ module "vpc" {
 
 # ECS Cluster compartido
 resource "aws_ecs_cluster" "orders" {
-  name = "${var.project}-${var.env}-cluster"
+  name = "orders-cluster"
 
   setting {
     name  = "containerInsights"
@@ -340,6 +340,31 @@ module "bff_venta" {
   
   # Catalogo service will be accessible through the same ALB on /catalog path  
   catalogo_service_url = var.catalogo_service_url
+}
+
+# BFF Cliente
+module "bff_cliente" {
+  source = "./modules/bff-cliente"
+
+  project    = var.project
+  env        = var.env
+  aws_region = var.aws_region
+
+  vpc_id          = module.vpc.vpc_id
+  public_subnets  = module.vpc.public_subnets
+  private_subnets = module.vpc.private_subnets
+
+  bff_name      = "bff-cliente"
+  bff_app_port  = 8001
+  bff_repo_name = "${var.project}-${var.env}-bff-cliente"
+  bff_env = {
+    FLASK_ENV = var.env
+  }
+
+  ecs_cluster_arn = aws_ecs_cluster.orders.arn
+  
+  # Cliente service will be accessible through placeholder URL initially
+  cliente_service_url = "http://cliente-service-placeholder.us-east-1.elb.amazonaws.com"
 }
 
 # ============================================================
