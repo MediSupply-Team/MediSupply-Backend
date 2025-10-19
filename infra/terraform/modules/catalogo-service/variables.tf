@@ -111,7 +111,7 @@ variable "cpu" {
   type        = number
   default     = 256
   validation {
-    condition = contains([256, 512, 1024, 2048, 4096], var.cpu)
+    condition     = contains([256, 512, 1024, 2048, 4096], var.cpu)
     error_message = "CPU debe ser uno de: 256, 512, 1024, 2048, 4096."
   }
 }
@@ -121,7 +121,7 @@ variable "memory" {
   type        = number
   default     = 512
   validation {
-    condition = var.memory >= 128 && var.memory <= 8192
+    condition     = var.memory >= 128 && var.memory <= 8192
     error_message = "Memory debe estar entre 128 MB y 8192 MB."
   }
 }
@@ -132,7 +132,7 @@ variable "db_instance_class" {
   type        = string
   default     = "db.t3.micro"
   validation {
-    condition = can(regex("^db\\.[a-z0-9]+\\.[a-z]+$", var.db_instance_class))
+    condition     = can(regex("^db\\.[a-z0-9]+\\.[a-z]+$", var.db_instance_class))
     error_message = "DB instance class debe seguir el formato: db.{family}.{size}"
   }
 }
@@ -142,7 +142,7 @@ variable "db_allocated_storage" {
   type        = number
   default     = 20
   validation {
-    condition = var.db_allocated_storage >= 20 && var.db_allocated_storage <= 100
+    condition     = var.db_allocated_storage >= 20 && var.db_allocated_storage <= 100
     error_message = "DB storage debe estar entre 20 GB y 100 GB."
   }
 }
@@ -152,7 +152,7 @@ variable "db_backup_retention_days" {
   type        = number
   default     = 7
   validation {
-    condition = var.db_backup_retention_days >= 0 && var.db_backup_retention_days <= 35
+    condition     = var.db_backup_retention_days >= 0 && var.db_backup_retention_days <= 35
     error_message = "Backup retention debe estar entre 0 y 35 días."
   }
 }
@@ -163,7 +163,7 @@ variable "sqs_message_retention_seconds" {
   type        = number
   default     = 1209600 # 14 days
   validation {
-    condition = var.sqs_message_retention_seconds >= 60 && var.sqs_message_retention_seconds <= 1209600
+    condition     = var.sqs_message_retention_seconds >= 60 && var.sqs_message_retention_seconds <= 1209600
     error_message = "Message retention debe estar entre 60 segundos y 14 días."
   }
 }
@@ -173,7 +173,7 @@ variable "sqs_visibility_timeout_seconds" {
   type        = number
   default     = 30
   validation {
-    condition = var.sqs_visibility_timeout_seconds >= 0 && var.sqs_visibility_timeout_seconds <= 43200
+    condition     = var.sqs_visibility_timeout_seconds >= 0 && var.sqs_visibility_timeout_seconds <= 43200
     error_message = "Visibility timeout debe estar entre 0 y 43200 segundos (12 horas)."
   }
 }
@@ -184,7 +184,7 @@ variable "log_retention_days" {
   type        = number
   default     = 30
   validation {
-    condition = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.log_retention_days)
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.log_retention_days)
     error_message = "Log retention debe ser uno de los valores permitidos por CloudWatch."
   }
 }
@@ -201,7 +201,7 @@ variable "health_check_timeout" {
   type        = number
   default     = 5
   validation {
-    condition = var.health_check_timeout >= 2 && var.health_check_timeout <= 120
+    condition     = var.health_check_timeout >= 2 && var.health_check_timeout <= 120
     error_message = "Health check timeout debe estar entre 2 y 120 segundos."
   }
 }
@@ -211,7 +211,7 @@ variable "health_check_interval" {
   type        = number
   default     = 30
   validation {
-    condition = var.health_check_interval >= 5 && var.health_check_interval <= 300
+    condition     = var.health_check_interval >= 5 && var.health_check_interval <= 300
     error_message = "Health check interval debe estar entre 5 y 300 segundos."
   }
 }

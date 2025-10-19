@@ -109,7 +109,7 @@ resource "aws_db_instance" "catalogo_postgres" {
 
   # Engine configuration
   engine         = "postgres"
-  engine_version = "15.14"  # Usar versión disponible
+  engine_version = "15.14" # Usar versión disponible
   instance_class = var.db_instance_class
 
   # Database configuration
@@ -120,8 +120,8 @@ resource "aws_db_instance" "catalogo_postgres" {
   # Storage configuration
   allocated_storage     = 20
   max_allocated_storage = 100
-  storage_type         = "gp2"
-  storage_encrypted    = true
+  storage_type          = "gp2"
+  storage_encrypted     = true
 
   # Network & Security
   vpc_security_group_ids = [aws_security_group.catalogo_postgres_sg.id]
@@ -130,8 +130,8 @@ resource "aws_db_instance" "catalogo_postgres" {
 
   # Backup configuration
   backup_retention_period = 7
-  backup_window          = "03:00-04:00"
-  maintenance_window     = "sun:04:00-sun:05:00"
+  backup_window           = "03:00-04:00"
+  maintenance_window      = "sun:04:00-sun:05:00"
 
   # Monitoring
   monitoring_interval = 60
@@ -154,14 +154,14 @@ resource "aws_db_instance" "catalogo_postgres" {
 # ============================================================
 
 resource "aws_sqs_queue" "catalogo_events" {
-  name                       = "${var.project}-${var.env}-catalogo-events.fifo"
-  fifo_queue                = true
+  name                        = "${var.project}-${var.env}-catalogo-events.fifo"
+  fifo_queue                  = true
   content_based_deduplication = true
-  
+
   # Message settings
-  message_retention_seconds = 1209600 # 14 days
+  message_retention_seconds  = 1209600 # 14 days
   visibility_timeout_seconds = 30
-  receive_wait_time_seconds = 0
+  receive_wait_time_seconds  = 0
 
   # Dead letter queue
   redrive_policy = jsonencode({
@@ -178,10 +178,10 @@ resource "aws_sqs_queue" "catalogo_events" {
 }
 
 resource "aws_sqs_queue" "catalogo_dlq" {
-  name                       = "${var.project}-${var.env}-catalogo-dlq.fifo"
-  fifo_queue                = true
+  name                        = "${var.project}-${var.env}-catalogo-dlq.fifo"
+  fifo_queue                  = true
   content_based_deduplication = true
-  message_retention_seconds = 1209600 # 14 days
+  message_retention_seconds   = 1209600 # 14 days
 
   tags = {
     Name    = "${var.project}-${var.env}-catalogo-dlq"
@@ -346,8 +346,8 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
 # ============================================================
 
 resource "aws_secretsmanager_secret" "catalogo_db_credentials" {
-  name = "${var.project}-${var.env}-catalogo-db-credentials-v2"  # Cambiar nombre
-  
+  name = "${var.project}-${var.env}-catalogo-db-credentials-v2" # Cambiar nombre
+
   tags = {
     Service = "catalogo-service"
     Project = var.project
@@ -393,7 +393,7 @@ resource "aws_ecs_task_definition" "catalogo" {
   cpu                      = var.cpu
   memory                   = var.memory
   execution_role_arn       = aws_iam_role.catalogo_ecs_execution_role.arn
-  task_role_arn           = aws_iam_role.catalogo_ecs_task_role.arn
+  task_role_arn            = aws_iam_role.catalogo_ecs_task_role.arn
 
   container_definitions = jsonencode([
     {
