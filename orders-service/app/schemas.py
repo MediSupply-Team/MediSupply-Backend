@@ -8,6 +8,8 @@ class OrderItem(BaseModel):
 class CreateOrderRequest(BaseModel):
     customer_id: str
     items: List[OrderItem]
+    created_by_role: str
+    source: str
 
 class AcceptedResponse(BaseModel):
     request_id: str = Field(..., description="Idempotency key hash")
@@ -16,3 +18,4 @@ class AcceptedResponse(BaseModel):
 class CreatedOrderResponse(BaseModel):
     order_id: str
     status: str = "CREATED"
+    

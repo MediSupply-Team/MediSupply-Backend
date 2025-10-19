@@ -71,10 +71,15 @@ def post_message():
     if not body:
         return jsonify(error="Falta 'body' en el JSON"), 400
     
+    enriched_body = {
+    **body,  # Mantener todos los campos originales
+    "created_by_role": "vendor", 
+    "source": "bff-venta"
+    }
     event_id = str(uuid.uuid4())
     sqs_message = {
         "event_id": event_id,
-        "order": body,
+        "order": enriched_body,
         "timestamps": {
             "bff_received": time.time(),
             "sqs_sent": time.time()
@@ -86,7 +91,7 @@ def post_message():
 
     sqs: "SQSService" = current_app.extensions["sqs"]
     
-    # Enviar a SQS de forma asíncrona (no bloqueante)
+    # Enviar a SQS de forma asincrona (no bloqueante)
     future = executor.submit(
         send_sqs_message_async, 
         sqs, 
