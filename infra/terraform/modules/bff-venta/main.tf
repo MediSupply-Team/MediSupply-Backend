@@ -1,23 +1,40 @@
 locals {
   bff_id = "${var.project}-${var.env}-${var.bff_name}"
+
+  # ARN derivado desde la URL SQS
+  sqs_arn = replace(var.sqs_url, "https://sqs.${var.aws_region}.amazonaws.com/", "arn:aws:sqs:${var.aws_region}:")
 }
 
 resource "aws_ecr_repository" "bff" {
   name         = var.bff_repo_name
   force_delete = true
-  image_scanning_configuration { scan_on_push = true }
-  tags = { Project = var.project, Env = var.env, Component = var.bff_name }
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Project   = var.project
+    Env       = var.env
+    Component = var.bff_name
+  }
 }
 
 resource "aws_cloudwatch_log_group" "bff" {
   name              = "/ecs/${local.bff_id}"
   retention_in_days = 14
-  tags              = { Project = var.project, Env = var.env, Component = var.bff_name }
+
+  tags = {
+    Project   = var.project
+    Env       = var.env
+    Component = var.bff_name
+  }
 }
 
 data "aws_iam_policy_document" "assume" {
   statement {
     actions = ["sts:AssumeRole"]
+
     principals {
       type        = "Service"
       identifiers = ["ecs-tasks.amazonaws.com"]
@@ -28,7 +45,12 @@ data "aws_iam_policy_document" "assume" {
 resource "aws_iam_role" "exec_role" {
   name               = "${local.bff_id}-exec-role"
   assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = { Project = var.project, Env = var.env, Component = var.bff_name }
+
+  tags = {
+    Project   = var.project
+    Env       = var.env
+    Component = var.bff_name
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "exec_attach" {
@@ -39,24 +61,25 @@ resource "aws_iam_role_policy_attachment" "exec_attach" {
 resource "aws_iam_role" "app_role" {
   name               = "${local.bff_id}-task-role"
   assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = { Project = var.project, Env = var.env, Component = var.bff_name }
+
+  tags = {
+    Project   = var.project
+    Env       = var.env
+    Component = var.bff_name
+  }
 }
 
-# arn de SQS desde URL:
-locals {
-  sqs_arn = replace(var.sqs_url, "https://sqs.${var.aws_region}.amazonaws.com/", "arn:aws:sqs:${var.aws_region}:")
-}
-
-# Si prefieres usar ARN correctamente:
 data "aws_iam_policy_document" "sqs_producer" {
   statement {
     effect = "Allow"
+
     actions = [
       "sqs:SendMessage",
       "sqs:GetQueueAttributes",
-      "sqs:GetQueueUrl"
+      "sqs:GetQueueUrl",
     ]
-    resources = [var.sqs_arn]
+
+    resources = [local.sqs_arn]
   }
 }
 
@@ -81,6 +104,7 @@ resource "aws_security_group" "alb_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -88,7 +112,11 @@ resource "aws_security_group" "alb_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Project = var.project, Env = var.env, Component = var.bff_name }
+  tags = {
+    Project   = var.project
+    Env       = var.env
+    Component = var.bff_name
+  }
 }
 
 resource "aws_security_group" "svc_sg" {
@@ -102,6 +130,7 @@ resource "aws_security_group" "svc_sg" {
     protocol        = "tcp"
     security_groups = [aws_security_group.alb_sg.id]
   }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -109,7 +138,11 @@ resource "aws_security_group" "svc_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Project = var.project, Env = var.env, Component = var.bff_name }
+  tags = {
+    Project   = var.project
+    Env       = var.env
+    Component = var.bff_name
+  }
 }
 
 resource "aws_lb" "alb" {
@@ -118,15 +151,21 @@ resource "aws_lb" "alb" {
   security_groups    = [aws_security_group.alb_sg.id]
   subnets            = var.public_subnets
   idle_timeout       = 60
-  tags               = { Project = var.project, Env = var.env, Component = var.bff_name }
+
+  tags = {
+    Project   = var.project
+    Env       = var.env
+    Component = var.bff_name
+  }
 }
 
 resource "aws_lb_target_group" "tg" {
-  name        = "${local.bff_id}-tg"
-  port        = var.bff_app_port
-  protocol    = "HTTP"
-  target_type = "ip"
-  vpc_id      = var.vpc_id
+  name                 = "${local.bff_id}-tg"
+  port                 = var.bff_app_port
+  protocol             = "HTTP"
+  target_type          = "ip"
+  vpc_id               = var.vpc_id
+  deregistration_delay = 30
 
   health_check {
     enabled             = true
@@ -138,8 +177,14 @@ resource "aws_lb_target_group" "tg" {
     healthy_threshold   = 2
     unhealthy_threshold = 2
   }
-  tags = { Project = var.project, Env = var.env, Component = var.bff_name }
+
+  tags = {
+    Project   = var.project
+    Env       = var.env
+    Component = var.bff_name
+  }
 }
+
 
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.alb.arn
@@ -168,44 +213,62 @@ resource "aws_ecs_task_definition" "td" {
 
   container_definitions = jsonencode([
     {
-      name         = var.bff_name,
-      image        = "${aws_ecr_repository.bff.repository_url}:latest",
-      essential    = true,
-      portMappings = [{ containerPort = var.bff_app_port, hostPort = var.bff_app_port, protocol = "tcp" }],
+      name      = var.bff_name
+      image     = "${aws_ecr_repository.bff.repository_url}:latest"
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = var.bff_app_port
+          hostPort      = var.bff_app_port
+          protocol      = "tcp"
+        }
+      ]
+
       logConfiguration = {
-        logDriver = "awslogs",
+        logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.bff.name,
-          awslogs-region        = var.aws_region,
+          awslogs-group         = aws_cloudwatch_log_group.bff.name
+          awslogs-region        = var.aws_region
           awslogs-stream-prefix = var.bff_name
         }
-      },
+      }
+
       environment = concat(
         [for k, v in var.bff_env : { name = k, value = v }],
         [
           { name = "SQS_QUEUE_URL", value = var.sqs_url },
           { name = "CATALOGO_SERVICE_URL", value = var.catalogo_service_url }
         ]
-      ),
+      )
+
+      # 👇 health del contenedor (ajustado)
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:${var.bff_app_port}/health || exit 1"],
-        interval    = 30,
-        timeout     = 5,
-        retries     = 3,
-        startPeriod = 20
+        command     = ["CMD-SHELL", "curl -sf http://localhost:${var.bff_app_port}/health || exit 1"]
+        interval    = 15
+        timeout     = 5
+        retries     = 5
+        startPeriod = 90
       }
     }
   ])
 
-  tags = { Project = var.project, Env = var.env, Component = var.bff_name }
+  tags = {
+    Project   = var.project
+    Env       = var.env
+    Component = var.bff_name
+  }
 }
+
 
 resource "aws_ecs_service" "svc" {
   name            = "${local.bff_id}-svc"
   cluster         = var.ecs_cluster_arn
   task_definition = aws_ecs_task_definition.td.arn
-  desired_count   = 1
+  desired_count   = 2 # ⬅️ subimos a 2 para rollouts suaves
   launch_type     = "FARGATE"
+
+  health_check_grace_period_seconds = 120 # ⬅️ la “gracia” vive en el service
 
   network_configuration {
     subnets          = var.private_subnets
@@ -224,5 +287,9 @@ resource "aws_ecs_service" "svc" {
 
   depends_on = [aws_lb_listener.http]
 
-  tags = { Project = var.project, Env = var.env, Component = var.bff_name }
+  tags = {
+    Project   = var.project
+    Env       = var.env
+    Component = var.bff_name
+  }
 }

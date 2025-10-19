@@ -329,7 +329,7 @@ module "bff_venta" {
   bff_env = merge(
     var.bff_env,
     {
-      RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"  # ← ESTO
+      RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}" # ← ESTO
     }
   )
 
@@ -337,7 +337,7 @@ module "bff_venta" {
   sqs_arn = module.consumer.sqs_queue_arn # ← AGREGAR ESTA LÍNEA
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
-  
+
   # Catalogo service will be accessible through the same ALB on /catalog path  
   catalogo_service_url = var.catalogo_service_url
 }
@@ -388,13 +388,13 @@ module "catalogo_service" {
   # Container configuration
   container_port = var.catalogo_container_port
   desired_count  = var.catalogo_desired_count
-  cpu           = var.catalogo_cpu
-  memory        = var.catalogo_memory
+  cpu            = var.catalogo_cpu
+  memory         = var.catalogo_memory
 
   # Database configuration
-  db_instance_class         = var.catalogo_db_instance_class
-  db_allocated_storage      = var.catalogo_db_allocated_storage
-  db_backup_retention_days  = var.catalogo_db_backup_retention_days
+  db_instance_class        = var.catalogo_db_instance_class
+  db_allocated_storage     = var.catalogo_db_allocated_storage
+  db_backup_retention_days = var.catalogo_db_backup_retention_days
 
   # Additional tags
   additional_tags = var.additional_tags

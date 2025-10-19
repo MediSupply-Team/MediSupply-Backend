@@ -36,6 +36,8 @@ class Order(Base):
     customer_id = Column(String, nullable=False)
     items = Column(JSON, nullable=False)
     status = Column(orderstatus_enum, nullable=False, default=OrderStatus.NEW)
+    created_by_role = Column(String, nullable=False)
+    source = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

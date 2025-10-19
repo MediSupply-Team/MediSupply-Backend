@@ -14,28 +14,28 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # ===== SWAGGER (solo 2 líneas) =====
+    # ===== SWAGGER =====
     swagger_config = {
         "headers": [],
         "specs": [
             {
                 "endpoint": 'apispec',
-                "route": '/apispec.json',
+                "route": '/apispec.json',  # ← Ruta del JSON
                 "rule_filter": lambda rule: True,
                 "model_filter": lambda tag: True,
             }
         ],
         "static_url_path": "/flasgger_static",
         "swagger_ui": True,
-        "specs_route": "/docs"  # Swagger UI en /docs
+        "specs_route": "/docs"  # ← QUITAR la barra final
     }
-    Swagger(app, config=swagger_config)  # ← AGREGAR
+    Swagger(app, config=swagger_config)
 
-    # Registrar blueprints (sin cambios)
+    # Registrar blueprints
     app.register_blueprint(health_bp)
     app.register_blueprint(orders_bp)
     app.register_blueprint(rutas_bp)
-    app.register_blueprint(catalog_bp)  # Nuevo: rutas de catálogo
+    app.register_blueprint(catalog_bp)
 
     # Inicializar servicio SQS
     app.extensions["sqs"] = SQSService(
