@@ -123,6 +123,29 @@ output "bff_ecr_repo_url" {
 }
 
 # ============================================================
+# BFF CLIENTE OUTPUTS
+# ============================================================
+output "bff_cliente_alb_dns" {
+  description = "BFF Cliente ALB DNS name"
+  value       = module.bff_cliente.alb_dns_name
+}
+
+output "bff_cliente_alb_url" {
+  description = "BFF Cliente URL"
+  value       = "http://${module.bff_cliente.alb_dns_name}"
+}
+
+output "bff_cliente_ecr_repo_url" {
+  description = "BFF Cliente ECR repo URL"
+  value       = module.bff_cliente.ecr_repo_url
+}
+
+output "bff_cliente_service_name" {
+  description = "BFF Cliente ECS service name"
+  value       = module.bff_cliente.service_name
+}
+
+# ============================================================
 # CATALOGO SERVICE OUTPUTS
 # ============================================================
 output "catalogo_ecr_repository_url" {
@@ -166,7 +189,8 @@ output "catalogo_service_url" {
 output "quick_reference" {
   description = "Quick reference commands"
   value = {
-    bff_url              = "http://${module.bff_venta.alb_dns_name}"
+    bff_venta_url        = "http://${module.bff_venta.alb_dns_name}"
+    bff_cliente_url = "http://${module.bff_cliente.alb_dns_name}"
     catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
     catalogo_ecr         = module.catalogo_service.ecr_repository_url
     catalogo_queue       = module.catalogo_service.sqs_queue_url
