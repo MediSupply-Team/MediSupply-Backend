@@ -1,5 +1,8 @@
 locals {
   bff_id = "${var.project}-${var.env}-${var.bff_name}"
+  
+  # ✅ ARN derivado desde la URL SQS
+  sqs_arn = replace(var.sqs_url, "https://sqs.${var.aws_region}.amazonaws.com/", "arn:aws:sqs:${var.aws_region}:")
 }
 
 resource "aws_ecr_repository" "bff" {
@@ -40,6 +43,29 @@ resource "aws_iam_role" "app_role" {
   name               = "${local.bff_id}-task-role"
   assume_role_policy = data.aws_iam_policy_document.assume.json
   tags               = { Project = var.project, Env = var.env, Component = var.bff_name }
+}
+
+# ✅ PERMISOS SQS PRODUCER (AGREGADO):
+data "aws_iam_policy_document" "sqs_producer" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "sqs:SendMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:GetQueueUrl",
+    ]
+    resources = [var.sqs_arn] 
+  }
+}
+
+resource "aws_iam_policy" "sqs_producer" {
+  name   = "${local.bff_id}-sqs-producer"
+  policy = data.aws_iam_policy_document.sqs_producer.json
+}
+
+resource "aws_iam_role_policy_attachment" "app_attach_sqs" {
+  role       = aws_iam_role.app_role.name
+  policy_arn = aws_iam_policy.sqs_producer.arn
 }
 
 resource "aws_security_group" "alb_sg" {
@@ -94,11 +120,12 @@ resource "aws_lb" "alb" {
 }
 
 resource "aws_lb_target_group" "tg" {
-  name        = "${local.bff_id}-tg"
-  port        = var.bff_app_port
-  protocol    = "HTTP"
-  target_type = "ip"
-  vpc_id      = var.vpc_id
+  name                 = "${local.bff_id}-tg"
+  port                 = var.bff_app_port
+  protocol             = "HTTP"
+  target_type          = "ip"
+  vpc_id               = var.vpc_id
+  deregistration_delay = 30  # ✅ AGREGADO
 
   health_check {
     enabled             = true
@@ -140,10 +167,18 @@ resource "aws_ecs_task_definition" "td" {
 
   container_definitions = jsonencode([
     {
-      name         = var.bff_name,
-      image        = "${aws_ecr_repository.bff.repository_url}:latest",
-      essential    = true,
-      portMappings = [{ containerPort = var.bff_app_port, hostPort = var.bff_app_port, protocol = "tcp" }],
+      name      = var.bff_name,
+      image     = "${aws_ecr_repository.bff.repository_url}:latest",
+      essential = true,
+      
+      portMappings = [
+        { 
+          containerPort = var.bff_app_port, 
+          hostPort      = var.bff_app_port, 
+          protocol      = "tcp" 
+        }
+      ],
+      
       logConfiguration = {
         logDriver = "awslogs",
         options = {
@@ -152,12 +187,25 @@ resource "aws_ecs_task_definition" "td" {
           awslogs-stream-prefix = var.bff_name
         }
       },
+      
+      # ✅ VARIABLES DE ENTORNO COMPLETAS:
       environment = concat(
         [for k, v in var.bff_env : { name = k, value = v }],
         [
+          { name = "SQS_QUEUE_URL", value = var.sqs_url },
+          { name = "CATALOGO_SERVICE_URL", value = var.catalogo_service_url },
           { name = "CLIENTE_SERVICE_URL", value = var.cliente_service_url }
         ]
-      )
+      ),
+      
+      # ✅ HEALTH CHECK AGREGADO:
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -sf http://localhost:${var.bff_app_port}/health || exit 1"]
+        interval    = 15
+        timeout     = 5
+        retries     = 5
+        startPeriod = 90
+      }
     }
   ])
 
@@ -168,8 +216,11 @@ resource "aws_ecs_service" "svc" {
   name            = "${local.bff_id}-svc"
   cluster         = var.ecs_cluster_arn
   task_definition = aws_ecs_task_definition.td.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  desired_count   = 2  # ✅ AUMENTADO de 1 a 2
+
+  launch_type = "FARGATE"
+
+  health_check_grace_period_seconds = 120  # ✅ AGREGADO
 
   network_configuration {
     subnets          = var.private_subnets
