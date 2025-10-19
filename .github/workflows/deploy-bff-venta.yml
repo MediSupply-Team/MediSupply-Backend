@@ -11,10 +11,12 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: medisupply-dev-bff-venta
-  ECS_SERVICE: medisupply-dev-bff-venta-svc
-  ECS_CLUSTER: medisupply-dev-cluster
-  CONTAINER_NAME: bff-venta
+  ECR_REPOSITORY: medisupply-dev-bff-venta           
+  ECS_CLUSTER: orders-cluster                        
+  ECS_SERVICE: medisupply-dev-bff-venta-svc          
+  TASK_DEFINITION_NAME: medisupply-dev-bff-venta     
+  CONTAINER_NAME: bff-venta                          
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   deploy:
