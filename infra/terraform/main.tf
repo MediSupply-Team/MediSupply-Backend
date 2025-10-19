@@ -60,7 +60,7 @@ module "vpc" {
 
 # ECS Cluster compartido
 resource "aws_ecs_cluster" "orders" {
-  name = "${var.project}-${var.env}-cluster"
+  name = "orders-cluster"
 
   setting {
     name  = "containerInsights"
