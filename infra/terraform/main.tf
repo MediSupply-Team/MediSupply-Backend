@@ -342,6 +342,30 @@ module "bff_venta" {
   catalogo_service_url = var.catalogo_service_url
 }
 
+# Cliente Service
+module "cliente_service" {
+  source = "./modules/cliente-service"
+
+  project = var.project
+  env     = var.env
+
+  vpc_id          = module.vpc.vpc_id
+  private_subnets = module.vpc.private_subnets
+
+  ecs_cluster_name = aws_ecs_cluster.orders.name
+
+  # Container configuration
+  container_port = 8000
+  desired_count  = 1
+  cpu            = "512"
+  memory         = "1024"
+
+  # Database configuration
+  db_instance_class        = "db.t3.micro"
+  db_allocated_storage     = 20
+  db_backup_retention_days = 7
+}
+
 # BFF Cliente
 module "bff_cliente" {
   source = "./modules/bff-cliente"
@@ -363,8 +387,8 @@ module "bff_cliente" {
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
   
-  # Cliente service will be accessible through placeholder URL initially
-  cliente_service_url = "http://cliente-service-placeholder.us-east-1.elb.amazonaws.com"
+  # Cliente service will be accessible through the internal ALB
+  cliente_service_url = module.cliente_service.alb_url
 }
 
 # ============================================================
