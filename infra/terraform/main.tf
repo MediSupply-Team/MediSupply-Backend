@@ -381,14 +381,21 @@ module "bff_cliente" {
   bff_name      = "bff-cliente"
   bff_app_port  = 8001
   bff_repo_name = "${var.project}-${var.env}-bff-cliente"
+  
   bff_env = {
     FLASK_ENV = var.env
   }
 
+  # ✅ ECS Cluster
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
   
-  # Cliente service will be accessible through the internal ALB
-  cliente_service_url = module.cliente_service.alb_url
+  # ✅ SQS (para producir mensajes - AGREGADO)
+  sqs_url = module.consumer.sqs_queue_url
+  sqs_arn = module.consumer.sqs_queue_arn
+  
+  # ✅ Servicios backend (AGREGADOS)
+  catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
+  cliente_service_url  = module.cliente_service.alb_url
 }
 
 # ============================================================

@@ -79,7 +79,7 @@ data "aws_iam_policy_document" "sqs_producer" {
       "sqs:GetQueueUrl",
     ]
 
-    resources = [local.sqs_arn]
+    resources = [var.sqs_arn]
   }
 }
 

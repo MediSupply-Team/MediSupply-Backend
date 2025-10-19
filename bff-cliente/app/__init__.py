@@ -4,6 +4,7 @@ from .config import Config
 from .services.cliente_client import ClienteServiceClient
 from .routes.health import bp as health_bp
 from .routes.client import bp as client_bp
+from .routes.orders import bp as orders_bp
 from flasgger import Swagger
 
 def create_app():
@@ -31,6 +32,7 @@ def create_app():
     # Registrar blueprints
     app.register_blueprint(health_bp)
     app.register_blueprint(client_bp)  # Rutas de cliente
+    app.register_blueprint(orders_bp)
 
     # Inicializar cliente de cliente-service
     app.extensions["cliente"] = ClienteServiceClient(
