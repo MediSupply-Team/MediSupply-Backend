@@ -251,6 +251,28 @@ resource "aws_secretsmanager_secret_version" "db_password_v" {
 }
 
 # ============================================================
+# RUTAS DATABASE SECRETS
+# ============================================================
+
+resource "aws_secretsmanager_secret" "rutas_db_url" {
+  name                    = "${var.project}/${var.env}/rutas/DB_URL"
+  description             = "Database connection URL for Rutas service"
+  recovery_window_in_days = 7
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "rutas"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "rutas_db_url_v" {
+  secret_id = aws_secretsmanager_secret.rutas_db_url.id
+  # Usar el mismo usuario que orders
+  secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/rutas?sslmode=require"
+}
+
+# ============================================================
 # SERVICES MODULES
 # ============================================================
 
@@ -315,7 +337,73 @@ module "bff_venta" {
   sqs_arn = module.consumer.sqs_queue_arn # ← AGREGAR ESTA LÍNEA
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
+  
+  # Catalogo service will be accessible through the same ALB on /catalog path  
+  catalogo_service_url = var.catalogo_service_url
 }
+
+# ============================================================
+# MICROSERVICES MODULES
+# ============================================================
+
+# Catalogo Service
+module "catalogo_service" {
+  source = "./modules/catalogo-service"
+
+  project = var.project
+  env     = var.env
+
+  vpc_id          = module.vpc.vpc_id
+  private_subnets = module.vpc.private_subnets
+  public_subnets  = module.vpc.public_subnets
+
+  ecs_cluster_name = aws_ecs_cluster.orders.name
+  alb_listener_arn = module.bff_venta.alb_listener_arn
+
+  # Container configuration
+  container_port = var.catalogo_container_port
+  desired_count  = var.catalogo_desired_count
+  cpu           = var.catalogo_cpu
+  memory        = var.catalogo_memory
+
+  # Database configuration
+  db_instance_class         = var.catalogo_db_instance_class
+  db_allocated_storage      = var.catalogo_db_allocated_storage
+  db_backup_retention_days  = var.catalogo_db_backup_retention_days
+
+  # Additional tags
+  additional_tags = var.additional_tags
+}
+
+# ============================================================
+# BFF-CATALOGO MODULE
+# ============================================================
+# ============================================================
+# BFF-CATALOGO MODULE - DISABLED (using integrated catalogo in bff-venta)
+# ============================================================
+# module "bff_catalogo" {
+#   source = "./modules/bff-catalogo"
+
+#   project    = var.project
+#   env        = var.env
+#   aws_region = var.aws_region
+
+#   vpc_id          = module.vpc.vpc_id
+#   private_subnets = module.vpc.private_subnets
+#   public_subnets  = module.vpc.public_subnets
+
+#   ecs_cluster_name = aws_ecs_cluster.orders.name
+
+#   # BFF Configuration
+#   bff_port       = 3000
+#   bff_cpu        = "256"
+#   bff_memory     = "512"
+#   desired_count  = 1
+#   image_tag      = var.bff_catalogo_image_tag
+
+#   # URL interna del catalogo-service a través del ALB
+#   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
+# }
 
 # Rutas Service
 module "rutas_service" {
@@ -331,12 +419,9 @@ module "rutas_service" {
   public_subnets  = module.vpc.public_subnets
   private_subnets = module.vpc.private_subnets
 
-  ecs_cluster_arn = aws_ecs_cluster.orders.arn
+  ecs_cluster_arn   = aws_ecs_cluster.orders.arn
+  db_url_secret_arn = aws_secretsmanager_secret.rutas_db_url.arn
 
-  # Usa la misma DB que orders (o crea una nueva si necesitas)
-  db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
-
-  # Configuración del servicio
   app_port      = 8000
   image_tag     = "latest"
   desired_count = 1

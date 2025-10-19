@@ -43,3 +43,20 @@ output "security_group_id" {
   description = "Database security group ID"
   value       = aws_security_group.postgres_sg.id
 }
+
+# Rutas database outputs
+output "rutas_db_url_secret_arn" {
+  description = "ARN of Rutas DB URL secret"
+  value       = aws_secretsmanager_secret.rutas_db_url.arn
+}
+
+output "rutas_db_password_secret_arn" {
+  description = "ARN of Rutas DB password secret"
+  value       = aws_secretsmanager_secret.rutas_db_password.arn
+}
+
+output "rutas_db_password" {
+  description = "Rutas database password (sensitive)"
+  value       = random_password.rutas_db_password.result
+  sensitive   = true
+}

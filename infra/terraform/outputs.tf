@@ -123,13 +123,72 @@ output "bff_ecr_repo_url" {
 }
 
 # ============================================================
+# CATALOGO SERVICE OUTPUTS
+# ============================================================
+output "catalogo_ecr_repository_url" {
+  description = "Catalogo service ECR repository URL"
+  value       = module.catalogo_service.ecr_repository_url
+}
+
+output "catalogo_db_endpoint" {
+  description = "Catalogo service database endpoint"
+  value       = module.catalogo_service.db_instance_endpoint
+}
+
+output "catalogo_sqs_queue_url" {
+  description = "Catalogo service SQS queue URL"
+  value       = module.catalogo_service.sqs_queue_url
+}
+
+output "catalogo_service_name" {
+  description = "Catalogo ECS service name"
+  value       = module.catalogo_service.ecs_service_name
+}
+
+output "catalogo_target_group_arn" {
+  description = "Catalogo ALB target group ARN"
+  value       = module.catalogo_service.target_group_arn
+}
+
+output "catalogo_cloudwatch_log_group" {
+  description = "Catalogo CloudWatch log group"
+  value       = module.catalogo_service.cloudwatch_log_group_name
+}
+
+# ============================================================
 # QUICK REFERENCE
 # ============================================================
+output "catalogo_service_url" {
+  description = "Complete URL for catalogo service through ALB"
+  value       = "http://${module.bff_venta.alb_dns_name}/catalog"
+}
+
 output "quick_reference" {
   description = "Quick reference commands"
   value = {
-    bff_url       = "http://${module.bff_venta.alb_dns_name}"
-    connect_to_db = "export PGPASSWORD=$(aws secretsmanager get-secret-value --secret-id ${aws_secretsmanager_secret.db_password.name} --query SecretString --output text) && psql -h ${aws_db_instance.postgres.address} -U ${aws_db_instance.postgres.username} -d ${aws_db_instance.postgres.db_name}"
-    view_logs     = "aws logs tail /ecs/${var.project}-${var.env} --follow"
+    bff_url         = "http://${module.bff_venta.alb_dns_name}"
+    catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
+    catalogo_ecr    = module.catalogo_service.ecr_repository_url
+    catalogo_queue  = module.catalogo_service.sqs_queue_url
+    connect_to_db   = "export PGPASSWORD=$(aws secretsmanager get-secret-value --secret-id ${aws_secretsmanager_secret.db_password.name} --query SecretString --output text) && psql -h ${aws_db_instance.postgres.address} -U ${aws_db_instance.postgres.username} -d ${aws_db_instance.postgres.db_name}"
+    catalogo_db     = "aws secretsmanager get-secret-value --secret-id ${module.catalogo_service.db_credentials_secret_arn}"
+    view_logs       = "aws logs tail /ecs/${var.project}-${var.env} --follow"
+    catalogo_logs   = "aws logs tail ${module.catalogo_service.cloudwatch_log_group_name} --follow"
   }
+}
+
+# Rutas Service outputs
+output "rutas_alb_dns" {
+  description = "DNS del ALB de Rutas"
+  value       = module.rutas_service.alb_dns_name
+}
+
+output "rutas_alb_url" {
+  description = "URL completa del servicio de Rutas"
+  value       = "http://${module.rutas_service.alb_dns_name}"
+}
+
+output "rutas_service_name" {
+  description = "Nombre del servicio de Rutas en ECS"
+  value       = module.rutas_service.service_name
 }

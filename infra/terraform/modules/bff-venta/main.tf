@@ -182,7 +182,10 @@ resource "aws_ecs_task_definition" "td" {
       },
       environment = concat(
         [for k, v in var.bff_env : { name = k, value = v }],
-        [{ name = "SQS_QUEUE_URL", value = var.sqs_url }]
+        [
+          { name = "SQS_QUEUE_URL", value = var.sqs_url },
+          { name = "CATALOGO_SERVICE_URL", value = var.catalogo_service_url }
+        ]
       ),
       healthCheck = {
         command     = ["CMD-SHELL", "curl -f http://localhost:${var.bff_app_port}/health || exit 1"],

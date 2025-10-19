@@ -4,3 +4,4 @@ python-dotenv>=1.0
 gunicorn>=21.2
 requests>=2.31.0
 flasgger>=0.9.7
+aiohttp>=3.9.1
