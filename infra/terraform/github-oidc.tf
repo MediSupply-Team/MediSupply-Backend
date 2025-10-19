@@ -64,8 +64,8 @@ resource "aws_iam_policy" "github_actions_passrole" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = "iam:PassRole"
+        Effect   = "Allow"
+        Action   = "iam:PassRole"
         Resource = "arn:aws:iam::217466752988:role/medisupply-*"
         Condition = {
           StringEquals = {

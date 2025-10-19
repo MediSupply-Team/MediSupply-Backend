@@ -166,14 +166,14 @@ output "catalogo_service_url" {
 output "quick_reference" {
   description = "Quick reference commands"
   value = {
-    bff_url         = "http://${module.bff_venta.alb_dns_name}"
+    bff_url              = "http://${module.bff_venta.alb_dns_name}"
     catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
-    catalogo_ecr    = module.catalogo_service.ecr_repository_url
-    catalogo_queue  = module.catalogo_service.sqs_queue_url
-    connect_to_db   = "export PGPASSWORD=$(aws secretsmanager get-secret-value --secret-id ${aws_secretsmanager_secret.db_password.name} --query SecretString --output text) && psql -h ${aws_db_instance.postgres.address} -U ${aws_db_instance.postgres.username} -d ${aws_db_instance.postgres.db_name}"
-    catalogo_db     = "aws secretsmanager get-secret-value --secret-id ${module.catalogo_service.db_credentials_secret_arn}"
-    view_logs       = "aws logs tail /ecs/${var.project}-${var.env} --follow"
-    catalogo_logs   = "aws logs tail ${module.catalogo_service.cloudwatch_log_group_name} --follow"
+    catalogo_ecr         = module.catalogo_service.ecr_repository_url
+    catalogo_queue       = module.catalogo_service.sqs_queue_url
+    connect_to_db        = "export PGPASSWORD=$(aws secretsmanager get-secret-value --secret-id ${aws_secretsmanager_secret.db_password.name} --query SecretString --output text) && psql -h ${aws_db_instance.postgres.address} -U ${aws_db_instance.postgres.username} -d ${aws_db_instance.postgres.db_name}"
+    catalogo_db          = "aws secretsmanager get-secret-value --secret-id ${module.catalogo_service.db_credentials_secret_arn}"
+    view_logs            = "aws logs tail /ecs/${var.project}-${var.env} --follow"
+    catalogo_logs        = "aws logs tail ${module.catalogo_service.cloudwatch_log_group_name} --follow"
   }
 }
 

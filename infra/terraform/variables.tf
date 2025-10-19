@@ -134,7 +134,7 @@ variable "catalogo_service_url" {
 variable "additional_tags" {
   description = "Tags adicionales para recursos"
   type        = map(string)
-  default     = {
+  default = {
     Owner = "MediSupply-Team"
   }
 }
