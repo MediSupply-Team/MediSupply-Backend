@@ -337,7 +337,73 @@ module "bff_venta" {
   sqs_arn = module.consumer.sqs_queue_arn # ← AGREGAR ESTA LÍNEA
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
+  
+  # Catalogo service will be accessible through the same ALB on /catalog path  
+  catalogo_service_url = var.catalogo_service_url
 }
+
+# ============================================================
+# MICROSERVICES MODULES
+# ============================================================
+
+# Catalogo Service
+module "catalogo_service" {
+  source = "./modules/catalogo-service"
+
+  project = var.project
+  env     = var.env
+
+  vpc_id          = module.vpc.vpc_id
+  private_subnets = module.vpc.private_subnets
+  public_subnets  = module.vpc.public_subnets
+
+  ecs_cluster_name = aws_ecs_cluster.orders.name
+  alb_listener_arn = module.bff_venta.alb_listener_arn
+
+  # Container configuration
+  container_port = var.catalogo_container_port
+  desired_count  = var.catalogo_desired_count
+  cpu           = var.catalogo_cpu
+  memory        = var.catalogo_memory
+
+  # Database configuration
+  db_instance_class         = var.catalogo_db_instance_class
+  db_allocated_storage      = var.catalogo_db_allocated_storage
+  db_backup_retention_days  = var.catalogo_db_backup_retention_days
+
+  # Additional tags
+  additional_tags = var.additional_tags
+}
+
+# ============================================================
+# BFF-CATALOGO MODULE
+# ============================================================
+# ============================================================
+# BFF-CATALOGO MODULE - DISABLED (using integrated catalogo in bff-venta)
+# ============================================================
+# module "bff_catalogo" {
+#   source = "./modules/bff-catalogo"
+
+#   project    = var.project
+#   env        = var.env
+#   aws_region = var.aws_region
+
+#   vpc_id          = module.vpc.vpc_id
+#   private_subnets = module.vpc.private_subnets
+#   public_subnets  = module.vpc.public_subnets
+
+#   ecs_cluster_name = aws_ecs_cluster.orders.name
+
+#   # BFF Configuration
+#   bff_port       = 3000
+#   bff_cpu        = "256"
+#   bff_memory     = "512"
+#   desired_count  = 1
+#   image_tag      = var.bff_catalogo_image_tag
+
+#   # URL interna del catalogo-service a través del ALB
+#   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
+# }
 
 # Rutas Service
 module "rutas_service" {
