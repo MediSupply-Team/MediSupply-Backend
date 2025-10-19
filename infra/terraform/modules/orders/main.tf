@@ -29,6 +29,33 @@ resource "aws_iam_role" "task_exec_role" {
   tags               = { Project = var.project, Env = var.env }
 }
 
+# Policy para leer el secret de la DB
+resource "aws_iam_policy" "secrets_policy" {
+  name = "${var.project}-${var.env}-orders-secrets-policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = [
+          var.db_url_secret_arn
+        ]
+      }
+    ]
+  })
+
+  tags = { Project = var.project, Env = var.env }
+}
+
+resource "aws_iam_role_policy_attachment" "exec_secrets_attach" {
+  role       = aws_iam_role.task_exec_role.name
+  policy_arn = aws_iam_policy.secrets_policy.arn
+}
+
 resource "aws_iam_role_policy_attachment" "exec_ecr" {
   role       = aws_iam_role.task_exec_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
