@@ -38,9 +38,9 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
            # Cuenta compartida (dev team): 838693051133
-          # role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
+          role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
           # Cuenta personal Sergio: 217466752988 (para desarrollo independiente)
-          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
+          #role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
 
           aws-region: ${{ env.AWS_REGION }}
 
