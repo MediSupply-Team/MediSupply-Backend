@@ -146,6 +146,39 @@ output "bff_cliente_service_name" {
 }
 
 # ============================================================
+# CLIENTE SERVICE OUTPUTS
+# ============================================================
+output "cliente_service_alb_dns" {
+  description = "Cliente service ALB DNS name"
+  value       = module.cliente_service.alb_dns_name
+}
+
+output "cliente_service_alb_url" {
+  description = "Cliente service URL"
+  value       = module.cliente_service.alb_url
+}
+
+output "cliente_service_ecr_repo_url" {
+  description = "Cliente service ECR repo URL"
+  value       = module.cliente_service.ecr_repository_url
+}
+
+output "cliente_service_name" {
+  description = "Cliente service ECS service name"
+  value       = module.cliente_service.service_name
+}
+
+output "cliente_service_log_group" {
+  description = "Cliente service CloudWatch log group"
+  value       = module.cliente_service.cloudwatch_log_group_name
+}
+
+output "cliente_db_credentials_secret_arn" {
+  description = "Cliente service database credentials secret ARN"
+  value       = module.cliente_service.db_credentials_secret_arn
+}
+
+# ============================================================
 # CATALOGO SERVICE OUTPUTS
 # ============================================================
 output "catalogo_ecr_repository_url" {
