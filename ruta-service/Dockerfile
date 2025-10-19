@@ -1,4 +1,3 @@
-# -------- Base común --------
 FROM python:3.11-slim-bookworm AS base
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -9,9 +8,9 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 
 WORKDIR /app
 
-# Sistema mínimo: certificados
+# Instalar curl para health check
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates \
+ && apt-get install -y --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
 
 # Usuario no root
@@ -41,9 +40,9 @@ ENV ENV=production \
 EXPOSE 8000
 USER appuser
 
-# Health check
+# Health check usando curl
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD python -c "import requests; requests.get('http://localhost:8000/health', timeout=3).raise_for_status()" || exit 1
+  CMD curl -f http://localhost:8000/health || exit 1
 
 # Comando: crear DB → cargar seed → iniciar con workers
 CMD ["bash", "-c", "python create_rutas_db.py && python seed.py && uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers ${WORKERS}"]
