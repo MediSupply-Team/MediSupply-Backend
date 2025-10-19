@@ -56,7 +56,7 @@ async def create_order(
                 idem = IdempotencyRequest(key_hash=key_hash, body_hash=body_hash, status=IdemStatus.PENDING)
                 session.add(idem)
 
-            order = Order(customer_id=body.customer_id, created_by_role=body.created_by_role, source=body items=[i.model_dump() for i in body.items])
+            order = Order(customer_id=body.customer_id, created_by_role=body.created_by_role, source=body.source, items=[i.model_dump() for i in body.items])
             session.add(order)
             await session.flush()
 
