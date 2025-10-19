@@ -251,6 +251,28 @@ resource "aws_secretsmanager_secret_version" "db_password_v" {
 }
 
 # ============================================================
+# RUTAS DATABASE SECRETS
+# ============================================================
+
+resource "aws_secretsmanager_secret" "rutas_db_url" {
+  name                    = "${var.project}/${var.env}/rutas/DB_URL"
+  description             = "Database connection URL for Rutas service"
+  recovery_window_in_days = 7
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "rutas"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "rutas_db_url_v" {
+  secret_id = aws_secretsmanager_secret.rutas_db_url.id
+  # Usar el mismo usuario que orders
+  secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/rutas?sslmode=require"
+}
+
+# ============================================================
 # SERVICES MODULES
 # ============================================================
 
@@ -268,8 +290,8 @@ module "orders" {
   ecr_image         = var.ecr_image
   app_port          = var.app_port
   db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
-  
-  ecs_cluster_arn = aws_ecs_cluster.orders.arn  # ← AGREGAR
+
+  ecs_cluster_arn = aws_ecs_cluster.orders.arn # ← AGREGAR
 }
 
 # Consumer (SQS + Worker)
@@ -285,8 +307,8 @@ module "consumer" {
 
   use_haproxy      = var.use_haproxy
   bff_alb_dns_name = module.bff_venta.alb_dns_name
-  
-  ecs_cluster_arn = aws_ecs_cluster.orders.arn  # ← AGREGAR
+
+  ecs_cluster_arn = aws_ecs_cluster.orders.arn # ← AGREGAR
 }
 
 # BFF Venta
@@ -304,11 +326,16 @@ module "bff_venta" {
   bff_name      = var.bff_name
   bff_app_port  = var.bff_app_port
   bff_repo_name = var.bff_repo_name
-  bff_env       = var.bff_env
+  bff_env = merge(
+    var.bff_env,
+    {
+      RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"  # ← ESTO
+    }
+  )
 
-  sqs_url         = module.consumer.sqs_queue_url
-  sqs_arn         = module.consumer.sqs_queue_arn    # ← AGREGAR ESTA LÍNEA
-  
+  sqs_url = module.consumer.sqs_queue_url
+  sqs_arn = module.consumer.sqs_queue_arn # ← AGREGAR ESTA LÍNEA
+
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
   
   # Catalogo service will be accessible through the same ALB on /catalog path  
@@ -377,3 +404,29 @@ module "catalogo_service" {
 #   # URL interna del catalogo-service a través del ALB
 #   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
 # }
+
+# Rutas Service
+module "rutas_service" {
+  source = "./modules/rutas_service"
+
+  project    = var.project
+  env        = var.env
+  aws_region = var.aws_region
+
+  service_name = "rutas"
+
+  vpc_id          = module.vpc.vpc_id
+  public_subnets  = module.vpc.public_subnets
+  private_subnets = module.vpc.private_subnets
+
+  ecs_cluster_arn   = aws_ecs_cluster.orders.arn
+  db_url_secret_arn = aws_secretsmanager_secret.rutas_db_url.arn
+
+  app_port      = 8000
+  image_tag     = "latest"
+  desired_count = 1
+  cpu           = "512"
+  memory        = "1024"
+
+  health_check_path = "/health"
+}

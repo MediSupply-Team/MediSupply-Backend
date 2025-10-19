@@ -19,3 +19,6 @@ class Config:
     CATALOGO_SERVICE_URL = os.getenv("CATALOGO_SERVICE_URL", 
         "http://catalogo-service-placeholder.us-east-1.elb.amazonaws.com")
     HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "30"))
+
+     # Rutas Service Configuration
+    RUTAS_SERVICE_URL = os.getenv("RUTAS_SERVICE_URL")
