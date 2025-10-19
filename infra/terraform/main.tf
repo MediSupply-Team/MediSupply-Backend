@@ -251,6 +251,51 @@ resource "aws_secretsmanager_secret_version" "db_password_v" {
 }
 
 # ============================================================
+# RUTAS DATABASE SECRETS
+# ============================================================
+
+resource "random_password" "rutas_db_password" {
+  length           = 24
+  special          = true
+  override_special = "-_."
+}
+
+resource "aws_secretsmanager_secret" "rutas_db_url" {
+  name                    = "${var.project}/${var.env}/rutas/DB_URL"
+  description             = "Database connection URL for Rutas service"
+  recovery_window_in_days = 7
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "rutas"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "rutas_db_url_v" {
+  secret_id = aws_secretsmanager_secret.rutas_db_url.id
+  # Misma instancia RDS, diferente base de datos
+  secret_string = "postgresql://rutas_user:${urlencode(random_password.rutas_db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/rutas"
+}
+
+resource "aws_secretsmanager_secret" "rutas_db_password" {
+  name                    = "${var.project}/${var.env}/rutas/DB_PASSWORD"
+  description             = "PostgreSQL password for rutas user"
+  recovery_window_in_days = 7
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "rutas"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "rutas_db_password_v" {
+  secret_id     = aws_secretsmanager_secret.rutas_db_password.id
+  secret_string = random_password.rutas_db_password.result
+}
+
+# ============================================================
 # SERVICES MODULES
 # ============================================================
 
@@ -331,12 +376,9 @@ module "rutas_service" {
   public_subnets  = module.vpc.public_subnets
   private_subnets = module.vpc.private_subnets
 
-  ecs_cluster_arn = aws_ecs_cluster.orders.arn
+  ecs_cluster_arn   = aws_ecs_cluster.orders.arn
+  db_url_secret_arn = aws_secretsmanager_secret.rutas_db_url.arn
 
-  # Usa la misma DB que orders (o crea una nueva si necesitas)
-  db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
-
-  # Configuración del servicio
   app_port      = 8000
   image_tag     = "latest"
   desired_count = 1
