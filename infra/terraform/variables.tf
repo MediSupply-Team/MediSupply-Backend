@@ -70,3 +70,71 @@ variable "app_port" {
   type        = number
   default     = 3000
 }
+
+# ============================================================
+# CATALOGO SERVICE VARIABLES
+# ============================================================
+
+variable "catalogo_container_port" {
+  description = "Puerto del contenedor catalogo-service"
+  type        = number
+  default     = 8000
+}
+
+variable "catalogo_desired_count" {
+  description = "Número deseado de tareas ECS para catalogo-service"
+  type        = number
+  default     = 2
+}
+
+variable "catalogo_cpu" {
+  description = "CPU allocation para catalogo-service"
+  type        = number
+  default     = 256
+}
+
+variable "catalogo_memory" {
+  description = "Memory allocation para catalogo-service (MB)"
+  type        = number
+  default     = 512
+}
+
+variable "catalogo_db_instance_class" {
+  description = "Clase de instancia RDS para catalogo-service"
+  type        = string
+  default     = "db.t3.micro"
+}
+
+variable "catalogo_db_allocated_storage" {
+  description = "Almacenamiento inicial DB catalogo-service (GB)"
+  type        = number
+  default     = 20
+}
+
+variable "catalogo_db_backup_retention_days" {
+  description = "Días retención backups catalogo-service"
+  type        = number
+  default     = 7
+}
+
+# ============================================================
+# BFF Venta - Catalogo Service Integration
+# ============================================================
+
+variable "catalogo_service_url" {
+  description = "URL del catalogo service para el BFF venta"
+  type        = string
+  default     = "placeholder-will-be-updated-after-deploy"
+}
+
+# ============================================================
+# SHARED VARIABLES
+# ============================================================
+
+variable "additional_tags" {
+  description = "Tags adicionales para recursos"
+  type        = map(string)
+  default     = {
+    Owner = "MediSupply-Team"
+  }
+}
