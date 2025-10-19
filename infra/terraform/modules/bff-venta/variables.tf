@@ -18,3 +18,8 @@ variable "sqs_arn" {
   description = "SQS Queue ARN"
   type        = string
 }
+
+variable "catalogo_service_url" {
+  description = "URL of the catalogo service (internal ALB)"
+  type        = string
+}
