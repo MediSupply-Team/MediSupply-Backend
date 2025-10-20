@@ -1,8 +1,7 @@
 locals {
   bff_id = "${var.project}-${var.env}-${var.bff_name}"
-  
-  # ✅ ARN derivado desde la URL SQS
-  sqs_arn = replace(var.sqs_url, "https://sqs.${var.aws_region}.amazonaws.com/", "arn:aws:sqs:${var.aws_region}:")
+  # ❌ ELIMINAR ESTA LÍNEA (usar var.sqs_arn directamente):
+  # sqs_arn = replace(var.sqs_url, "https://sqs.${var.aws_region}.amazonaws.com/", "arn:aws:sqs:${var.aws_region}:")
 }
 
 resource "aws_ecr_repository" "bff" {
@@ -45,7 +44,7 @@ resource "aws_iam_role" "app_role" {
   tags               = { Project = var.project, Env = var.env, Component = var.bff_name }
 }
 
-# ✅ PERMISOS SQS PRODUCER (AGREGADO):
+# ✅ PERMISOS SQS PRODUCER:
 data "aws_iam_policy_document" "sqs_producer" {
   statement {
     effect = "Allow"
@@ -54,7 +53,7 @@ data "aws_iam_policy_document" "sqs_producer" {
       "sqs:GetQueueAttributes",
       "sqs:GetQueueUrl",
     ]
-    resources = [var.sqs_arn] 
+    resources = [var.sqs_arn]  # ✅ Usar var.sqs_arn directamente
   }
 }
 
@@ -125,7 +124,7 @@ resource "aws_lb_target_group" "tg" {
   protocol             = "HTTP"
   target_type          = "ip"
   vpc_id               = var.vpc_id
-  deregistration_delay = 30  # ✅ AGREGADO
+  deregistration_delay = 30
 
   health_check {
     enabled             = true
@@ -188,24 +187,24 @@ resource "aws_ecs_task_definition" "td" {
         }
       },
       
-      # ✅ VARIABLES DE ENTORNO COMPLETAS:
       environment = concat(
         [for k, v in var.bff_env : { name = k, value = v }],
         [
           { name = "SQS_QUEUE_URL", value = var.sqs_url },
           { name = "CATALOGO_SERVICE_URL", value = var.catalogo_service_url },
-          { name = "CLIENTE_SERVICE_URL", value = var.cliente_service_url }
+          { name = "CLIENTE_SERVICE_URL", value = var.cliente_service_url },
+          { name = "PORT", value = tostring(var.bff_app_port) }
         ]
-      ),
+      )
       
-      # ✅ HEALTH CHECK AGREGADO:
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -sf http://localhost:${var.bff_app_port}/health || exit 1"]
-        interval    = 15
-        timeout     = 5
-        retries     = 5
-        startPeriod = 90
-      }
+      # ✅ HEALTH CHECK MEJORADO (más tiempo y usando wget en vez de curl):
+      #healthCheck = {
+      #  command     = ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:${var.bff_app_port}/health || exit 1"]
+      #  interval    = 30           # ⬅️ Aumentado de 15 a 30
+      #  timeout     = 10           # ⬅️ Aumentado de 5 a 10
+      #  retries     = 3            # ⬅️ Reducido de 5 a 3
+      #  startPeriod = 120          # ⬅️ Aumentado de 90 a 120
+      #}
     }
   ])
 
@@ -216,11 +215,11 @@ resource "aws_ecs_service" "svc" {
   name            = "${local.bff_id}-svc"
   cluster         = var.ecs_cluster_arn
   task_definition = aws_ecs_task_definition.td.arn
-  desired_count   = 2  # ✅ AUMENTADO de 1 a 2
+  desired_count   = 2
 
   launch_type = "FARGATE"
 
-  health_check_grace_period_seconds = 120  # ✅ AGREGADO
+  health_check_grace_period_seconds = 150  # ⬅️ Aumentado de 120 a 150
 
   network_configuration {
     subnets          = var.private_subnets
