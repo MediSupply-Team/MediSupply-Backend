@@ -17,7 +17,7 @@ async def _count(session, model):
 async def test_orders_replay_done_returns_cached_and_no_side_effects(
     client, test_session, override_db, monkeypatch
 ):
-    body = {"customer_id": "C-REPLAY", "items": [{"sku": "X1", "qty": 1}]}
+    body = {"customer_id": "C-REPLAY", "items": [{"sku": "X1", "qty": 1, "created_by_role": "seller", "source": "bff-cliente"}]}
 
     # usa un key único para este test (o cambia el sufijo)
     idem_key = "00000000-0000-0000-0000-00000000D0NE-1"
