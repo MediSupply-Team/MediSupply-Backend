@@ -161,26 +161,150 @@ services:
       gunicorn -b 0.0.0.0:8000 wsgi:app
     restart: unless-stopped
 
+# ---------- BFF Cliente (dev contra servicios reales) ----------
   bff-cliente:
     build:
       context: ./bff-cliente
       dockerfile: Dockerfile
     container_name: bff-cliente
     ports:
-      - "8001:8000"
+      - "8002:8001"  # ⬅️ Puerto externo 8002
     environment:
+      PORT: "8001"
+      FLASK_ENV: ${FLASK_ENV:-development}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      SQS_QUEUE_URL: ${SQS_QUEUE_URL}   # lo tomará de tu entorno/archivo .env
-      # Si tu BFF necesita alguna URL del Orders local detrás de HAProxy, algo tipo:
-      # ORDERS_BASE_URL: http://haproxy:8080
+      SQS_QUEUE_URL: ${SQS_QUEUE_URL}   # ⬅️ Cola SQS real de AWS
+      
+      # ⬅️ URLs de servicios internos (local)
+      CLIENTE_SERVICE_URL: http://cliente-service:8000
+      CATALOGO_SERVICE_URL: http://catalog-service:8080
+      
+      # O si prefieres apuntar a los servicios en AWS:
+      # CLIENTE_SERVICE_URL: http://internal-medisupply-dev-cliente-alb-2066104303.us-east-1.elb.amazonaws.com
+      # CATALOGO_SERVICE_URL: http://medisupply-dev-bff-venta-alb-1773752444.us-east-1.elb.amazonaws.com/catalog
     volumes:
+      - ./bff-cliente:/app
       # Credenciales de AWS (Windows):
       - ${USERPROFILE}/.aws:/root/.aws:ro
-      # En Mac/Linux sería: - ~/.aws:/root/.aws:ro
-    command: >
-      gunicorn -b 0.0.0.0:8000 wsgi:app
+      # En Mac/Linux: - ~/.aws:/root/.aws:ro
+    command: gunicorn wsgi:app --bind 0.0.0.0:8001 --workers 2 --threads 4 --access-logfile - --error-logfile - --log-level info
     restart: unless-stopped
+
+# ---------- Catálogo ----------
+  catalog-db:
+    image: postgres:16-alpine
+    container_name: catalog-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-catalog_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-catalog_pass}
+      POSTGRES_DB: catalogo
+    ports:
+      - "5433:5432"
+    volumes:
+      - catalog_pgdata:/var/lib/postgresql/data
+      - ./catalogo-service/data/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-catalog_user} -d catalogo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  db-init-catalog:
+    image: python:3.11-slim-bookworm
+    depends_on:
+      catalog-db: { condition: service_healthy }
+    environment:
+      PGHOST: catalog-db
+      POSTGRES_USER: ${POSTGRES_USER:-catalog_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-catalog_pass}
+      TARGET_DB: catalogo
+    volumes:
+      - ./catalogo-service/app/create_catalogo_db.py:/app/create_catalogo_db.py:ro
+    working_dir: /app
+    command: >
+      bash -lc "pip install -q 'psycopg[binary]>=3.1,<4' && python create_catalogo_db.py"
+    restart: "no"
+
+  catalog-service:
+    build:
+      context: ./catalogo-service
+      dockerfile: Dockerfile
+    container_name: catalog-service
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-catalog_user}:${POSTGRES_PASSWORD:-catalog_pass}@catalog-db:5432/catalogo
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis}@redis:6379/1
+    working_dir: /app
+    depends_on:
+      catalog-db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      db-init-catalog: { condition: service_completed_successfully }
+    ports: ["3001:8080"]
+    volumes:
+      - ./catalogo-service:/app
+
+  # ---------- Cliente ----------
+  cliente-db:
+    image: postgres:16-alpine
+    container_name: cliente-db
+    environment:
+      POSTGRES_DB: cliente_db
+      POSTGRES_USER: cliente_user
+      POSTGRES_PASSWORD: cliente_pass
+    ports:
+      - "5435:5432"
+    volumes:
+      - cliente_pgdata:/var/lib/postgresql/data
+      - ./cliente-service/data/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cliente_user -d cliente_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  db-init-cliente:
+    image: python:3.11-slim
+    depends_on:
+      cliente-db: { condition: service_healthy }
+    environment:
+      PGHOST: cliente-db
+      POSTGRES_USER: cliente_user
+      POSTGRES_PASSWORD: cliente_pass
+      TARGET_DB: cliente_db
+    volumes:
+      - ./cliente-service/app/create_cliente_db.py:/app/create_cliente_db.py:ro
+    working_dir: /app
+    command: >
+      bash -lc "pip install -q 'psycopg[binary]>=3.1,<4' && python create_cliente_db.py"
+    restart: "no"
+
+  cliente-service:
+    build:
+      context: ./cliente-service
+      dockerfile: Dockerfile
+    container_name: cliente-service
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cliente_user:cliente_pass@cliente-db:5432/cliente_db
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis}@redis:6379/2
+      SLA_MAX_RESPONSE_MS: 2000
+      LOG_LEVEL: INFO
+      DEBUG: "false"
+      ORDERS_SERVICE_URL: http://orders-service:${PORT:-3000}
+      CATALOGO_SERVICE_URL: http://catalog-service:8080
+      ALLOWED_ORIGINS: "*"
+      ALLOWED_METHODS: "*"
+      ALLOWED_HEADERS: "*"
+    working_dir: /app
+    depends_on:
+      cliente-db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      db-init-cliente: { condition: service_completed_successfully }
+    ports: ["3003:8000"]
+    volumes:
+      - ./cliente-service:/app
 
 volumes:
   pgdata:
   redis_data:
+  catalog_pgdata: {}
+  cliente_pgdata: {}

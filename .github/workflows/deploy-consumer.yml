@@ -1,0 +1,74 @@
+name: Deploy Consumer (SQS → HTTP)
+
+on:
+  push:
+    branches: [ develop ]
+    paths:
+      - 'consumer-lb/**'
+      - '.github/workflows/deploy-consumer.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: medisupply-dev-haproxy-consumer
+  ECS_CLUSTER: orders-cluster
+  ECS_SERVICE: medisupply-dev-haproxy-consumer-svc
+  TASK_DEFINITION_NAME: medisupply-dev-haproxy-consumer
+  CONTAINER_NAME: haproxy          # <- si mantienes el nombre actual; mejor cámbialo a "consumer"
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions: { id-token: write, contents: read }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        working-directory: ./consumer-lb
+        run: |
+          IMAGE_URI=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+          docker build -t "${IMAGE_URI}" -f app/consumer/Dockerfile .
+          docker tag "${IMAGE_URI}" ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+          docker push "${IMAGE_URI}"
+          docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+          echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
+
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.TASK_DEFINITION_NAME }} \
+            --query 'taskDefinition' > task-definition.json
+
+      - id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Post-deploy status
+        run: |
+          aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --query "services[0].{status:status,desired:desiredCount,running:runningCount,taskDef:taskDefinition}" \
+            --output table

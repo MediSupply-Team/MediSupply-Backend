@@ -37,8 +37,8 @@ services:
     depends_on:
       redis: { condition: service_healthy }
       # Si activas el perfil localdb, orders-db será requerido:
-      orders-db:
-        condition: service_healthy
+      #orders-db:
+      #  condition: service_healthy
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     healthcheck:
@@ -48,7 +48,7 @@ services:
       timeout: 3s
       retries: 30
     restart: unless-stopped
-    profiles: ["${APP_PROFILE:-dev}"]
+    #profiles: ["${APP_PROFILE:-dev}"]
 
   # Base de datos local de Orders (opcional para dev). Activa con: COMPOSE_PROFILES=localdb
   orders-db:
@@ -209,7 +209,7 @@ services:
         source: ./cliente-service
         target: /app
 
-  # ---------- Rutas (tu backend extra) ----------
+# ---------- Rutas (tu backend extra) ----------
   backend:
     build:
       context: ./ruta-service
@@ -219,7 +219,7 @@ services:
     depends_on:
       - cliente-db
     ports:
-      - "8001:8000"
+      - "8003:8000"  # ⬅️ CAMBIAR de 8001 a 8003
     volumes:
       - ./ruta-service:/app
 
@@ -261,6 +261,35 @@ services:
     depends_on:
       haproxy: { condition: service_healthy }
     restart: unless-stopped
+
+# ---------- BFF Cliente ----------
+  bff-cliente:
+    build:
+      context: ./bff-cliente
+      dockerfile: Dockerfile
+    container_name: bff-cliente
+    ports:
+      - "8002:8001"  # ⬅️ Puerto 8002 externo para no chocar con bff-venta
+    environment:
+      PORT: "8001"
+      FLASK_ENV: ${FLASK_ENV:-development}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      SQS_QUEUE_URL: ${SQS_QUEUE_URL}
+      # Servicios internos (usando nombres de contenedor)
+      CLIENTE_SERVICE_URL: http://cliente-service:8000
+      CATALOGO_SERVICE_URL: http://catalog-service:8080
+      ORDERS_SERVICE_URL: http://orders-service:${PORT:-8000}
+    volumes:
+      - ./bff-cliente:/app
+      - ~/.aws:/root/.aws:ro  # Credenciales AWS (Linux/Mac)
+      # En Windows usa: - ${USERPROFILE}/.aws:/root/.aws:ro
+    depends_on:
+      cliente-service: { condition: service_started }
+      catalog-service: { condition: service_started }
+      redis: { condition: service_healthy }
+    command: gunicorn wsgi:app --bind 0.0.0.0:8001 --workers 2 --threads 4 --access-logfile - --error-logfile - --log-level info
+    restart: unless-stopped
+    profiles: ["${APP_PROFILE:-dev}"]
 
 volumes:
   pgdata:
