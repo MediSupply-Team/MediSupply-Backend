@@ -14,7 +14,7 @@ async def test_orders_conflict_same_key_different_payload_returns_409(
     idem_key = "00000000-0000-0000-0000-00000000C0NF-1"
     key_hash = _sha256(idem_key)
 
-    original_body = {"customer_id": "C-ONE", "items": [{"sku": "A", "qty": 1, "created_by_role": "seller", "source": "bff-cliente"}]}
+    original_body = {"customer_id": "C-ONE", "items": [{"sku": "A", "qty": 1}], "created_by_role": "seller", "source": "bff-cliente"}
     original_req = CreateOrderRequest(**original_body)
     original_hash = _sha256(original_req.model_dump_json())
 
