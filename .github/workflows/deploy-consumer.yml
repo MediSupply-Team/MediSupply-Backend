@@ -39,7 +39,7 @@ jobs:
         working-directory: ./consumer-lb
         run: |
           IMAGE_URI=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
-          docker build -t "${IMAGE_URI}" -f app/consumer/Dockerfile .
+          docker build -t "${IMAGE_URI}" .
           docker tag "${IMAGE_URI}" ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
           docker push "${IMAGE_URI}"
           docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
