@@ -58,6 +58,17 @@ module "vpc" {
   }
 }
 
+# Namespace privado para Service Connect / Cloud Map (mismo VPC)
+resource "aws_service_discovery_private_dns_namespace" "svc" {
+  name        = "svc.local"
+  description = "Service Connect namespace"
+  vpc         = module.vpc.vpc_id
+  tags = {
+    Project = var.project
+    Env     = var.env
+  }
+}
+
 # ECS Cluster compartido
 resource "aws_ecs_cluster" "orders" {
   name = "orders-cluster"
@@ -88,12 +99,22 @@ resource "aws_security_group" "postgres_sg" {
   description = "Security group for Orders PostgreSQL RDS"
   vpc_id      = module.vpc.vpc_id
 
+  # Regla 1: Permitir desde Orders
   ingress {
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "TEMP: Allow PostgreSQL from anywhere"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [module.orders.security_group_id]
+    description     = "Allow PostgreSQL from Orders ECS tasks"
+  }
+
+  # Regla 2: Permitir desde Rutas
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [module.rutas_service.security_group_id]
+    description     = "Allow PostgreSQL from Rutas ECS tasks"
   }
 
   egress {
@@ -144,6 +165,10 @@ resource "aws_db_parameter_group" "postgres" {
   }
 }
 
+# ============================================================
+# IAM ROLES
+# ============================================================
+
 resource "aws_iam_role" "rds_monitoring" {
   name = "${var.project}-${var.env}-orders-rds-monitoring"
 
@@ -160,6 +185,74 @@ resource "aws_iam_role" "rds_monitoring" {
     Project = var.project
     Env     = var.env
   }
+}
+
+# Execution role: pull de ECR, logs a CloudWatch, etc.
+resource "aws_iam_role" "orders_exec" {
+  name = "${var.project}-${var.env}-orders-ecs-execution"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect    = "Allow",
+      Principal = { Service = "ecs-tasks.amazonaws.com" },
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+  }
+}
+
+# Politica administrada estándar para execution role (ECR + logs, etc.)
+resource "aws_iam_role_policy_attachment" "orders_exec_managed" {
+  role       = aws_iam_role.orders_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# Task role: permisos en tiempo de ejecucion de la app (minimos necesarios)
+resource "aws_iam_role" "orders_task" {
+  name = "${var.project}-${var.env}-orders-ecs-task"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect    = "Allow",
+      Principal = { Service = "ecs-tasks.amazonaws.com" },
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+  }
+}
+
+# Policy inline: lectura del secreto de DB especifico para EXECUTION ROLE
+resource "aws_iam_role_policy" "orders_exec_db_secret_read" {
+  name = "${var.project}-${var.env}-orders-exec-db-secret-read"
+  role = aws_iam_role.orders_exec.id # ← Nota: orders_EXEC no orders_task
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "AllowReadDbSecret",
+        Effect = "Allow",
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ],
+        Resource = [
+          aws_secretsmanager_secret.db_url.arn,
+          aws_secretsmanager_secret.db_password.arn
+        ]
+      }
+    ]
+  })
 }
 
 resource "aws_iam_role_policy_attachment" "rds_monitoring" {
@@ -276,7 +369,7 @@ resource "aws_secretsmanager_secret_version" "rutas_db_url_v" {
 # SERVICES MODULES
 # ============================================================
 
-# Orders Service
+# Orders Service (ECS + Service Connect)
 module "orders" {
   source = "./modules/orders"
 
@@ -287,11 +380,19 @@ module "orders" {
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
 
+  # Imagen ECR completa (repo:tag o repo@sha256:digest) — evita :latest
   ecr_image         = var.ecr_image
-  app_port          = var.app_port
+  app_port          = 3000
   db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
 
-  ecs_cluster_arn = aws_ecs_cluster.orders.arn # ← AGREGAR
+  ecs_cluster_arn = aws_ecs_cluster.orders.arn
+
+  # Service Connect namespace (reemplaza lo que antes apuntaba a module.networking)
+  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
+
+  # ARNs requeridos que faltaban
+  ecs_execution_role_arn = aws_iam_role.orders_exec.arn
+  ecs_task_role_arn      = aws_iam_role.orders_task.arn
 }
 
 # Consumer (SQS + Worker)
@@ -308,7 +409,11 @@ module "consumer" {
   use_haproxy      = var.use_haproxy
   bff_alb_dns_name = module.bff_venta.alb_dns_name
 
-  ecs_cluster_arn = aws_ecs_cluster.orders.arn # ← AGREGAR
+  # Cluster donde correrá el consumer
+  ecs_cluster_arn = aws_ecs_cluster.orders.arn
+
+  # Service Connect namespace - ESTA ES LA LÍNEA NUEVA
+  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
 }
 
 # BFF Venta
@@ -326,19 +431,21 @@ module "bff_venta" {
   bff_name      = var.bff_name
   bff_app_port  = var.bff_app_port
   bff_repo_name = var.bff_repo_name
+
   bff_env = merge(
     var.bff_env,
     {
-      RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}" # ← ESTO
+      RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"
     }
   )
 
+  # SQS (consumido por bff_venta)
   sqs_url = module.consumer.sqs_queue_url
-  sqs_arn = module.consumer.sqs_queue_arn # ← AGREGAR ESTA LÍNEA
+  sqs_arn = module.consumer.sqs_queue_arn
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Catalogo service will be accessible through the same ALB on /catalog path  
+  # Catalogo service será accesible por el mismo ALB en /catalog
   catalogo_service_url = var.catalogo_service_url
 }
 
@@ -381,19 +488,19 @@ module "bff_cliente" {
   bff_name      = "bff-cliente"
   bff_app_port  = 8001
   bff_repo_name = "${var.project}-${var.env}-bff-cliente"
-  
+
   bff_env = {
     FLASK_ENV = var.env
   }
 
-  # ✅ ECS Cluster
+  # ECS Cluster
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
-  
-  # ✅ SQS (para producir mensajes - AGREGADO)
+
+  # SQS (para producir mensajes)
   sqs_url = module.consumer.sqs_queue_url
   sqs_arn = module.consumer.sqs_queue_arn
-  
-  # ✅ Servicios backend (AGREGADOS)
+
+  # Servicios backend
   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
   cliente_service_url  = module.cliente_service.alb_url
 }

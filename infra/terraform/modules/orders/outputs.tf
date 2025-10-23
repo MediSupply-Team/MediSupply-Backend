@@ -17,3 +17,8 @@ output "log_group_name" {
   description = "CloudWatch log group name"
   value       = aws_cloudwatch_log_group.orders.name
 }
+
+output "security_group_id" {
+  description = "Security group ID for Orders ECS tasks"
+  value       = aws_security_group.ecs_sg.id
+}

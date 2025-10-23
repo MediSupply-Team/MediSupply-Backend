@@ -223,7 +223,7 @@ output "quick_reference" {
   description = "Quick reference commands"
   value = {
     bff_venta_url        = "http://${module.bff_venta.alb_dns_name}"
-    bff_cliente_url = "http://${module.bff_cliente.alb_dns_name}"
+    bff_cliente_url      = "http://${module.bff_cliente.alb_dns_name}"
     catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
     catalogo_ecr         = module.catalogo_service.ecr_repository_url
     catalogo_queue       = module.catalogo_service.sqs_queue_url

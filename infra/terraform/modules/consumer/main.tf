@@ -116,9 +116,11 @@ resource "aws_security_group" "sg" {
 
 locals {
   consumer_lb_target = var.use_haproxy ? "http://127.0.0.1/orders" : "http://${var.bff_alb_dns_name}/orders"
+  # URL para conectarse al servicio orders via Service Connect
+  orders_url = var.orders_service_url != "" ? var.orders_service_url : "http://orders:3000/orders"
 }
 
-# TaskDefinition: haproxy + worker
+# TaskDefinition: Condicional según use_haproxy
 resource "aws_ecs_task_definition" "td" {
   family                   = "${var.project}-${var.env}-haproxy-consumer"
   network_mode             = "awsvpc"
@@ -135,21 +137,6 @@ resource "aws_ecs_task_definition" "td" {
 
   container_definitions = jsonencode([
     {
-      name         = "haproxy",
-      image        = "${aws_ecr_repository.haproxy.repository_url}:latest",
-      essential    = true,
-      portMappings = [{ containerPort = 80, hostPort = 80, protocol = "tcp" }],
-      logConfiguration = {
-        logDriver = "awslogs",
-        options = {
-          awslogs-group         = aws_cloudwatch_log_group.lg.name,
-          awslogs-region        = var.aws_region,
-          awslogs-stream-prefix = "haproxy"
-        }
-      },
-      environment = [{ name = "AWS_REGION", value = var.aws_region }]
-    },
-    {
       name      = "worker",
       image     = "${aws_ecr_repository.worker.repository_url}:latest",
       essential = true,
@@ -164,7 +151,9 @@ resource "aws_ecs_task_definition" "td" {
       environment = [
         { name = "AWS_REGION", value = var.aws_region },
         { name = "SQS_QUEUE_URL", value = aws_sqs_queue.fifo.url },
-        { name = "LB_TARGET_URL", value = local.consumer_lb_target },
+        # Soporta tanto LB_TARGET_URL como TARGET_URL para compatibilidad
+        { name = "LB_TARGET_URL", value = local.orders_url },
+        { name = "TARGET_URL", value = local.orders_url },
         { name = "SQS_WAIT", value = "20" },
         { name = "SQS_BATCH", value = "10" },
         { name = "SQS_VISIBILITY", value = "60" },
@@ -176,6 +165,7 @@ resource "aws_ecs_task_definition" "td" {
   tags = { Project = var.project, Env = var.env }
 }
 
+# Service con Service Connect habilitado para poder resolver 'orders'
 resource "aws_ecs_service" "svc" {
   name            = "${var.project}-${var.env}-haproxy-consumer-svc"
   cluster         = var.ecs_cluster_arn
@@ -187,6 +177,13 @@ resource "aws_ecs_service" "svc" {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.sg.id]
     assign_public_ip = false
+  }
+
+  # CRITICO: Habilitar Service Connect para que pueda resolver 'orders'
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name
+    # Consumer solo es cliente, no expone servicios
   }
 
   deployment_minimum_healthy_percent = 50
