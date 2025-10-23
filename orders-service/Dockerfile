@@ -1,6 +1,6 @@
-﻿# ===========================
+﻿# =========================== 
 #   BASE COMÚN (Build stage)
-# ===========================
+# =========================== 
 FROM python:3.11-slim-bookworm AS base
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -24,9 +24,9 @@ RUN python -m pip install --upgrade pip setuptools wheel \
 
 COPY --chown=appuser:appuser . .
 
-# ===========================
+# =========================== 
 #   ENTORNO DE DESARROLLO
-# ===========================
+# =========================== 
 FROM base AS dev
 ENV ENVIRONMENT=development \
     LOG_LEVEL=debug \
@@ -36,9 +36,9 @@ EXPOSE 3000
 USER appuser
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3000", "--reload", "--log-level", "debug"]
 
-# ===========================
+# =========================== 
 #   ENTORNO DE PRODUCCIÓN
-# ===========================
+# =========================== 
 FROM base AS prod
 RUN pip install --no-cache-dir gunicorn
 
@@ -54,13 +54,6 @@ EXPOSE 3000
 USER appuser
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD python - <<'PY' || exit 1
-import sys, urllib.request
-try:
-    with urllib.request.urlopen("http://127.0.0.1:3000/health", timeout=3) as r:
-        sys.exit(0 if r.status == 200 else 1)
-except Exception:
-    sys.exit(1)
-PY
+  CMD python -c "import sys, urllib.request; r=urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3); sys.exit(0 if r.status==200 else 1)" || exit 1
 
 CMD ["bash", "-lc", "gunicorn -k uvicorn.workers.UvicornWorker -w ${WORKERS:-2} -b 0.0.0.0:${PORT} app.main:app --timeout ${TIMEOUT:-60} --keep-alive ${KEEPALIVE:-5} --access-logfile - --error-logfile -"]
