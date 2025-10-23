@@ -4,6 +4,12 @@ from app.config import settings
 from app.db import engine, Base
 
 app = FastAPI(title="MediSupply Catalog API")
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "catalogo-service"}
+
 app.include_router(catalog_router, prefix=settings.api_prefix)
 
 @app.on_event("startup")

@@ -3,14 +3,14 @@
 set -e
 
 echo "=================================================="
-echo "  DEPLOYING BFF-CLIENTE WITH CLIENT INTEGRATION"
+echo "    DEPLOYING CLIENTE-SERVICE TO AWS ECS"
 echo "=================================================="
 
 # Variables de configuración
 AWS_REGION="us-east-1"
-ECR_REPO_NAME="medisupply-dev-bff-cliente"
+ECR_REPO_NAME="medisupply-dev-cliente-service"
 ECS_CLUSTER="orders-cluster"
-ECS_SERVICE="medisupply-dev-bff-cliente-svc"
+ECS_SERVICE="medisupply-dev-cliente-service-svc"
 IMAGE_TAG="latest"
 
 # Colores para output
@@ -55,11 +55,11 @@ get_aws_account() {
 
 # Función para construir la imagen Docker
 build_image() {
-    echo_info "Construyendo imagen Docker para BFF-Cliente..."
+    echo_info "Construyendo imagen Docker para Cliente-Service..."
     
-    cd bff-cliente
+    cd cliente-service
     
-    # Construir la imagen
+    # Construir la imagen para arquitectura AMD64 (compatible con AWS ECS)
     docker build --platform linux/amd64 -t $ECR_REPO_NAME:$IMAGE_TAG .
     
     if [ $? -eq 0 ]; then
@@ -155,56 +155,32 @@ monitor_deployment() {
     
     if [ $? -eq 0 ]; then
         echo_success "Despliegue completado exitosamente"
-        
-        # Mostrar estado del servicio
-        echo_info "Estado final del servicio:"
-        aws ecs describe-services \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --region $AWS_REGION \
-            --query 'services[0].[serviceName,status,runningCount,desiredCount,deployments[0].status]' \
-            --output table
     else
-        echo_error "El despliegue falló o tardó demasiado tiempo"
+        echo_error "El despliegue falló o tomó demasiado tiempo"
         exit 1
     fi
 }
 
-# Función para verificar la salud del servicio
-health_check() {
-    echo_info "Verificando salud del servicio..."
+# Función para verificar el estado final
+check_deployment_status() {
+    echo_info "Verificando estado final del despliegue..."
     
-    # Obtener la URL del ALB (esto requiere que esté en los outputs de Terraform)
-    ALB_URL=$(aws elbv2 describe-load-balancers --region $AWS_REGION --query "LoadBalancers[?starts_with(LoadBalancerName, 'medisupply-dev-bff-cliente')].DNSName" --output text)
+    # Obtener información del servicio
+    aws ecs describe-services \
+        --cluster $ECS_CLUSTER \
+        --services $ECS_SERVICE \
+        --region $AWS_REGION \
+        --query 'services[0].[serviceName,status,runningCount,desiredCount]' \
+        --output table
     
-    if [ -n "$ALB_URL" ]; then
-        echo_info "Probando endpoint de salud: http://$ALB_URL/health"
-        
-        # Esperar un poco para que el servicio esté listo
-        sleep 30
-        
-        HEALTH_RESPONSE=$(curl -s -w "%{http_code}" http://$ALB_URL/health || echo "000")
-        
-        if [[ $HEALTH_RESPONSE == *"200"* ]]; then
-            echo_success "Health check exitoso - Servicio está funcionando"
-            echo_info "URL del BFF-Cliente: http://$ALB_URL"
-            echo_info "Documentación API: http://$ALB_URL/docs"
-        else
-            echo_error "Health check falló - HTTP Status: $HEALTH_RESPONSE"
-        fi
-    else
-        echo_info "No se pudo obtener la URL del ALB, pero el despliegue ECS fue exitoso"
-    fi
+    # Mostrar logs recientes
+    echo_info "Logs recientes del servicio:"
+    aws logs tail /ecs/medisupply-dev-cliente-service --since 2m --region $AWS_REGION --limit 10
 }
 
 # Función principal
 main() {
-    echo_info "Iniciando despliegue del BFF-Cliente..."
-    echo_info "Región: $AWS_REGION"
-    echo_info "ECR Repo: $ECR_REPO_NAME"
-    echo_info "ECS Cluster: $ECS_CLUSTER"
-    echo_info "ECS Service: $ECS_SERVICE"
-    echo ""
+    echo_info "Iniciando despliegue de Cliente-Service..."
     
     check_prerequisites
     build_image
@@ -212,12 +188,17 @@ main() {
     push_image
     update_ecs_service
     monitor_deployment
-    health_check
+    check_deployment_status
     
     echo ""
-    echo_success "¡Despliegue del BFF-Cliente completado exitosamente!"
-    echo_info "El servicio está listo para recibir peticiones"
+    echo_success "=================================================="
+    echo_success "   CLIENTE-SERVICE DESPLEGADO EXITOSAMENTE!"
+    echo_success "=================================================="
+    echo ""
+    echo_info "Endpoints disponibles:"
+    echo "  Health Check: http://internal-medisupply-dev-cliente-alb-2066104303.us-east-1.elb.amazonaws.com/api/health"
+    echo "  API Clients:  http://medisupply-dev-bff-cliente-alb-1141787956.us-east-1.elb.amazonaws.com/api/v1/client/"
 }
 
 # Ejecutar función principal
-main
+main "$@"

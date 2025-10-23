@@ -138,7 +138,7 @@ services:
       catalog-db: { condition: service_healthy }
       redis: { condition: service_healthy }
       db-init-catalog: { condition: service_completed_successfully }
-    ports: ["3001:8080"]
+    ports: ["3001:8000"]
     profiles: ["${APP_PROFILE:-dev}"]
     volumes:
       - type: bind
@@ -193,7 +193,7 @@ services:
       DEBUG: "false"
       # Usa nombres de servicio y puertos de contenedor:
       ORDERS_SERVICE_URL: http://orders-service:${PORT:-8000}
-      CATALOGO_SERVICE_URL: http://catalog-service:8080
+      CATALOGO_SERVICE_URL: http://catalog-service:8000
       ALLOWED_ORIGINS: "*"
       ALLOWED_METHODS: "*"
       ALLOWED_HEADERS: "*"
@@ -277,7 +277,7 @@ services:
       SQS_QUEUE_URL: ${SQS_QUEUE_URL}
       # Servicios internos (usando nombres de contenedor)
       CLIENTE_SERVICE_URL: http://cliente-service:8000
-      CATALOGO_SERVICE_URL: http://catalog-service:8080
+      CATALOGO_SERVICE_URL: http://catalog-service:8000
       ORDERS_SERVICE_URL: http://orders-service:${PORT:-8000}
     volumes:
       - ./bff-cliente:/app
@@ -288,6 +288,36 @@ services:
       catalog-service: { condition: service_started }
       redis: { condition: service_healthy }
     command: gunicorn wsgi:app --bind 0.0.0.0:8001 --workers 2 --threads 4 --access-logfile - --error-logfile - --log-level info
+    restart: unless-stopped
+    profiles: ["${APP_PROFILE:-dev}"]
+
+  # ---------- BFF Venta ----------
+  bff-venta:
+    build:
+      context: ./bff-venta
+      dockerfile: Dockerfile
+    container_name: bff-venta
+    ports:
+      - "8001:8000"  # Puerto 8001 externo
+    environment:
+      PORT: "8000"
+      FLASK_ENV: ${FLASK_ENV:-development}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      SQS_QUEUE_URL: ${SQS_QUEUE_URL}
+      # Servicios internos
+      CATALOGO_SERVICE_URL: http://catalog-service:8000
+      ORDERS_SERVICE_URL: http://orders-service:${PORT:-8000}
+      RUTAS_SERVICE_URL: http://backend:8000
+      HTTP_TIMEOUT: "30"
+      MESSAGE_GROUP_ID: "vendor-orders"
+      CONTENT_BASED_DEDUP: "true"
+    volumes:
+      - ./bff-venta:/app
+      - ~/.aws:/root/.aws:ro  # Credenciales AWS (Linux/Mac)
+    depends_on:
+      catalog-service: { condition: service_started }
+      redis: { condition: service_healthy }
+    command: gunicorn wsgi:app --bind 0.0.0.0:8000 --workers 2 --threads 4 --access-logfile - --error-logfile - --log-level info
     restart: unless-stopped
     profiles: ["${APP_PROFILE:-dev}"]
 

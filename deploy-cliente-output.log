@@ -1,0 +1,97 @@
+==================================================
+    DEPLOYING CLIENTE-SERVICE TO AWS ECS
+==================================================
+[1;33m[INFO][0m Iniciando despliegue de Cliente-Service...
+[1;33m[INFO][0m Verificando prerrequisitos...
+[0;32m[SUCCESS][0m Prerrequisitos OK
+[1;33m[INFO][0m Construyendo imagen Docker para Cliente-Service...
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.35kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.11-slim
+#2 DONE 0.6s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/8] FROM docker.io/library/python:3.11-slim@sha256:1738c75ae61595d2a9a5301d60a9a2f61abe7017005b3ccb660103d2476c6946
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 5.68kB done
+#5 DONE 0.0s
+
+#6 [3/8] WORKDIR /app
+#6 CACHED
+
+#7 [2/8] RUN apt-get update && apt-get install -y     gcc     postgresql-client     curl     && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [4/8] COPY requirements.txt .
+#8 CACHED
+
+#9 [5/8] RUN pip install --no-cache-dir -r requirements.txt
+#9 CACHED
+
+#10 [6/8] COPY . .
+#10 DONE 0.1s
+
+#11 [7/8] COPY entrypoint.sh /app/entrypoint.sh
+#11 DONE 0.0s
+
+#12 [8/8] RUN chmod +x /app/entrypoint.sh
+#12 DONE 0.2s
+
+#13 exporting to image
+#13 exporting layers 0.0s done
+#13 writing image sha256:61c72b6f7c934d31226beace0843507022e29b73fc45204e67d4d57e79110218 done
+#13 naming to docker.io/library/medisupply-dev-cliente-service:latest done
+#13 DONE 0.0s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/ins5vbkayiycx53uofubyfifu
+[0;32m[SUCCESS][0m Imagen construida exitosamente
+[1;33m[INFO][0m Haciendo login en ECR...
+Login Succeeded
+[0;32m[SUCCESS][0m Login en ECR exitoso
+[1;33m[INFO][0m Pusheando imagen a ECR...
+The push refers to repository [838693051133.dkr.ecr.us-east-1.amazonaws.com/medisupply-dev-cliente-service]
+c54aaa62a193: Preparing
+dcc8de903e44: Preparing
+1f5d6be525f2: Preparing
+d3d85fa62957: Preparing
+af1d69323be4: Preparing
+b42b4328d38e: Preparing
+a1efbfef730f: Preparing
+235e81929876: Preparing
+9ba402f61141: Preparing
+15eb6aec49b3: Preparing
+d7c97cb6f1fe: Preparing
+235e81929876: Waiting
+9ba402f61141: Waiting
+15eb6aec49b3: Waiting
+d7c97cb6f1fe: Waiting
+b42b4328d38e: Waiting
+a1efbfef730f: Waiting
+af1d69323be4: Layer already exists
+d3d85fa62957: Layer already exists
+a1efbfef730f: Layer already exists
+b42b4328d38e: Layer already exists
+9ba402f61141: Layer already exists
+235e81929876: Layer already exists
+15eb6aec49b3: Layer already exists
+d7c97cb6f1fe: Layer already exists
+dcc8de903e44: Pushed
+c54aaa62a193: Pushed
+1f5d6be525f2: Pushed
+latest: digest: sha256:dedecb018782569f9b22a42d40cd71db0efa5df12dd597cf798a25d8896ab6a8 size: 2619
+[0;32m[SUCCESS][0m Imagen pusheada exitosamente a 838693051133.dkr.ecr.us-east-1.amazonaws.com/medisupply-dev-cliente-service:latest
+[1;33m[INFO][0m Actualizando servicio ECS...
+[0;32m[SUCCESS][0m Servicio ECS actualizado, iniciando nuevo despliegue
+[1;33m[INFO][0m Monitoreando despliegue...
+Esperando que el despliegue se complete...
+
+Waiter ServicesStable failed: Max attempts exceeded

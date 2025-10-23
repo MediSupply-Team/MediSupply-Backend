@@ -278,6 +278,24 @@ resource "aws_iam_role" "catalogo_ecs_execution_role" {
     Project = var.project
     Env     = var.env
   }
+  }
+
+  # Permiso para acceder al secreto de la base de datos en Secrets Manager
+  resource "aws_iam_role_policy" "catalogo_ecs_execution_secrets_policy" {
+    name   = "catalogo-ecs-execution-secrets-policy"
+    role   = aws_iam_role.catalogo_ecs_execution_role.id
+    policy = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetSecretValue"
+          ]
+          Resource = aws_secretsmanager_secret.catalogo_db_credentials.arn
+        }
+      ]
+    })
 }
 
 resource "aws_iam_role_policy_attachment" "catalogo_ecs_execution_role_policy" {
@@ -363,7 +381,7 @@ resource "aws_secretsmanager_secret_version" "catalogo_db_credentials" {
     endpoint     = aws_db_instance.catalogo_postgres.endpoint
     port         = aws_db_instance.catalogo_postgres.port
     dbname       = aws_db_instance.catalogo_postgres.db_name
-    database_url = "postgresql://${aws_db_instance.catalogo_postgres.username}:${urlencode(random_password.catalogo_db_password.result)}@${aws_db_instance.catalogo_postgres.endpoint}:${aws_db_instance.catalogo_postgres.port}/${aws_db_instance.catalogo_postgres.db_name}"
+    database_url = "postgresql://${aws_db_instance.catalogo_postgres.username}:${urlencode(random_password.catalogo_db_password.result)}@${aws_db_instance.catalogo_postgres.address}:${aws_db_instance.catalogo_postgres.port}/${aws_db_instance.catalogo_postgres.db_name}"
   })
 }
 
