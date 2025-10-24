@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main", "develop" ]
     paths:
-      - "rutas/**"  # ✅ Cambiado a rutas
+      - "ruta-service/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-rutas.yml"
   workflow_dispatch:
     inputs:
@@ -16,7 +16,7 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: medisupply-dev-rutas          
-  ECS_CLUSTER: orders-cluster  # ✅ CORREGIDO
+  ECS_CLUSTER: orders-cluster  # ✅ ÚNICO CAMBIO NECESARIO
   ECS_SERVICE: medisupply-dev-rutas-svc          
   CONTAINER_NAME: rutas                           
   IMAGE_TAG: ${{ github.sha }}
@@ -49,7 +49,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
-        working-directory: ./rutas  # ✅ Cambiado a rutas
+        working-directory: ./ruta-service
         run: |
           IMAGE_URI=${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}
           docker build -t "${IMAGE_URI}" .
