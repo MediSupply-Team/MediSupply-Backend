@@ -278,7 +278,7 @@ class ClienteRepository:
                 "frecuencia_compra": stats.frecuencia_compra,
                 "cantidad_total": stats.cantidad_total,
                 "cantidad_promedio": float(stats.cantidad_promedio or 0),
-                "ultima_compra": stats.ultima_compra.isoformat(),
+                "ultima_compra": stats.ultima_compra,
                 "meses_desde_ultima_compra": meses_desde_ultima,
                 "updated_at": None  # Campo opcional
             })
@@ -331,8 +331,8 @@ class ClienteRepository:
             "promedio_orden": str(promedio_orden),
             "frecuencia_compra_mensual": round(frecuencia_mensual, 2),
             "tasa_devolucion": round(tasa_devolucion, 1),
-            "cliente_desde": primera_compra.isoformat(),
-            "ultima_compra": ultima_compra.isoformat()
+            "cliente_desde": primera_compra,
+            "ultima_compra": ultima_compra
         }
     
     async def registrar_consulta(
