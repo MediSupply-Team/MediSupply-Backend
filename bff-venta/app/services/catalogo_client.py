@@ -26,6 +26,7 @@ class CatalogoServiceClient:
             return await self._get_mock_response(endpoint, method, params, json_data)
         
         url = f"{self.base_url}{endpoint}"
+        print(f"🌐 REQUEST URL: {url}, params={params}", flush=True)
         
         try:
             async with aiohttp.ClientSession(timeout=self.timeout) as session:
@@ -35,6 +36,7 @@ class CatalogoServiceClient:
                     params=params,
                     json=json_data
                 ) as response:
+                    print(f"📡 ACTUAL REQUEST URL: {response.url}", flush=True)
                     
                     if response.status == 404:
                         return {"error": "Not found", "status": 404}
@@ -189,7 +191,8 @@ class CatalogoServiceClient:
         if q:
             params["q"] = q
         if categoria_id:
-            params["categoriaId"] = categoria_id  
+            params["categoriaId"] = categoria_id
+            print(f"🔍 CLIENT DEBUG: categoria_id={categoria_id} → params['categoriaId']={params['categoriaId']}", flush=True)
         if codigo:
             params["codigo"] = codigo
         if pais:
@@ -198,7 +201,8 @@ class CatalogoServiceClient:
             params["bodegaId"] = bodega_id
         if sort:
             params["sort"] = sort
-            
+        
+        print(f"🌐 CLIENT FINAL PARAMS: {params}", flush=True)    
         return await self._make_request("GET", "/api/catalog/items", params=params)
 
     async def get_item(self, item_id: str) -> Dict[str, Any]:

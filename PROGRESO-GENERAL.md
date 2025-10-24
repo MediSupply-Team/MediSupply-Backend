@@ -13,10 +13,10 @@
 | **FASE 2A** - Validar bff-venta | ✅ COMPLETADO | 100% | ~20 min |
 | **FASE 2B** - Validar bff-cliente | ✅ COMPLETADO | 100% | ~20 min |
 | **FASE 3** - Build imágenes AWS | ✅ COMPLETADO | 100% | ~3 min |
-| **FASE 4** - Terraform deploy | ⏳ PENDIENTE | 0% | ~15 min est. |
+| **FASE 4** - Terraform deploy | ✅ COMPLETADO | 100% | ~10 min |
 | **FASE 5** - CI/CD workflows | ⏳ PENDIENTE | 0% | ~30 min est. |
 
-**Progreso total:** 71% (5 de 7 fases completadas)
+**Progreso total:** 86% (6 de 7 fases completadas)
 
 ---
 
@@ -125,49 +125,47 @@
 
 ---
 
-## ⏳ FASES PENDIENTES
+### FASE 4: TERRAFORM - DESPLIEGUE EN AWS ✅
 
-### FASE 4: TERRAFORM - DESPLIEGUE EN AWS
+**Objetivo:** Desplegar servicios en AWS ECS con imágenes correctas  
+**Resultados:**
+- ✅ Login exitoso a AWS ECR
+- ✅ 4 imágenes pusheadas (catalogo, cliente, bff-cliente, bff-venta)
+- ✅ Terraform apply con 20 cambios (4 add, 13 change, 3 replace)
+- ✅ Todos los ECS services en estado ACTIVE
+- ✅ Health checks respondiendo correctamente
+- ✅ Datos pre-cargados funcionando en RDS
+- ✅ BFFs proxying correctamente
 
-**Objetivo:** Destruir y recrear infraestructura con imágenes correctas  
-**Tiempo estimado:** 15-20 minutos  
-**Complejidad:** Media
+**Servicios desplegados:**
+| Servicio | Tasks | Estado | Health Check |
+|----------|-------|--------|--------------|
+| catalogo-service | 2/2 | ACTIVE | ✅ Healthy |
+| cliente-service | 1/1 | ACTIVE | ✅ Healthy |
+| bff-cliente | 2/2 | ACTIVE | ✅ Healthy |
+| bff-venta | 2/2 | ACTIVE | ✅ Healthy |
 
-**Pasos:**
-1. ✅ **Autenticación ECR**
-   ```bash
-   aws ecr get-login-password --region us-east-1 | docker login ...
-   ```
+**URLs públicas:**
+- BFF-Venta: http://medisupply-dev-bff-venta-alb-607524362.us-east-1.elb.amazonaws.com
+- BFF-Cliente: http://medisupply-dev-bff-cliente-alb-1673122993.us-east-1.elb.amazonaws.com
 
-2. ⏳ **Tag y Push de imágenes a ECR**
-   - Tag: catalogo-service, cliente-service, bff-cliente, bff-venta
-   - Push a ECR
+**Verificaciones realizadas:**
+```bash
+# Health checks
+✅ BFF-Venta: {"status": "ok"}
+✅ BFF-Cliente: {"status": "ok"}
 
-3. ⏳ **Terraform Destroy**
-   ```bash
-   cd infra/terraform
-   terraform destroy -auto-approve
-   ```
+# Datos de prueba
+✅ Productos: Amoxicilina, Ibuprofeno, Acetaminofén
+✅ Clientes: Centro Médico, Droguería, Farmacia
+```
 
-4. ⏳ **Terraform Apply**
-   ```bash
-   terraform apply -auto-approve
-   ```
-
-5. ⏳ **Verificación post-despliegue**
-   - Health checks de ECS tasks
-   - Endpoints de ALBs funcionales
-   - Datos pre-cargados en RDS
-
-**Recursos AWS a verificar:**
-- ECR repositories
-- ECS clusters y services
-- RDS databases (catalogo, cliente)
-- ALB listeners y target groups
-- Secrets Manager
-- IAM roles y policies
+**Scripts:** `push-to-ecr.sh`, `check-ecs-services.sh`, `test-alb-endpoints.sh`  
+**Documento:** `RESUMEN-FASE-4.md`
 
 ---
+
+## ⏳ FASES PENDIENTES
 
 ### FASE 5: CI/CD - GITHUB WORKFLOWS
 

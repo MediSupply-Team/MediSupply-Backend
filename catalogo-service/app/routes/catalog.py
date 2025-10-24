@@ -21,10 +21,19 @@ async def list_items(
     sort: str | None = Query(None, pattern="^(relevancia|precio|cantidad|vencimiento)?$"),
     session = Depends(get_session)
 ):
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔍 RECIBIDO: q={q}, categoriaId={categoriaId}, codigo={codigo}, pais={pais}, bodegaId={bodegaId}")
+    
     started = time.perf_counter_ns()
     redis = await get_redis()
     key = search_key(q, categoriaId, codigo, pais, bodegaId, page, size, sort)
 
+    # TEMPORAL: Invalidar caché si hay filtro de categoría para debug
+    if categoriaId:
+        logger.info(f"🚫 INVALIDANDO CACHE para categoriaId={categoriaId}")
+        await redis.delete(key)
+    
     cached = await redis.get(key)
     if cached:
         payload = orjson.loads(cached)

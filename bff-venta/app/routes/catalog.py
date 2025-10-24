@@ -46,9 +46,12 @@ def get_catalog_items():
     """Obtiene la lista de items del catálogo"""
     try:
         # Obtener parámetros de query
+        # Soportar tanto 'category' como 'categoria_id' para compatibilidad
+        categoria = request.args.get('category') or request.args.get('categoria_id')
+        
         params = {
             'q': request.args.get('q'),
-            'categoria_id': request.args.get('categoria_id'),
+            'categoria_id': categoria,  # Unificado: acepta 'category' o 'categoria_id'
             'codigo': request.args.get('codigo'),
             'pais': request.args.get('pais'),
             'bodega_id': request.args.get('bodega_id'),
@@ -59,6 +62,9 @@ def get_catalog_items():
         
         # Filtrar parámetros None
         filtered_params = {k: v for k, v in params.items() if v is not None}
+        
+        # DEBUG: Log de parámetros capturados
+        print(f"🔍 BFF DEBUG: categoria={categoria}, filtered_params={filtered_params}", flush=True)
         
         # Log de la petición
         log_request("/api/v1/catalog/items", "GET", filtered_params)
