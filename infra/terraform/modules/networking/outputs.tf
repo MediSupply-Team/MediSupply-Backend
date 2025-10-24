@@ -22,3 +22,8 @@ output "ecs_sg_id" {
   description = "ECS Security Group ID"
   value       = aws_security_group.ecs_sg.id
 }
+
+output "service_connect_namespace_name" {
+  value       = aws_service_discovery_private_dns_namespace.svc.name
+  description = "Nombre del namespace (p.ej. svc.local)"
+}

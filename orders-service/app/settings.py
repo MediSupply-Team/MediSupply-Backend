@@ -2,7 +2,7 @@
 
 class Settings(BaseSettings):
     # Local por defecto (docker-compose)
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@db:5432/orders"
+    DB_URL: str = "postgresql+asyncpg://postgres:postgres@db:5432/orders"
 
     # Redis solo si lo usas (local). En ECS probablemente no lo tendrás aún.
     REDIS_URL: str = "redis://redis:6379/0"
@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     @property
     def ASYNC_DATABASE_URL(self) -> str:
         """Garantiza que sea async incluso si el Secret trae 'postgresql://'."""
-        url = self.DATABASE_URL
+        url = self.DB_URL
         if url.startswith("postgresql://"):
             url = "postgresql+asyncpg://" + url[len("postgresql://"):]
         return url
