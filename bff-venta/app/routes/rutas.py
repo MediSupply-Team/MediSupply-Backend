@@ -27,16 +27,46 @@ def get_ruta_by_fecha(fecha):
         type: string
         required: true
         description: Fecha en formato YYYY-MM-DD
-        example: "2025-01-15"
+        example: "2025-10-10"
+      - in: query
+        name: vendedor_id
+        type: integer
+        required: false
+        description: ID del vendedor (opcional, default 1)
+        example: 1
     responses:
       200:
-        description: Ruta encontrada
+        description: Ruta encontrada exitosamente
         schema:
           type: object
           properties:
-            data:
-              type: object
-              description: Datos de la ruta
+            fecha:
+              type: string
+              example: "2025-10-10"
+            visitas:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  vendedor_id:
+                    type: integer
+                  cliente:
+                    type: string
+                  direccion:
+                    type: string
+                  fecha:
+                    type: string
+                  hora:
+                    type: string
+                  lat:
+                    type: number
+                  lng:
+                    type: number
+                  tiempo_desde_anterior:
+                    type: string
+                    nullable: true
       404:
         description: Ruta no encontrada
       503:
@@ -49,16 +79,18 @@ def get_ruta_by_fecha(fecha):
         return jsonify(error="Servicio de rutas no disponible"), 503
     
     try:
-        # Construir URL del servicio de rutas
-        # Nota: Ajusta el path según lo que tenga tu servicio de rutas
-        url = f"{rutas_url}/api/rutas/visita/{fecha}"
+        # ✅ CAMBIO: Usar query parameters en lugar de path
+        # Obtener vendedor_id del request (o usar default)
+        vendedor_id = request.args.get('vendedor_id', 1, type=int)
+        
+        # Construir URL con query parameters
+        url = f"{rutas_url}/api/ruta?fecha={fecha}&vendedor_id={vendedor_id}"
         
         current_app.logger.info(f"Calling rutas service: {url}")
         
-        # Hacer request al servicio de rutas con timeout
         response = requests.get(
             url,
-            timeout=10,  # 10 segundos timeout
+            timeout=10,
             headers={
                 "User-Agent": "BFF-Venta/1.0",
                 "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),

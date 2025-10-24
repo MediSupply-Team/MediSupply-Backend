@@ -37,7 +37,7 @@ provider "aws" {
 # SHARED INFRASTRUCTURE
 # ============================================================
 
-# VPC usando el módulo oficial de AWS
+# VPC usando el mÃ³dulo oficial de AWS
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "5.5.1"
@@ -144,7 +144,7 @@ resource "aws_security_group" "postgres_sg" {
 resource "aws_db_subnet_group" "postgres_private" {
   name       = "${var.project}-${var.env}-orders-postgres-subnets-private"
   subnet_ids = module.vpc.private_subnets
-  
+
   tags = {
     Name    = "${var.project}-${var.env}-orders-postgres-subnets-private"
     Project = var.project
@@ -155,24 +155,24 @@ resource "aws_db_subnet_group" "postgres_private" {
 resource "aws_db_parameter_group" "postgres" {
   name   = "${var.project}-${var.env}-postgres-params-new"
   family = "postgres15"
-  
+
   parameter {
     name  = "log_connections"
     value = "1"
   }
-  
+
   parameter {
     name  = "log_disconnections"
     value = "1"
   }
-  
+
   parameter {
     name  = "log_duration"
     value = "1"
   }
-  
+
   tags = {
-    name   = "${var.project}-${var.env}-postgres-params-new"
+    name    = "${var.project}-${var.env}-postgres-params-new"
     Project = var.project
     Env     = var.env
   }
@@ -184,7 +184,7 @@ resource "aws_db_parameter_group" "postgres" {
 
 resource "aws_iam_role" "rds_monitoring" {
   name = "${var.project}-${var.env}-rds-monitoring-role"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -197,7 +197,7 @@ resource "aws_iam_role" "rds_monitoring" {
       }
     ]
   })
-  
+
   tags = {
     Name    = "${var.project}-${var.env}-rds-monitoring-role"
     Project = var.project
@@ -224,7 +224,7 @@ resource "aws_iam_role" "orders_exec" {
   }
 }
 
-# Politica administrada estándar para execution role (ECR + logs, etc.)
+# Politica administrada estÃ¡ndar para execution role (ECR + logs, etc.)
 resource "aws_iam_role_policy_attachment" "orders_exec_managed" {
   role       = aws_iam_role.orders_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
@@ -252,7 +252,7 @@ resource "aws_iam_role" "orders_task" {
 # Policy inline: lectura del secreto de DB especifico para EXECUTION ROLE
 resource "aws_iam_role_policy" "orders_exec_db_secret_read" {
   name = "${var.project}-${var.env}-orders-exec-db-secret-read"
-  role = aws_iam_role.orders_exec.id # ← Nota: orders_EXEC no orders_task
+  role = aws_iam_role.orders_exec.id # â† Nota: orders_EXEC no orders_task
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -273,6 +273,37 @@ resource "aws_iam_role_policy" "orders_exec_db_secret_read" {
   })
 }
 
+# Política para ECS Exec (permite conectarse al container via AWS Systems Manager)
+resource "aws_iam_role_policy" "orders_task_ecs_exec" {
+  name = "${var.project}-${var.env}-orders-task-ecs-exec"
+  role = aws_iam_role.orders_task.id # â Task role, NO execution role
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy_attachment" "rds_monitoring" {
   role       = aws_iam_role.rds_monitoring.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
@@ -280,58 +311,58 @@ resource "aws_iam_role_policy_attachment" "rds_monitoring" {
 
 resource "aws_db_instance" "postgres" {
   identifier = "${var.project}-${var.env}-orders-postgres"
-  
+
   # Engine
   engine         = "postgres"
   engine_version = "15.14"
-  
+
   # Instance
   instance_class    = "db.t3.micro"
   allocated_storage = 20
   storage_type      = "gp3"
   storage_encrypted = true
-  
+
   # Database
   db_name  = "orders"
   username = "orders_user"
   password = random_password.db_password.result
   port     = 5432
-  
-  # Network - CAMBIOS CLAVE AQUÍ
-  db_subnet_group_name   = aws_db_subnet_group.postgres_private.name  # ← USA PRIVADAS
+
+  # Network - CAMBIOS CLAVE AQUÃ
+  db_subnet_group_name   = aws_db_subnet_group.postgres_private.name # â† USA PRIVADAS
   vpc_security_group_ids = [aws_security_group.postgres_sg.id]
-  publicly_accessible    = false  # ← AHORA ES PRIVADO
-  
+  publicly_accessible    = false # â† AHORA ES PRIVADO
+
   # Backup
   backup_retention_period = 7
-  backup_window          = "03:00-04:00"
-  maintenance_window     = "mon:04:00-mon:05:00"
-  
+  backup_window           = "03:00-04:00"
+  maintenance_window      = "mon:04:00-mon:05:00"
+
   # Snapshots
   skip_final_snapshot       = true
   final_snapshot_identifier = "${var.project}-${var.env}-orders-postgres-final-snapshot"
-  
+
   # Monitoring
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
-  monitoring_interval            = 60
-  monitoring_role_arn            = aws_iam_role.rds_monitoring.arn
-  
+  monitoring_interval             = 60
+  monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
+
   # Performance
-  performance_insights_enabled    = true
+  performance_insights_enabled          = true
   performance_insights_retention_period = 7
-  
+
   # High Availability
-  multi_az = false  # Cambiar a true en producción
-  
+  multi_az = false # Cambiar a true en producciÃ³n
+
   # Parameter group
   parameter_group_name = aws_db_parameter_group.postgres.name
-  
+
   # Deletion protection
-  deletion_protection = false  # Cambiar a true en producción
-  
+  deletion_protection = false # Cambiar a true en producciÃ³n
+
   # Apply changes immediately (solo para dev/test)
   apply_immediately = true
-  
+
   tags = {
     Name    = "${var.project}-${var.env}-orders-postgres"
     Project = var.project
@@ -341,7 +372,7 @@ resource "aws_db_instance" "postgres" {
 
 resource "aws_secretsmanager_secret" "db_url" {
   name = "medisupply/${var.env}/orders/DB_URL"
-  
+
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_URL"
     Project = var.project
@@ -350,13 +381,13 @@ resource "aws_secretsmanager_secret" "db_url" {
 }
 
 resource "aws_secretsmanager_secret_version" "db_url" {
-  secret_id = aws_secretsmanager_secret.db_url.id
+  secret_id     = aws_secretsmanager_secret.db_url.id
   secret_string = "postgresql+asyncpg://orders_user:${random_password.db_password.result}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/${aws_db_instance.postgres.db_name}"
 }
 
 resource "aws_secretsmanager_secret" "db_password" {
   name = "medisupply/${var.env}/orders/DB_PASSWORD"
-  
+
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_PASSWORD"
     Project = var.project
@@ -406,7 +437,7 @@ module "orders" {
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
 
-  # Imagen ECR completa (repo:tag o repo@sha256:digest) — evita :latest
+  # Imagen ECR completa (repo:tag o repo@sha256:digest) â€” evita :latest
   ecr_image         = var.ecr_image
   app_port          = 3000
   db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
@@ -435,10 +466,10 @@ module "consumer" {
   use_haproxy      = var.use_haproxy
   bff_alb_dns_name = module.bff_venta.alb_dns_name
 
-  # Cluster donde correrá el consumer
+  # Cluster donde correrÃ¡ el consumer
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Service Connect namespace - ESTA ES LA LÍNEA NUEVA
+  # Service Connect namespace - ESTA ES LA LÃNEA NUEVA
   service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
 }
 
@@ -471,7 +502,7 @@ module "bff_venta" {
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Catalogo service será accesible por el mismo ALB en /catalog
+  # Catalogo service serÃ¡ accesible por el mismo ALB en /catalog
   catalogo_service_url = var.catalogo_service_url
 }
 
@@ -590,7 +621,7 @@ module "catalogo_service" {
 #   desired_count  = 1
 #   image_tag      = var.bff_catalogo_image_tag
 
-#   # URL interna del catalogo-service a través del ALB
+#   # URL interna del catalogo-service a travÃ©s del ALB
 #   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
 # }
 

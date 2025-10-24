@@ -54,7 +54,7 @@ output "db_name" {
 
 output "db_username" {
   description = "Database username"
-  value = "orders_user"
+  value       = "orders_user"
   sensitive   = true
 }
 
