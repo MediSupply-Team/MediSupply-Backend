@@ -33,17 +33,17 @@ output "ecs_cluster_arn" {
 # DATABASE OUTPUTS (recursos directos en main.tf)
 # ============================================================
 output "db_endpoint" {
-  description = "RDS PostgreSQL endpoint"
-  value       = aws_db_instance.postgres.endpoint
+  description = "RDS endpoint"
+  value       = "${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}"
 }
 
 output "db_address" {
-  description = "RDS PostgreSQL address"
+  description = "RDS address"
   value       = aws_db_instance.postgres.address
 }
 
 output "db_port" {
-  description = "RDS PostgreSQL port"
+  description = "RDS port"
   value       = aws_db_instance.postgres.port
 }
 
@@ -54,28 +54,28 @@ output "db_name" {
 
 output "db_username" {
   description = "Database username"
-  value       = aws_db_instance.postgres.username
+  value = "orders_user"
   sensitive   = true
 }
 
 output "db_instance_id" {
   description = "RDS instance ID"
-  value       = aws_db_instance.postgres.id
+  value       = aws_db_instance.postgres.resource_id
+}
+
+output "postgres_security_group_id" {
+  description = "Security group ID for PostgreSQL"
+  value       = aws_security_group.postgres_sg.id
 }
 
 output "db_url_secret_arn" {
-  description = "Database URL secret ARN"
+  description = "ARN of the DB_URL secret"
   value       = aws_secretsmanager_secret.db_url.arn
 }
 
 output "db_password_secret_arn" {
-  description = "Database password secret ARN"
+  description = "ARN of the DB_PASSWORD secret"
   value       = aws_secretsmanager_secret.db_password.arn
-}
-
-output "postgres_security_group_id" {
-  description = "PostgreSQL security group ID"
-  value       = aws_security_group.postgres_sg.id
 }
 
 # ============================================================

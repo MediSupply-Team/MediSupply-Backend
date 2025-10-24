@@ -99,7 +99,7 @@ resource "aws_security_group" "postgres_sg" {
   description = "Security group for Orders PostgreSQL RDS"
   vpc_id      = module.vpc.vpc_id
 
-  # Regla 1: Permitir desde Orders
+  # Regla 1: Permitir desde Orders Service
   ingress {
     from_port       = 5432
     to_port         = 5432
@@ -108,7 +108,7 @@ resource "aws_security_group" "postgres_sg" {
     description     = "Allow PostgreSQL from Orders ECS tasks"
   }
 
-  # Regla 2: Permitir desde Rutas
+  # Regla 2: Permitir desde Rutas Service
   ingress {
     from_port       = 5432
     to_port         = 5432
@@ -116,6 +116,16 @@ resource "aws_security_group" "postgres_sg" {
     security_groups = [module.rutas_service.security_group_id]
     description     = "Allow PostgreSQL from Rutas ECS tasks"
   }
+
+  # Regla 4 (OPCIONAL): Acceso de desarrollo
+  # Descomenta y agrega tu IP para acceder desde tu PC/DBeaver
+  # ingress {
+  #   from_port   = 5432
+  #   to_port     = 5432
+  #   protocol    = "tcp"
+  #   cidr_blocks = ["TU_IP_AQUI/32"]
+  #   description = "Development access from my PC"
+  # }
 
   egress {
     from_port   = 0
@@ -131,35 +141,38 @@ resource "aws_security_group" "postgres_sg" {
   }
 }
 
-resource "aws_db_subnet_group" "postgres_public" {
-  name       = "${var.project}-${var.env}-orders-postgres-subnets-public"
-  subnet_ids = module.vpc.public_subnets
-
+resource "aws_db_subnet_group" "postgres_private" {
+  name       = "${var.project}-${var.env}-orders-postgres-subnets-private"
+  subnet_ids = module.vpc.private_subnets
+  
   tags = {
-    Name    = "${var.project}-${var.env}-orders-postgres-subnets-public"
+    Name    = "${var.project}-${var.env}-orders-postgres-subnets-private"
     Project = var.project
     Env     = var.env
   }
 }
 
 resource "aws_db_parameter_group" "postgres" {
+  name   = "${var.project}-${var.env}-postgres-params-new"
   family = "postgres15"
-  name   = "${var.project}-${var.env}-orders-postgres-params"
-
+  
   parameter {
-    name  = "shared_preload_libraries"
-    value = "pg_stat_statements"
+    name  = "log_connections"
+    value = "1"
   }
+  
   parameter {
-    name  = "log_statement"
-    value = "all"
+    name  = "log_disconnections"
+    value = "1"
   }
+  
   parameter {
-    name  = "log_min_duration_statement"
-    value = "1000"
+    name  = "log_duration"
+    value = "1"
   }
-
+  
   tags = {
+    name   = "${var.project}-${var.env}-postgres-params-new"
     Project = var.project
     Env     = var.env
   }
@@ -170,18 +183,23 @@ resource "aws_db_parameter_group" "postgres" {
 # ============================================================
 
 resource "aws_iam_role" "rds_monitoring" {
-  name = "${var.project}-${var.env}-orders-rds-monitoring"
-
+  name = "${var.project}-${var.env}-rds-monitoring-role"
+  
   assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Action    = "sts:AssumeRole",
-      Effect    = "Allow",
-      Principal = { Service = "monitoring.rds.amazonaws.com" }
-    }]
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "monitoring.rds.amazonaws.com"
+        }
+      }
+    ]
   })
-
+  
   tags = {
+    Name    = "${var.project}-${var.env}-rds-monitoring-role"
     Project = var.project
     Env     = var.env
   }
@@ -262,83 +280,91 @@ resource "aws_iam_role_policy_attachment" "rds_monitoring" {
 
 resource "aws_db_instance" "postgres" {
   identifier = "${var.project}-${var.env}-orders-postgres"
-
+  
+  # Engine
   engine         = "postgres"
   engine_version = "15.14"
-  instance_class = "db.t4g.micro"
-
-  allocated_storage     = 20
-  max_allocated_storage = 100
-  storage_type          = "gp2"
-  storage_encrypted     = true
-
+  
+  # Instance
+  instance_class    = "db.t3.micro"
+  allocated_storage = 20
+  storage_type      = "gp3"
+  storage_encrypted = true
+  
+  # Database
   db_name  = "orders"
   username = "orders_user"
   password = random_password.db_password.result
   port     = 5432
-
-  publicly_accessible  = true
-  apply_immediately    = true
-  db_subnet_group_name = aws_db_subnet_group.postgres_public.name
-
+  
+  # Network - CAMBIOS CLAVE AQUÍ
+  db_subnet_group_name   = aws_db_subnet_group.postgres_private.name  # ← USA PRIVADAS
   vpc_security_group_ids = [aws_security_group.postgres_sg.id]
-
-  multi_az                = false
+  publicly_accessible    = false  # ← AHORA ES PRIVADO
+  
+  # Backup
   backup_retention_period = 7
-  backup_window           = "03:00-04:00"
-  maintenance_window      = "sun:04:00-sun:05:00"
-  copy_tags_to_snapshot   = true
-
-  skip_final_snapshot      = true
-  deletion_protection      = false
-  delete_automated_backups = true
-
-  enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
-  performance_insights_enabled          = true
+  backup_window          = "03:00-04:00"
+  maintenance_window     = "mon:04:00-mon:05:00"
+  
+  # Snapshots
+  skip_final_snapshot       = true
+  final_snapshot_identifier = "${var.project}-${var.env}-orders-postgres-final-snapshot"
+  
+  # Monitoring
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+  monitoring_interval            = 60
+  monitoring_role_arn            = aws_iam_role.rds_monitoring.arn
+  
+  # Performance
+  performance_insights_enabled    = true
   performance_insights_retention_period = 7
-  monitoring_interval                   = 60
-  monitoring_role_arn                   = aws_iam_role.rds_monitoring.arn
-
-  auto_minor_version_upgrade = true
-  parameter_group_name       = aws_db_parameter_group.postgres.name
-
+  
+  # High Availability
+  multi_az = false  # Cambiar a true en producción
+  
+  # Parameter group
+  parameter_group_name = aws_db_parameter_group.postgres.name
+  
+  # Deletion protection
+  deletion_protection = false  # Cambiar a true en producción
+  
+  # Apply changes immediately (solo para dev/test)
+  apply_immediately = true
+  
   tags = {
-    Project    = var.project
-    Env        = var.env
-    ManagedBy  = "Terraform"
-    Purpose    = "School Project - Production Simulation"
-    CostCenter = "Education"
+    Name    = "${var.project}-${var.env}-orders-postgres"
+    Project = var.project
+    Env     = var.env
   }
 }
 
 resource "aws_secretsmanager_secret" "db_url" {
-  name                    = "${var.project}/${var.env}/orders/DB_URL"
-  description             = "Database connection URL for Orders service"
-  recovery_window_in_days = 7
-
+  name = "medisupply/${var.env}/orders/DB_URL"
+  
   tags = {
+    Name    = "medisupply/${var.env}/orders/DB_URL"
     Project = var.project
     Env     = var.env
   }
 }
 
-resource "aws_secretsmanager_secret_version" "db_url_v" {
-  secret_id     = aws_secretsmanager_secret.db_url.id
-  secret_string = "postgresql+asyncpg://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/${aws_db_instance.postgres.db_name}"
+resource "aws_secretsmanager_secret_version" "db_url" {
+  secret_id = aws_secretsmanager_secret.db_url.id
+  secret_string = "postgresql+asyncpg://orders_user:${random_password.db_password.result}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/${aws_db_instance.postgres.db_name}"
 }
 
 resource "aws_secretsmanager_secret" "db_password" {
-  name                    = "${var.project}/${var.env}/orders/DB_PASSWORD"
-  description             = "PostgreSQL master password"
-  recovery_window_in_days = 7
-
+  name = "medisupply/${var.env}/orders/DB_PASSWORD"
+  
   tags = {
+    Name    = "medisupply/${var.env}/orders/DB_PASSWORD"
     Project = var.project
     Env     = var.env
   }
 }
 
-resource "aws_secretsmanager_secret_version" "db_password_v" {
+resource "aws_secretsmanager_secret_version" "db_password" {
   secret_id     = aws_secretsmanager_secret.db_password.id
   secret_string = random_password.db_password.result
 }
