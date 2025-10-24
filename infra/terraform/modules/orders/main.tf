@@ -135,6 +135,7 @@ resource "aws_ecs_service" "orders" {
   task_definition = aws_ecs_task_definition.orders.arn
   desired_count   = 1
   launch_type     = "FARGATE"
+  enable_execute_command  = true
 
   deployment_controller { type = "ECS" }
 
