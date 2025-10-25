@@ -1,4 +1,4 @@
-terraform {
+﻿terraform {
   backend "s3" {
     bucket         = "miso-tfstate-838693051133"
     key            = "infra.tfstate"
@@ -224,7 +224,7 @@ resource "aws_iam_role" "orders_exec" {
   }
 }
 
-# Politica administrada estÃ¡ndar para execution role (ECR + logs, etc.)
+# Politica administrada estndar para execution role (ECR + logs, etc.)
 resource "aws_iam_role_policy_attachment" "orders_exec_managed" {
   role       = aws_iam_role.orders_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
@@ -502,8 +502,8 @@ module "bff_venta" {
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Catalogo service serÃ¡ accesible por el mismo ALB en /catalog
-  catalogo_service_url = var.catalogo_service_url
+  # Catalogo service sera accesible por el mismo ALB en /catalog
+  catalogo_service_url = "http://${module.bff_venta.alb_dns_name}"
 }
 
 # Cliente Service

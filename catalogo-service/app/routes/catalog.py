@@ -26,18 +26,18 @@ async def list_items(
     logger.info(f"🔍 RECIBIDO: q={q}, categoriaId={categoriaId}, codigo={codigo}, pais={pais}, bodegaId={bodegaId}")
     
     started = time.perf_counter_ns()
-    redis = await get_redis()
-    key = search_key(q, categoriaId, codigo, pais, bodegaId, page, size, sort)
+    #redis = await get_redis()
+    #key = search_key(q, categoriaId, codigo, pais, bodegaId, page, size, sort)
 
     # TEMPORAL: Invalidar caché si hay filtro de categoría para debug
-    if categoriaId:
-        logger.info(f"🚫 INVALIDANDO CACHE para categoriaId={categoriaId}")
-        await redis.delete(key)
+    #if categoriaId:
+    #    logger.info(f"🚫 INVALIDANDO CACHE para categoriaId={categoriaId}")
+    #    await redis.delete(key)
     
-    cached = await redis.get(key)
-    if cached:
-        payload = orjson.loads(cached)
-        return payload
+    #cached = await redis.get(key)
+    #if cached:
+    #    payload = orjson.loads(cached)
+    #    return payload
 
     rows, total, inv_map = await buscar_productos(session, q=q, categoriaId=categoriaId, codigo=codigo,
                                                   pais=pais, bodegaId=bodegaId, page=page, size=size, sort=sort)
@@ -62,7 +62,7 @@ async def list_items(
     took_ms = int((time.perf_counter_ns() - started)/1_000_000)
     payload = {"items": items, "meta": {"page": page, "size": size, "total": total, "tookMs": took_ms}}
     # cache 5s
-    await redis.setex(key, 5, orjson.dumps(payload))  # TTL 5s
+    #await redis.setex(key, 5, orjson.dumps(payload))  # TTL 5s
     return payload
 
 @router.get("/items/{id}")

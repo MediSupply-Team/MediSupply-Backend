@@ -359,6 +359,38 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
   })
 }
 
+# Policy para ECS Exec (SSM Session Manager)
+resource "aws_iam_role_policy" "catalogo_ecs_exec" {
+  name = "${var.project}-${var.env}-catalogo-task-ecs-exec"
+  role = aws_iam_role.catalogo_ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:DescribeLogGroups",
+          "logs:CreateLogStream",
+          "logs:DescribeLogStreams",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
 # ============================================================
 # SECRETS MANAGER
 # ============================================================
