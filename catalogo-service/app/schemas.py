@@ -32,3 +32,20 @@ class Meta(BaseModel):
 class SearchResponse(BaseModel):
     items: List[Product]
     meta: Meta
+
+class ProductCreate(BaseModel):
+    id: str
+    nombre: str
+    codigo: str
+    categoria: str
+    presentacion: Optional[str] = None
+    precioUnitario: float
+    requisitosAlmacenamiento: Optional[str] = None
+
+class ProductUpdate(BaseModel):
+    nombre: Optional[str] = None
+    codigo: Optional[str] = None
+    categoria: Optional[str] = None
+    presentacion: Optional[str] = None
+    precioUnitario: Optional[float] = None
+    requisitosAlmacenamiento: Optional[str] = None
