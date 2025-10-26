@@ -249,3 +249,19 @@ output "rutas_service_name" {
   description = "Nombre del servicio de Rutas en ECS"
   value       = module.rutas_service.service_name
 }
+
+# Reports Service outputs
+output "report_alb_dns" {
+  description = "DNS del ALB de Reports"
+  value       = module.reports_service.alb_dns_name
+}
+
+output "report_alb_url" {
+  description = "URL completa del servicio de Reports"
+  value       = "http://${module.reports_service.alb_dns_name}"
+}
+
+output "report_service_name" {
+  description = "Nombre del servicio de Reports en ECS"
+  value       = module.reports_service.service_name
+}

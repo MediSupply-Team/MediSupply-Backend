@@ -138,3 +138,15 @@ variable "additional_tags" {
     Owner = "MediSupply-Team"
   }
 }
+
+# ===== Reports Service =====
+variable "report_ecr_image" {
+  description = "URI de la imagen de reports en ECR (repository:tag)"
+  type        = string
+}
+
+variable "report_db_url" {
+  description = "Cadena de conexión de la base de datos para reports (se guardará en Secrets Manager)"
+  type        = string
+  sensitive   = true
+}
