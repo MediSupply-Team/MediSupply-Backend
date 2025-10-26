@@ -1,0 +1,61 @@
+name: Build & Push Report Image
+
+on:
+  push:
+    branches: [ "report-service", "develop" ]
+    paths:
+      - "report-service/**"
+      - ".github/workflows/deploy-report.yml"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a construir"
+        required: true
+        default: "develop"
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: medisupply-dev-report
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write     # para OIDC
+      contents: read
+    steps:
+      - name: Checkout (rama indicada o la del push)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # (Opcional) cache de capas para acelerar builds
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build, tag and push (SHA y latest)
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+        working-directory: ./report-service   # <- ajusta si tu Dockerfile está en otra carpeta
+        run: |
+          IMAGE_URI=${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}
+          echo "Construyendo ${IMAGE_URI}"
+          docker build -t "${IMAGE_URI}" .
+          docker push "${IMAGE_URI}"
+
+          # tag adicional latest
+          docker tag "${IMAGE_URI}" "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          docker push "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+
+          echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
