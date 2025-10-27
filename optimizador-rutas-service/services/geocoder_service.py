@@ -1,6 +1,7 @@
 import requests
 from config.settings import settings
 from typing import List
+from urllib.parse import quote
 
 class GeocoderService:
     def __init__(self):
@@ -11,8 +12,8 @@ class GeocoderService:
         """Convertir direccion a coordenadas"""
         try:
             query = direccion + ", " + ciudad + ", Colombia"
-            url = self.base_url + "/" + query + ".json"
-            
+            query_encoded = quote(query)
+            url = self.base_url + "/" + query_encoded + ".json"
             params = {
                 "access_token": self.access_token,
                 "country": "CO",

@@ -4,10 +4,13 @@ from controllers.optimizer_controller import router
 from config.settings import settings
 import uvicorn
 
+# Crear app con configuración básica
 app = FastAPI(
-    title="Optimizador de Rutas - MediSupply",
-    description="Servicio de optimizacion de rutas con OSRM y Mapbox",
-    version="1.0.0"
+    title="MediSupply - Optimizador de Rutas",
+    description="Sistema de optimización de rutas de entrega",
+    version="1.0.0",
+    docs_url="/docs",      
+    redoc_url="/redoc"   
 )
 
 # CORS
@@ -19,26 +22,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check
-@app.get("/health")
+# Health Check
+@app.get("/health", tags=["Health"])
 async def health_check():
     return {
         "status": "OK",
         "service": "optimizador-rutas-service",
-        "services": {
-            "osrm": settings.osrm_url,
-            "mapbox": "configured",
-            "ruta_service": settings.ruta_service_url
-        }
+        "version": "1.0.0"
     }
 
-# Routes
+# Incluir rutas
 app.include_router(router)
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=settings.port,
-        reload=True if settings.environment == "development" else False
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=settings.port, reload=True)
