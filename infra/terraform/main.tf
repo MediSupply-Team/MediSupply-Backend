@@ -504,6 +504,9 @@ module "bff_venta" {
 
   # Catalogo service serÃ¡ accesible por el mismo ALB en /catalog
   catalogo_service_url = var.catalogo_service_url
+
+  # Service Connect namespace
+  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
 }
 
 # Cliente Service
@@ -517,6 +520,9 @@ module "cliente_service" {
   private_subnets = module.vpc.private_subnets
 
   ecs_cluster_name = aws_ecs_cluster.orders.name
+
+  # Service Connect namespace for internal service discovery
+  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
 
   # Container configuration
   container_port = 8000
@@ -557,9 +563,12 @@ module "bff_cliente" {
   sqs_url = module.consumer.sqs_queue_url
   sqs_arn = module.consumer.sqs_queue_arn
 
-  # Servicios backend
+  # Servicios backend (usando Service Connect DNS)
   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
-  cliente_service_url  = module.cliente_service.alb_url
+  cliente_service_url  = "http://cliente:8000"  # Service Connect DNS
+
+  # Service Connect namespace
+  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
 }
 
 # ============================================================
@@ -579,6 +588,9 @@ module "catalogo_service" {
 
   ecs_cluster_name = aws_ecs_cluster.orders.name
   alb_listener_arn = module.bff_venta.alb_listener_arn
+
+  # Service Connect namespace for internal service discovery
+  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
 
   # Container configuration
   container_port = var.catalogo_container_port

@@ -64,3 +64,8 @@ variable "db_backup_retention_days" {
   type        = number
   default     = 7
 }
+
+variable "service_connect_namespace_name" {
+  description = "Service Connect namespace for internal service discovery"
+  type        = string
+}

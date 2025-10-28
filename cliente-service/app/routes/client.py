@@ -1,17 +1,21 @@
 """
 Rutas API para cliente-service siguiendo patrón catalogo-service
-Endpoints REST para HU07: Consultar Cliente
+Endpoints REST para HU07: Consultar Cliente + CRUD completo
 """
 import time
+import logging
+from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Path, HTTPException, status, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
 from typing import Optional, List
 
 from app.db import get_session
 from app.services.client_service import ClienteService
 from app.schemas import (
     ClienteBasicoResponse, HistoricoCompletoResponse,
+    ClienteCreate, ClienteUpdate,
     ErrorResponse
 )
 from app.config import get_settings
@@ -19,6 +23,7 @@ from app.config import get_settings
 # Router para endpoints de cliente
 router = APIRouter(prefix="/cliente", tags=["cliente"])
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/",response_model=List[ClienteBasicoResponse],)
@@ -79,6 +84,185 @@ async def listar_clientes(
                 "error": "INTERNAL_SERVER_ERROR",
                 "message": "Error interno al listar clientes",
                 "details": {"error_id": f"ERR_{int(time.time())}"},
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            }
+        )
+
+
+@router.post("/", response_model=ClienteBasicoResponse, status_code=status.HTTP_201_CREATED)
+async def crear_cliente(
+    cliente: ClienteCreate,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Crea un nuevo cliente en el sistema
+    
+    **Requiere:**
+    - ID único del cliente
+    - NIT (debe ser único)
+    - Nombre del cliente
+    - Código único (debe ser único)
+    - Vendedor ID (para trazabilidad)
+    
+    **Retorna:**
+    - 201: Cliente creado exitosamente
+    - 409: Cliente ya existe (NIT o código único duplicado)
+    - 500: Error interno
+    """
+    logger.info(f"📝 Creando cliente: {cliente.id} por vendedor {cliente.vendedor_id}")
+    started = time.perf_counter_ns()
+    
+    try:
+        from app.models.client_model import Cliente
+        
+        # Verificar si el cliente ya existe por ID
+        existing_by_id = (await session.execute(
+            select(Cliente).where(Cliente.id == cliente.id)
+        )).scalar_one_or_none()
+        
+        if existing_by_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "CLIENT_ALREADY_EXISTS",
+                    "message": f"Cliente con id {cliente.id} ya existe",
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                }
+            )
+        
+        # Verificar si el NIT ya existe
+        existing_by_nit = (await session.execute(
+            select(Cliente).where(Cliente.nit == cliente.nit)
+        )).scalar_one_or_none()
+        
+        if existing_by_nit:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "NIT_ALREADY_EXISTS",
+                    "message": f"Cliente con NIT {cliente.nit} ya existe",
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                }
+            )
+        
+        # Verificar si el código único ya existe
+        existing_by_codigo = (await session.execute(
+            select(Cliente).where(Cliente.codigo_unico == cliente.codigo_unico)
+        )).scalar_one_or_none()
+        
+        if existing_by_codigo:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "CODIGO_ALREADY_EXISTS",
+                    "message": f"Cliente con código único {cliente.codigo_unico} ya existe",
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                }
+            )
+        
+        # Crear nuevo cliente
+        new_cliente = Cliente(
+            id=cliente.id,
+            nit=cliente.nit,
+            nombre=cliente.nombre,
+            codigo_unico=cliente.codigo_unico,
+            email=cliente.email,
+            telefono=cliente.telefono,
+            direccion=cliente.direccion,
+            ciudad=cliente.ciudad,
+            pais=cliente.pais,
+            activo=cliente.activo
+        )
+        
+        session.add(new_cliente)
+        await session.commit()
+        await session.refresh(new_cliente)
+        
+        took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+        logger.info(f"✅ Cliente creado: {cliente.id} en {took_ms}ms")
+        
+        # Retornar el cliente creado
+        return ClienteBasicoResponse.model_validate(new_cliente)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error creando cliente: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "INTERNAL_SERVER_ERROR",
+                "message": "Error interno al crear cliente",
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            }
+        )
+
+
+@router.put("/{cliente_id}", response_model=ClienteBasicoResponse)
+async def actualizar_cliente(
+    cliente_id: str = Path(..., min_length=1, max_length=64, description="ID del cliente"),
+    cliente_data: ClienteUpdate = None,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Actualiza un cliente existente
+    
+    **Requiere:**
+    - ID del cliente (en la URL)
+    - Vendedor ID (para trazabilidad)
+    - Campos a actualizar (opcionales)
+    
+    **Retorna:**
+    - 200: Cliente actualizado exitosamente
+    - 404: Cliente no encontrado
+    - 500: Error interno
+    """
+    logger.info(f"🔄 Actualizando cliente: {cliente_id} por vendedor {cliente_data.vendedor_id if cliente_data else 'unknown'}")
+    started = time.perf_counter_ns()
+    
+    try:
+        from app.models.client_model import Cliente
+        
+        # Verificar que el cliente existe
+        existing = (await session.execute(
+            select(Cliente).where(Cliente.id == cliente_id)
+        )).scalar_one_or_none()
+        
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "CLIENT_NOT_FOUND",
+                    "message": f"Cliente con id {cliente_id} no encontrado",
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                }
+            )
+        
+        # Actualizar solo los campos proporcionados
+        update_data = cliente_data.model_dump(exclude_unset=True, exclude={'vendedor_id'})
+        
+        if update_data:
+            for field, value in update_data.items():
+                setattr(existing, field, value)
+            
+            existing.updated_at = datetime.utcnow()
+            await session.commit()
+            await session.refresh(existing)
+        
+        took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+        logger.info(f"✅ Cliente actualizado: {cliente_id} en {took_ms}ms")
+        
+        return ClienteBasicoResponse.model_validate(existing)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error actualizando cliente: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "INTERNAL_SERVER_ERROR",
+                "message": "Error interno al actualizar cliente",
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
             }
         )

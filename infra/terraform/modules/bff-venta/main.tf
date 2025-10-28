@@ -222,6 +222,7 @@ resource "aws_ecs_task_definition" "td" {
           containerPort = var.bff_app_port
           hostPort      = var.bff_app_port
           protocol      = "tcp"
+          name          = "bff-venta-http"  # Required for Service Connect
         }
       ]
 
@@ -274,6 +275,13 @@ resource "aws_ecs_service" "svc" {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.svc_sg.id]
     assign_public_ip = false
+  }
+
+  # Service Connect: enable as client only to discover other services
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name
+    # No 'service' block needed - this service is client-only
   }
 
   load_balancer {

@@ -222,3 +222,8 @@ variable "additional_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "service_connect_namespace_name" {
+  description = "Service Connect namespace for internal service discovery"
+  type        = string
+}
