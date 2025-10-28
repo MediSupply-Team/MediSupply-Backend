@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Integer, Boolean, Date, ForeignKey, DECIMAL
 from app.db import Base
+from typing import Optional
 
 class Producto(Base):
     __tablename__ = "producto"
@@ -8,10 +9,16 @@ class Producto(Base):
     codigo: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
     categoria_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    presentacion: Mapped[str] = mapped_column(String(128))
+    presentacion: Mapped[Optional[str]] = mapped_column(String(128))
     precio_unitario: Mapped[float] = mapped_column(DECIMAL(12,2), nullable=False)
-    requisitos_almacenamiento: Mapped[str] = mapped_column(String(128))
+    requisitos_almacenamiento: Mapped[Optional[str]] = mapped_column(String(128))
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # Nuevos campos para gestión de inventario
+    stock_minimo: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+    stock_critico: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    requiere_lote: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    requiere_vencimiento: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 class Inventario(Base):
     __tablename__ = "inventario"
@@ -22,4 +29,4 @@ class Inventario(Base):
     lote: Mapped[str] = mapped_column(String(64), nullable=False)
     cantidad: Mapped[int] = mapped_column(Integer, nullable=False)
     vence: Mapped[str] = mapped_column(Date, nullable=False, index=True)
-    condiciones: Mapped[str] = mapped_column(String(128))
+    condiciones: Mapped[Optional[str]] = mapped_column(String(128))
