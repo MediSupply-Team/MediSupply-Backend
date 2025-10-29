@@ -23,6 +23,9 @@ from typing import Optional, Tuple, List
 from datetime import date, datetime
 import logging
 
+# 🆕 Importar SQS Publisher para eventos asíncronos
+from .sqs_publisher import get_sqs_publisher
+
 logger = logging.getLogger(__name__)
 
 
@@ -111,7 +114,8 @@ class InventarioService:
         producto_id: str,
         bodega_id: str,
         pais: str,
-        lote: Optional[str] = None
+        lote: Optional[str] = None,
+        for_update: bool = False
     ) -> int:
         """
         Obtiene el saldo actual de un producto en una bodega.
@@ -122,9 +126,16 @@ class InventarioService:
             bodega_id: ID de la bodega
             pais: Código del país
             lote: Número de lote específico (opcional)
+            for_update: Si True, aplica SELECT FOR UPDATE para prevenir race conditions
             
         Returns:
             Saldo actual (0 si no existe inventario)
+            
+        Note:
+            Cuando for_update=True, bloquea las filas del inventario hasta que
+            termine la transacción, previniendo que otros requests lean o modifiquen
+            el stock al mismo tiempo. Esto es CRÍTICO para operaciones de salida
+            donde se valida stock disponible.
         """
         query = select(func.sum(Inventario.cantidad)).where(
             and_(
@@ -136,6 +147,10 @@ class InventarioService:
         
         if lote:
             query = query.where(Inventario.lote == lote)
+        
+        # 🔒 SELECT FOR UPDATE: Bloquea el inventario para prevenir race conditions
+        if for_update:
+            query = query.with_for_update()
         
         saldo = (await session.execute(query)).scalar_one_or_none()
         return int(saldo or 0)
@@ -184,12 +199,20 @@ class InventarioService:
         )
         
         # 2. Obtener saldo actual
+        # 🔒 Usar FOR UPDATE para SALIDAS para prevenir race conditions
+        # Si dos requests intentan vender al mismo tiempo, uno esperará al otro
+        usar_lock = movimiento.tipo_movimiento in [
+            TipoMovimiento.SALIDA, 
+            TipoMovimiento.TRANSFERENCIA_SALIDA
+        ]
+        
         saldo_anterior = await InventarioService.obtener_saldo_actual(
             session,
             movimiento.producto_id,
             movimiento.bodega_id,
             movimiento.pais,
-            movimiento.lote
+            movimiento.lote,
+            for_update=usar_lock  # 🔒 Lock activo para salidas
         )
         
         logger.info(f"   Saldo anterior: {saldo_anterior}")
@@ -267,6 +290,39 @@ class InventarioService:
         if alertas:
             logger.warning(f"   ⚠️  Se generaron {len(alertas)} alertas")
         
+        # 🆕 Publicar evento a SQS (async, no bloquea si falla)
+        sqs = get_sqs_publisher()
+        await sqs.publish_movement_created(
+            movimiento_id=nuevo_movimiento.id,
+            producto_id=producto.id,
+            producto_nombre=producto.nombre,
+            bodega_id=movimiento.bodega_id,
+            pais=movimiento.pais,
+            tipo_movimiento=movimiento.tipo_movimiento.value,
+            motivo=movimiento.motivo.value,
+            cantidad=movimiento.cantidad,
+            saldo_anterior=saldo_anterior,
+            saldo_nuevo=saldo_nuevo,
+            usuario_id=movimiento.usuario_id,
+            referencia_documento=movimiento.referencia_documento
+        )
+        
+        # 🆕 Publicar alertas a SQS si se generaron
+        if alertas:
+            for alerta in alertas:
+                await sqs.publish_alert_created(
+                    alerta_id=alerta.id,
+                    tipo_alerta=alerta.tipo_alerta,
+                    nivel=alerta.nivel,
+                    producto_id=alerta.producto_id,
+                    producto_nombre=producto.nombre,
+                    bodega_id=alerta.bodega_id,
+                    pais=alerta.pais,
+                    stock_actual=alerta.stock_actual or 0,
+                    stock_minimo=alerta.stock_minimo,
+                    mensaje=alerta.mensaje
+                )
+        
         return nuevo_movimiento, alertas
     
     @staticmethod
@@ -284,16 +340,22 @@ class InventarioService:
             saldo_nuevo: Nuevo saldo calculado
         """
         # Buscar registro existente
-        inv = (await session.execute(
-            select(Inventario).where(
-                and_(
-                    Inventario.producto_id == movimiento.producto_id,
-                    Inventario.bodega_id == movimiento.bodega_id,
-                    Inventario.pais == movimiento.pais,
-                    Inventario.lote == (movimiento.lote or "")
-                )
+        # 🔒 FOR UPDATE: Aunque ya bloqueamos en obtener_saldo_actual,
+        # es buena práctica bloquear aquí también para garantizar atomicidad
+        query = select(Inventario).where(
+            and_(
+                Inventario.producto_id == movimiento.producto_id,
+                Inventario.bodega_id == movimiento.bodega_id,
+                Inventario.pais == movimiento.pais,
+                Inventario.lote == (movimiento.lote or "")
             )
-        )).scalar_one_or_none()
+        )
+        
+        # Bloquear si es operación de salida (ya deberíamos tener el lock de antes)
+        if movimiento.tipo_movimiento in [TipoMovimiento.SALIDA, TipoMovimiento.TRANSFERENCIA_SALIDA]:
+            query = query.with_for_update()
+        
+        inv = (await session.execute(query)).scalar_one_or_none()
         
         if inv:
             # Actualizar existente
@@ -510,6 +572,29 @@ class InventarioService:
             f"Salida ID={mov_salida.id} ↔ Ingreso ID={mov_ingreso.id}"
         )
         
+        # 🆕 Publicar evento de transferencia completada a SQS
+        # Obtener producto para nombre
+        producto = (await session.execute(
+            select(Producto).where(Producto.id == transferencia.producto_id)
+        )).scalar_one_or_none()
+        
+        if producto:
+            sqs = get_sqs_publisher()
+            await sqs.publish_transfer_completed(
+                producto_id=transferencia.producto_id,
+                producto_nombre=producto.nombre,
+                bodega_origen_id=transferencia.bodega_origen_id,
+                bodega_destino_id=transferencia.bodega_destino_id,
+                pais_origen=transferencia.pais_origen,
+                pais_destino=transferencia.pais_destino,
+                cantidad=transferencia.cantidad,
+                movimiento_salida_id=mov_salida.id,
+                movimiento_ingreso_id=mov_ingreso.id,
+                saldo_origen_final=mov_salida.saldo_nuevo,
+                saldo_destino_final=mov_ingreso.saldo_nuevo,
+                usuario_id=transferencia.usuario_id
+            )
+        
         return mov_salida, mov_ingreso, todas_alertas
     
     @staticmethod
@@ -610,6 +695,26 @@ class InventarioService:
         await session.flush()
         
         logger.info(f"✅ Movimiento {movimiento_id} anulado exitosamente")
+        
+        # 🆕 Publicar evento de anulación a SQS
+        # Obtener producto para nombre
+        producto = (await session.execute(
+            select(Producto).where(Producto.id == movimiento.producto_id)
+        )).scalar_one_or_none()
+        
+        if producto:
+            sqs = get_sqs_publisher()
+            await sqs.publish_movement_cancelled(
+                movimiento_id=movimiento.id,
+                producto_id=movimiento.producto_id,
+                producto_nombre=producto.nombre,
+                bodega_id=movimiento.bodega_id,
+                pais=movimiento.pais,
+                tipo_movimiento_original=movimiento.tipo_movimiento,
+                cantidad=movimiento.cantidad,
+                anulado_por=anulacion.usuario_id,
+                motivo_anulacion=anulacion.motivo_anulacion
+            )
         
         return movimiento
 

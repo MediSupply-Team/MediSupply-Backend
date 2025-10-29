@@ -4,12 +4,11 @@
 -- Descripción: Agrega tablas para kardex, alertas y campos a producto
 -- ===================================================================
 
--- 1. Agregar campos a la tabla producto para gestión de stock
-ALTER TABLE producto 
-ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 10,
-ADD COLUMN IF NOT EXISTS stock_critico INT DEFAULT 5,
-ADD COLUMN IF NOT EXISTS requiere_lote BOOLEAN DEFAULT FALSE,
-ADD COLUMN IF NOT EXISTS requiere_vencimiento BOOLEAN DEFAULT TRUE;
+-- 1. Agregar campos a la tabla producto para gestión de stock (uno por uno para compatibilidad)
+ALTER TABLE producto ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 10;
+ALTER TABLE producto ADD COLUMN IF NOT EXISTS stock_critico INT DEFAULT 5;
+ALTER TABLE producto ADD COLUMN IF NOT EXISTS requiere_lote BOOLEAN DEFAULT FALSE;
+ALTER TABLE producto ADD COLUMN IF NOT EXISTS requiere_vencimiento BOOLEAN DEFAULT TRUE;
 
 -- Actualizar productos existentes con valores razonables
 UPDATE producto SET 
