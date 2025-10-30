@@ -110,7 +110,7 @@ Despliega el servicio de rutas de entrega.
 
 1. **OIDC Authentication** 
    - Autenticación segura con AWS sin credenciales estáticas
-   - Role ARN: `arn:aws:iam::838693051133:role/github-actions-deploy`
+   - Role ARN: `arn:aws:iam::217466752988:role/github-actions-deploy`
 
 2. **Multi-Architecture Build**
    - Platform: `linux/amd64` (compatible con AWS Fargate)
@@ -305,7 +305,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
+          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR

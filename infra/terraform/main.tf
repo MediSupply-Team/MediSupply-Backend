@@ -1,6 +1,7 @@
 ﻿terraform {
   backend "s3" {
-    bucket         = "miso-tfstate-838693051133"
+    #bucket         = "miso-tfstate-838693051135"
+    bucket         = "miso-tfstate-217466752988" #cuenta sergio
     key            = "infra.tfstate"
     region         = "us-east-1"
     encrypt        = true

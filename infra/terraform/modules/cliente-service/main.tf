@@ -125,7 +125,8 @@ resource "aws_db_instance" "cliente_postgres" {
 # SECRETS MANAGER
 # ============================================================
 resource "aws_secretsmanager_secret" "cliente_db_credentials" {
-  name        = "${local.service_id}-db-credentials"
+  #name        = "${local.service_id}-db-credentials"
+  name        = "${local.service_id}-db-credentials-cuentasergio"
   description = "Database credentials for cliente-service"
 
   tags = {
