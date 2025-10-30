@@ -35,6 +35,24 @@ class SearchResponse(BaseModel):
     items: List[Product]
     meta: Meta
 
+class BodegaInicial(BaseModel):
+    """Bodega donde se habilitará el producto inicialmente"""
+    bodega_id: str = Field(..., min_length=1, max_length=64, description="ID de la bodega")
+    pais: str = Field(..., min_length=2, max_length=2, description="Código de país (2 letras)")
+    lote: Optional[str] = Field(None, max_length=64, description="Lote inicial (opcional, se genera automático si no se provee)")
+    fecha_vencimiento: Optional[date] = Field(None, description="Fecha de vencimiento inicial (opcional)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "bodega_id": "BOG_CENTRAL",
+                "pais": "CO",
+                "lote": "LOTE-INICIAL-001",
+                "fecha_vencimiento": "2099-12-31"
+            }
+        }
+
+
 class ProductCreate(BaseModel):
     id: str
     nombre: str
@@ -43,6 +61,47 @@ class ProductCreate(BaseModel):
     presentacion: Optional[str] = None
     precioUnitario: float
     requisitosAlmacenamiento: Optional[str] = None
+    
+    # Campos opcionales para gestión de inventario
+    stockMinimo: Optional[int] = Field(10, ge=0, description="Stock mínimo antes de generar alerta")
+    stockCritico: Optional[int] = Field(5, ge=0, description="Stock crítico (alerta crítica)")
+    requiereLote: Optional[bool] = Field(False, description="Indica si requiere número de lote")
+    requiereVencimiento: Optional[bool] = Field(True, description="Indica si requiere fecha de vencimiento")
+    
+    # Bodegas iniciales donde estará disponible el producto
+    bodegasIniciales: Optional[List[BodegaInicial]] = Field(
+        None, 
+        description="Lista de bodegas donde se habilitará el producto con stock inicial en 0. Si no se especifica, no se crea inventario inicial."
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "PROD026",
+                "nombre": "Amoxicilina 500mg",
+                "codigo": "AMX500",
+                "categoria": "ANTIBIOTICS",
+                "presentacion": "Cápsula",
+                "precioUnitario": 1250.00,
+                "requisitosAlmacenamiento": "Temperatura ambiente, lugar seco",
+                "stockMinimo": 50,
+                "stockCritico": 20,
+                "requiereLote": True,
+                "requiereVencimiento": True,
+                "bodegasIniciales": [
+                    {
+                        "bodega_id": "BOG_CENTRAL",
+                        "pais": "CO",
+                        "lote": "LOTE-INICIAL-001",
+                        "fecha_vencimiento": "2099-12-31"
+                    },
+                    {
+                        "bodega_id": "MED_SUR",
+                        "pais": "CO"
+                    }
+                ]
+            }
+        }
 
 class ProductUpdate(BaseModel):
     nombre: Optional[str] = None

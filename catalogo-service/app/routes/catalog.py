@@ -109,7 +109,21 @@ async def get_inventory(id: str, page:int=1, size:int=50, session=Depends(get_se
 @router.post("/items", status_code=status.HTTP_201_CREATED)
 async def create_product(product: ProductCreate, session=Depends(get_session)):
     """
-    Crea un nuevo producto en el catálogo
+    Crea un nuevo producto en el catálogo.
+    
+    **Nuevo**: Ahora puedes especificar las bodegas iniciales donde estará disponible el producto.
+    Si se especifican, se crearán registros de inventario con stock inicial en 0.
+    
+    **Campos de Inventario**:
+    - `stockMinimo`: Stock mínimo antes de generar alerta (default: 10)
+    - `stockCritico`: Stock crítico para alertas críticas (default: 5)
+    - `requiereLote`: Si el producto requiere número de lote (default: False)
+    - `requiereVencimiento`: Si el producto requiere fecha de vencimiento (default: True)
+    
+    **Bodegas Iniciales** (opcional):
+    - Lista de bodegas donde se habilitará el producto con stock 0
+    - Facilita el primer movimiento de INGRESO
+    - Si no se especifica, el inventario se crea en el primer INGRESO
     """
     logger.info(f"📝 Creando producto: {product.id}")
     
@@ -124,7 +138,7 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
             detail=f"Producto con id {product.id} ya existe"
         )
     
-    # Crear nuevo producto
+    # Crear nuevo producto con campos de inventario
     new_product = Producto(
         id=product.id,
         nombre=product.nombre,
@@ -132,24 +146,75 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
         categoria_id=product.categoria,
         presentacion=product.presentacion,
         precio_unitario=product.precioUnitario,
-        requisitos_almacenamiento=product.requisitosAlmacenamiento
+        requisitos_almacenamiento=product.requisitosAlmacenamiento,
+        stock_minimo=product.stockMinimo or 10,
+        stock_critico=product.stockCritico or 5,
+        requiere_lote=product.requiereLote or False,
+        requiere_vencimiento=product.requiereVencimiento if product.requiereVencimiento is not None else True
     )
     
     session.add(new_product)
+    await session.flush()  # Flush para que el producto exista antes de crear inventarios
+    
+    # Crear inventarios iniciales si se especificaron bodegas
+    bodegas_creadas = []
+    if product.bodegasIniciales:
+        from app.models.catalogo_model import Inventario
+        from datetime import date, datetime
+        
+        logger.info(f"   📦 Creando {len(product.bodegasIniciales)} registros de inventario inicial")
+        
+        for bodega in product.bodegasIniciales:
+            # Generar lote si no se proporcionó
+            lote = bodega.lote or f"INICIAL-{datetime.now().strftime('%Y%m%d')}"
+            
+            # Usar fecha de vencimiento proporcionada o una fecha muy lejana
+            fecha_vence = bodega.fecha_vencimiento or date(2099, 12, 31)
+            
+            # Crear registro de inventario con cantidad = 0
+            inventario_inicial = Inventario(
+                producto_id=product.id,
+                pais=bodega.pais,
+                bodega_id=bodega.bodega_id,
+                lote=lote,
+                cantidad=0,  # Stock inicial en 0
+                vence=fecha_vence,
+                condiciones="Producto habilitado - stock inicial en 0"
+            )
+            
+            session.add(inventario_inicial)
+            bodegas_creadas.append(f"{bodega.bodega_id} ({bodega.pais})")
+            
+            logger.info(f"      ✓ Inventario inicial creado en {bodega.bodega_id} ({bodega.pais})")
+    
+    # Commit para guardar los cambios
     await session.commit()
     await session.refresh(new_product)
     
-    logger.info(f"✅ Producto creado: {product.id}")
+    log_msg = f"✅ Producto creado: {product.id}"
+    if bodegas_creadas:
+        log_msg += f" con inventario inicial en: {', '.join(bodegas_creadas)}"
+    logger.info(log_msg)
     
-    return {
+    response = {
         "id": new_product.id,
         "nombre": new_product.nombre,
         "codigo": new_product.codigo,
         "categoria": new_product.categoria_id,
         "presentacion": new_product.presentacion,
         "precioUnitario": float(new_product.precio_unitario),
-        "requisitosAlmacenamiento": new_product.requisitos_almacenamiento
+        "requisitosAlmacenamiento": new_product.requisitos_almacenamiento,
+        "stockMinimo": new_product.stock_minimo,
+        "stockCritico": new_product.stock_critico,
+        "requiereLote": new_product.requiere_lote,
+        "requiereVencimiento": new_product.requiere_vencimiento
     }
+    
+    # Agregar info de bodegas si se crearon
+    if bodegas_creadas:
+        response["bodegasIniciales"] = bodegas_creadas
+    
+    return response
 
 @router.put("/items/{id}")
 async def update_product(id: str, product: ProductUpdate, session=Depends(get_session)):

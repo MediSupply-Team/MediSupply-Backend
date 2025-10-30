@@ -137,23 +137,42 @@ class InventarioService:
             el stock al mismo tiempo. Esto es CRÍTICO para operaciones de salida
             donde se valida stock disponible.
         """
-        query = select(func.sum(Inventario.cantidad)).where(
-            and_(
-                Inventario.producto_id == producto_id,
-                Inventario.bodega_id == bodega_id,
-                Inventario.pais == pais
-            )
-        )
-        
-        if lote:
-            query = query.where(Inventario.lote == lote)
-        
-        # 🔒 SELECT FOR UPDATE: Bloquea el inventario para prevenir race conditions
         if for_update:
-            query = query.with_for_update()
-        
-        saldo = (await session.execute(query)).scalar_one_or_none()
-        return int(saldo or 0)
+            # 🔒 Para operaciones de salida, primero bloqueamos las filas
+            # y luego sumamos (no podemos usar FOR UPDATE con SUM directamente)
+            query_rows = select(Inventario).where(
+                and_(
+                    Inventario.producto_id == producto_id,
+                    Inventario.bodega_id == bodega_id,
+                    Inventario.pais == pais
+                )
+            )
+            
+            if lote:
+                query_rows = query_rows.where(Inventario.lote == lote)
+            
+            query_rows = query_rows.with_for_update()
+            result = await session.execute(query_rows)
+            rows = result.scalars().all()
+            
+            # Sumar manualmente después de bloquear
+            saldo = sum(row.cantidad for row in rows)
+            return int(saldo)
+        else:
+            # Sin lock, podemos usar SUM directamente (más rápido)
+            query = select(func.sum(Inventario.cantidad)).where(
+                and_(
+                    Inventario.producto_id == producto_id,
+                    Inventario.bodega_id == bodega_id,
+                    Inventario.pais == pais
+                )
+            )
+            
+            if lote:
+                query = query.where(Inventario.lote == lote)
+            
+            saldo = (await session.execute(query)).scalar_one_or_none()
+            return int(saldo or 0)
     
     @staticmethod
     async def registrar_movimiento(

@@ -544,6 +544,87 @@ def get_stock_report():
         return jsonify(error="Error interno del servidor"), 500
 
 
+@bp.route('/api/v1/inventory/bodega/<bodega_id>/productos', methods=['GET'])
+def get_productos_en_bodega(bodega_id: str):
+    """
+    Lista todos los productos disponibles en una bodega específica
+    Proxy hacia catalogo-service
+    
+    Query params:
+    - pais: Filtrar por país (opcional)
+    - con_stock: Solo productos con stock > 0 (default: true)
+    - page: Número de página (default: 1)
+    - size: Items por página (default: 50)
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Construir parámetros de query
+        params = {}
+        
+        if request.args.get('pais'):
+            params['pais'] = request.args.get('pais')
+        if request.args.get('con_stock'):
+            params['con_stock'] = request.args.get('con_stock')
+        if request.args.get('page'):
+            params['page'] = request.args.get('page')
+        if request.args.get('size'):
+            params['size'] = request.args.get('size')
+        
+        # Construir URL
+        url = f"{catalogo_url}/api/inventory/bodega/{bodega_id}/productos"
+        
+        current_app.logger.info(f"🏢 Getting productos en bodega {bodega_id}: {url}")
+        
+        response = requests.get(
+            url,
+            params=params,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Get productos en bodega error: {response.status_code} - {response.text[:200]}"
+            )
+            
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al consultar productos en bodega",
+                details=error_data
+            ), response.status_code
+        
+        # Respuesta exitosa
+        current_app.logger.info(f"✅ Productos en bodega retrieved: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout al conectar con servicio de catálogo: {catalogo_url}")
+        return jsonify(error="Timeout al consultar productos en bodega"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error conectando con servicio de catálogo: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado en inventory endpoint: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
+
+
 @bp.route('/api/v1/inventory/health', methods=['GET'])
 def inventory_health_check():
     """

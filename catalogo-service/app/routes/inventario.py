@@ -475,6 +475,142 @@ async def marcar_alerta_leida(
     return {"message": "Alerta marcada como leída", "alerta_id": alerta_id}
 
 
+@router.get("/bodega/{bodega_id}/productos")
+async def listar_productos_en_bodega(
+    bodega_id: str,
+    pais: Optional[str] = Query(None, description="Filtrar por país"),
+    con_stock: bool = Query(True, description="Solo productos con stock > 0"),
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    **Lista todos los productos disponibles en una bodega específica**
+    
+    Este endpoint es útil para:
+    - Ver qué productos están disponibles en una bodega
+    - Consultar stock actual por bodega antes de una venta
+    - Verificar disponibilidad para transferencias
+    
+    ### Parámetros:
+    - `bodega_id`: ID de la bodega a consultar (requerido)
+    - `pais`: Filtrar por país (opcional)
+    - `con_stock`: Si es True, solo muestra productos con cantidad > 0 (default: True)
+    - `page`: Número de página (default: 1)
+    - `size`: Items por página (1-200, default: 50)
+    
+    ### Respuesta:
+    Lista de productos con información de inventario:
+    - Datos del producto (nombre, código, categoría, precio)
+    - Stock actual en la bodega
+    - Lote y fecha de vencimiento
+    - Alertas de stock (si aplica)
+    """
+    import time
+    started = time.perf_counter_ns()
+    
+    logger.info(f"🏢 Consultando productos en bodega: {bodega_id} (pais: {pais}, con_stock: {con_stock})")
+    
+    # Construir query base con JOIN entre inventario y producto
+    query = (
+        select(
+            Inventario.producto_id,
+            Producto.nombre.label("producto_nombre"),
+            Producto.codigo.label("producto_codigo"),
+            Producto.categoria_id,
+            Producto.precio_unitario,
+            Inventario.pais,
+            Inventario.lote,
+            Inventario.cantidad,
+            Inventario.vence,
+            Inventario.condiciones,
+            Producto.stock_minimo,
+            Producto.stock_critico
+        )
+        .join(Producto, Inventario.producto_id == Producto.id)
+        .where(Inventario.bodega_id == bodega_id)
+    )
+    
+    # Aplicar filtros adicionales
+    if pais:
+        query = query.where(Inventario.pais == pais)
+    
+    if con_stock:
+        query = query.where(Inventario.cantidad > 0)
+    
+    # Ordenar por nombre de producto
+    query = query.order_by(Producto.nombre)
+    
+    # Contar total
+    count_query = (
+        select(func.count())
+        .select_from(Inventario)
+        .join(Producto, Inventario.producto_id == Producto.id)
+        .where(Inventario.bodega_id == bodega_id)
+    )
+    
+    if pais:
+        count_query = count_query.where(Inventario.pais == pais)
+    
+    if con_stock:
+        count_query = count_query.where(Inventario.cantidad > 0)
+    
+    total = (await session.execute(count_query)).scalar_one()
+    
+    # Aplicar paginación
+    query = query.offset((page - 1) * size).limit(size)
+    
+    # Ejecutar query
+    result = await session.execute(query)
+    rows = result.all()
+    
+    # Construir respuesta
+    items = []
+    for row in rows:
+        # Determinar estado del stock
+        if row.cantidad <= row.stock_critico:
+            estado_stock = "CRITICO"
+        elif row.cantidad <= row.stock_minimo:
+            estado_stock = "BAJO"
+        else:
+            estado_stock = "NORMAL"
+        
+        item = {
+            "producto_id": row.producto_id,
+            "producto_nombre": row.producto_nombre,
+            "producto_codigo": row.producto_codigo,
+            "categoria": row.categoria_id,
+            "precio_unitario": float(row.precio_unitario),
+            "bodega_id": bodega_id,
+            "pais": row.pais,
+            "lote": row.lote,
+            "cantidad": row.cantidad,
+            "fecha_vencimiento": row.vence.isoformat() if row.vence else None,
+            "condiciones": row.condiciones,
+            "stock_minimo": row.stock_minimo,
+            "stock_critico": row.stock_critico,
+            "estado_stock": estado_stock
+        }
+        items.append(item)
+    
+    took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+    
+    logger.info(f"✅ Productos en bodega {bodega_id}: {len(items)} de {total} en {took_ms}ms")
+    
+    return {
+        "items": items,
+        "meta": {
+            "page": page,
+            "size": size,
+            "total": total,
+            "bodega_id": bodega_id,
+            "pais": pais,
+            "con_stock": con_stock,
+            "tookMs": took_ms
+        }
+    }
+
+
 @router.get("/reports/saldos", response_model=ReporteSaldosResponse)
 async def reporte_saldos(
     producto_id: Optional[str] = Query(None, description="Filtrar por producto"),
