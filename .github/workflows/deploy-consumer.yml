@@ -10,11 +10,11 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: medisupply-dev-haproxy-consumer
+  ECR_REPOSITORY: medisupply-dev-orders-consumer
   ECS_CLUSTER: orders-cluster
   ECS_SERVICE: medisupply-dev-haproxy-consumer-svc
   TASK_DEFINITION_NAME: medisupply-dev-haproxy-consumer
-  CONTAINER_NAME: haproxy          # <- si mantienes el nombre actual; mejor cámbialo a "consumer"
+  CONTAINER_NAME: worker
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
         working-directory: ./consumer-lb
         run: |
           IMAGE_URI=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
-          docker build -t "${IMAGE_URI}" -f app/consumer/Dockerfile .
+          docker build -t "${IMAGE_URI}" .
           docker tag "${IMAGE_URI}" ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
           docker push "${IMAGE_URI}"
           docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest

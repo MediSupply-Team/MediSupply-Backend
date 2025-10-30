@@ -1,5 +1,8 @@
-﻿# -------- Base común --------
+﻿# =========================== 
+#   BASE COMÚN (Build stage)
+# =========================== 
 FROM python:3.11-slim-bookworm AS base
+
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -9,24 +12,21 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 
 WORKDIR /app
 
-# (A) Sistema mínimo: certificados
-# Si tu prioridad es reducir CVEs, deja también 'apt-get upgrade'.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# Usuario no root
 RUN groupadd -r appuser && useradd -r -m -g appuser appuser
 
-# Instala runtime
 COPY requirements.txt .
 RUN python -m pip install --upgrade pip setuptools wheel \
  && pip install --no-cache-dir -r requirements.txt
 
-# Copiamos código ya con ownership correcto
 COPY --chown=appuser:appuser . .
 
-# -------- Desarrollo: Uvicorn con reload --------
+# =========================== 
+#   ENTORNO DE DESARROLLO
+# =========================== 
 FROM base AS dev
 ENV ENVIRONMENT=development \
     LOG_LEVEL=debug \
@@ -36,14 +36,24 @@ EXPOSE 3000
 USER appuser
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3000", "--reload", "--log-level", "debug"]
 
-# -------- Producción: Gunicorn + workers Uvicorn --------
+# =========================== 
+#   ENTORNO DE PRODUCCIÓN
+# =========================== 
 FROM base AS prod
 RUN pip install --no-cache-dir gunicorn
+
 ENV ENVIRONMENT=production \
     LOG_LEVEL=info \
-    WORKERS=1 \
+    WORKERS=2 \
+    TIMEOUT=60 \
+    KEEPALIVE=5 \
     PORT=3000 \
     RUN_DDL_ON_STARTUP=false
+
 EXPOSE 3000
 USER appuser
-CMD ["bash", "-lc", "gunicorn -k uvicorn.workers.UvicornWorker -w ${WORKERS:-1} -b 0.0.0.0:${PORT} app.main:app --access-logfile - --error-logfile -"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c "import sys, urllib.request; r=urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3); sys.exit(0 if r.status==200 else 1)" || exit 1
+
+CMD ["bash", "-lc", "gunicorn -k uvicorn.workers.UvicornWorker -w ${WORKERS:-2} -b 0.0.0.0:${PORT} app.main:app --timeout ${TIMEOUT:-60} --keep-alive ${KEEPALIVE:-5} --access-logfile - --error-logfile -"]

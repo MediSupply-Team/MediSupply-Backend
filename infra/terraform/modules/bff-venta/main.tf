@@ -93,6 +93,38 @@ resource "aws_iam_role_policy_attachment" "app_attach_sqs" {
   policy_arn = aws_iam_policy.sqs_producer.arn
 }
 
+# Policy para ECS Exec (SSM Session Manager)
+resource "aws_iam_role_policy" "bff_venta_ecs_exec" {
+  name = "${local.bff_id}-ecs-exec"
+  role = aws_iam_role.app_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:DescribeLogGroups",
+          "logs:CreateLogStream",
+          "logs:DescribeLogStreams",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
 resource "aws_security_group" "alb_sg" {
   name        = "${local.bff_id}-alb-sg"
   description = "ALB SG for ${var.bff_name}"
@@ -222,6 +254,7 @@ resource "aws_ecs_task_definition" "td" {
           containerPort = var.bff_app_port
           hostPort      = var.bff_app_port
           protocol      = "tcp"
+          name          = "bff-venta-http"  # Required for Service Connect
         }
       ]
 
@@ -267,13 +300,20 @@ resource "aws_ecs_service" "svc" {
   task_definition = aws_ecs_task_definition.td.arn
   desired_count   = 2 # ⬅️ subimos a 2 para rollouts suaves
   launch_type     = "FARGATE"
-
+  enable_execute_command = true
   health_check_grace_period_seconds = 120 # ⬅️ la “gracia” vive en el service
 
   network_configuration {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.svc_sg.id]
     assign_public_ip = false
+  }
+
+  # Service Connect: enable as client only to discover other services
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name
+    # No 'service' block needed - this service is client-only
   }
 
   load_balancer {

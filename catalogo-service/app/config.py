@@ -17,10 +17,18 @@
 # settings = Settings()
 
 from pydantic_settings import BaseSettings
+import os
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://medisupply_user:MediSupply_Prod_2024!@catalog-db:5432/catalogo"
-    REDIS_URL: str = "redis://:Redis_MediSupply_2024!@redis:6379/1"
+    # DATABASE_URL viene de secrets manager en producción, con fallback para desarrollo local
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL", 
+        "postgresql+asyncpg://postgres:postgres@catalog-db:5432/catalogo"
+    )
+    REDIS_URL: str = os.getenv(
+        "REDIS_URL",
+        "redis://redis:6379/1"
+    )
     api_prefix: str = "/api"
     page_size_default: int = 20
     page_size_max: int = 50

@@ -60,7 +60,7 @@ build_image() {
     cd bff-cliente
     
     # Construir la imagen
-    docker build -t $ECR_REPO_NAME:$IMAGE_TAG .
+    docker build --platform linux/amd64 -t $ECR_REPO_NAME:$IMAGE_TAG .
     
     if [ $? -eq 0 ]; then
         echo_success "Imagen construida exitosamente"

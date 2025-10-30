@@ -12,3 +12,8 @@ output "sqs_queue_arn" {
   description = "SQS FIFO queue ARN"
   value       = aws_sqs_queue.fifo.arn
 }
+
+output "security_group_id" {
+  description = "Security group ID for consumer ECS tasks"
+  value       = aws_security_group.sg.id
+}

@@ -227,6 +227,13 @@ resource "aws_ecs_service" "svc" {
     assign_public_ip = false
   }
 
+  # Service Connect: enable as client only to discover other services
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name
+    # No 'service' block needed - this service is client-only
+  }
+
   load_balancer {
     target_group_arn = aws_lb_target_group.tg.arn
     container_name   = var.bff_name

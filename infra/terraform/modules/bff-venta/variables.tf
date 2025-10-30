@@ -23,3 +23,8 @@ variable "catalogo_service_url" {
   description = "URL of the catalogo service (internal ALB)"
   type        = string
 }
+
+variable "service_connect_namespace_name" {
+  description = "Service Connect namespace for internal service discovery"
+  type        = string
+}

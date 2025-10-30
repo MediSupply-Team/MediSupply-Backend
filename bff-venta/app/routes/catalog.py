@@ -1,236 +1,659 @@
 """
 Rutas de catálogo para el BFF-Venta
-Proxy hacia catalogo-service con manejo de errores y modo mock
+Proxy hacia catalogo-service con manejo de errores
 """
 from flask import Blueprint, jsonify, request, current_app
-import asyncio
-import logging
-from datetime import datetime
+import requests
+from requests.exceptions import RequestException, Timeout
+import os
 
 bp = Blueprint('catalog', __name__)
-logger = logging.getLogger(__name__)
 
 
-def run_async(coro):
-    """Helper para ejecutar corutinas async en Flask sincrono"""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
-
-
-def log_request(endpoint: str, method: str, params: dict = None, body: dict = None):
-    """Registra la petición para auditoría (síncono, no bloquea)"""
-    try:
-        log_data = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "endpoint": endpoint,
-            "method": method,
-            "user_agent": request.headers.get('User-Agent', 'unknown'),
-            "ip": request.remote_addr
-        }
-        if params:
-            log_data["query_params"] = params
-        if body:
-            log_data["body"] = body
-            
-        logger.info(f"Catalog API Request: {log_data}")
-    except Exception as e:
-        logger.warning(f"Error logging request: {e}")
+def get_catalogo_service_url():
+    """Obtener la URL del servicio de catálogo desde variables de entorno"""
+    url = os.getenv("CATALOGO_SERVICE_URL")
+    if not url:
+        current_app.logger.error("CATALOGO_SERVICE_URL no está configurada")
+        return None
+    return url.rstrip('/')  # Remover trailing slash si existe
 
 
 @bp.route('/api/v1/catalog/items', methods=['GET'])
 def get_catalog_items():
-    """Obtiene la lista de items del catálogo"""
+    """
+    Obtiene la lista de items del catálogo
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
     try:
-        # Obtener parámetros de query
-        params = {
-            'q': request.args.get('q'),
-            'categoria_id': request.args.get('categoria_id'),
-            'codigo': request.args.get('codigo'),
-            'pais': request.args.get('pais'),
-            'bodega_id': request.args.get('bodega_id'),
-            'page': int(request.args.get('page', 1)),
-            'size': int(request.args.get('size', 20)),
-            'sort': request.args.get('sort')
-        }
+        # Construir parámetros de query
+        params = {}
         
-        # Filtrar parámetros None
-        filtered_params = {k: v for k, v in params.items() if v is not None}
+        # Soportar tanto 'category' como 'categoriaId' para compatibilidad
+        categoria = request.args.get('category') or request.args.get('categoriaId')
+        if categoria:
+            params['categoriaId'] = categoria
         
-        # Log de la petición
-        log_request("/api/v1/catalog/items", "GET", filtered_params)
+        # Otros parámetros
+        if request.args.get('q'):
+            params['q'] = request.args.get('q')
+        if request.args.get('codigo'):
+            params['codigo'] = request.args.get('codigo')
+        if request.args.get('pais'):
+            params['pais'] = request.args.get('pais')
+        if request.args.get('bodegaId') or request.args.get('bodega_id'):
+            params['bodegaId'] = request.args.get('bodegaId') or request.args.get('bodega_id')
+        if request.args.get('page'):
+            params['page'] = request.args.get('page')
+        if request.args.get('size'):
+            params['size'] = request.args.get('size')
+        if request.args.get('sort'):
+            params['sort'] = request.args.get('sort')
         
-        # Obtener cliente de catálogo
-        catalogo_client = current_app.extensions.get("catalogo")
-        if not catalogo_client:
-            return jsonify({"error": "Catalogo client not initialized"}), 500
+        # Construir URL
+        url = f"{catalogo_url}/api/catalog/items"
         
-        # Obtener datos del catalogo-service
-        result = run_async(catalogo_client.get_items(**filtered_params))
+        current_app.logger.info(f"Calling catalog service: {url} with params: {params}")
         
-        # Verificar si hay error
-        if "error" in result:
-            status_code = 500 if result.get("status", 500) != 404 else 404
-            return jsonify(result), status_code
+        response = requests.get(
+            url,
+            params=params,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Catalog service error: {response.status_code} - {response.text[:200]}"
+            )
             
-        return jsonify(result), 200
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al consultar catálogo",
+                details=error_data
+            ), response.status_code
         
-    except ValueError as e:
-        logger.error(f"Error de validación en get_catalog_items: {e}")
-        return jsonify({"error": "Invalid parameters", "details": str(e)}), 400
+        # Respuesta exitosa
+        current_app.logger.info(f"Catalog service success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout al conectar con servicio de catálogo: {catalogo_url}")
+        return jsonify(error="Timeout al consultar catálogo"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error conectando con servicio de catálogo: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
     except Exception as e:
-        logger.error(f"Error en get_catalog_items: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        current_app.logger.error(f"Error inesperado en catalog endpoint: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
 
 
 @bp.route('/api/v1/catalog/items/<string:item_id>', methods=['GET'])
 def get_catalog_item(item_id: str):
-    """Obtiene un item específico del catálogo"""
+    """
+    Obtiene un item específico del catálogo
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
     try:
-        # Log de la petición
-        log_request(f"/api/v1/catalog/items/{item_id}", "GET")
+        # Construir URL
+        url = f"{catalogo_url}/api/catalog/items/{item_id}"
         
-        # Obtener cliente de catálogo
-        catalogo_client = current_app.extensions.get("catalogo")
-        if not catalogo_client:
-            return jsonify({"error": "Catalogo client not initialized"}), 500
+        current_app.logger.info(f"Calling catalog service: {url}")
         
-        # Obtener datos del catalogo-service
-        result = run_async(catalogo_client.get_item(item_id))
+        response = requests.get(
+            url,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
         
-        # Verificar si hay error
-        if "error" in result:
-            status_code = 500 if result.get("status", 500) != 404 else 404
-            return jsonify(result), status_code
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Catalog service error: {response.status_code} - {response.text[:200]}"
+            )
             
-        return jsonify(result), 200
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al consultar producto",
+                details=error_data
+            ), response.status_code
         
+        # Respuesta exitosa
+        current_app.logger.info(f"Catalog service success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout al conectar con servicio de catálogo: {catalogo_url}")
+        return jsonify(error="Timeout al consultar producto"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error conectando con servicio de catálogo: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
     except Exception as e:
-        logger.error(f"Error en get_catalog_item: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        current_app.logger.error(f"Error inesperado en catalog endpoint: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
 
 
 @bp.route('/api/v1/catalog/items/<string:item_id>/inventario', methods=['GET'])
 def get_item_inventory(item_id: str):
-    """Obtiene el inventario de un item específico"""
+    """
+    Obtiene el inventario de un item específico
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
     try:
-        page = int(request.args.get('page', 1))
-        size = int(request.args.get('size', 50))
+        # Construir parámetros
+        params = {
+            'page': request.args.get('page', 1),
+            'size': request.args.get('size', 50)
+        }
         
-        # Log de la petición
-        log_request(f"/api/v1/catalog/items/{item_id}/inventario", "GET", {"page": page, "size": size})
+        # Construir URL
+        url = f"{catalogo_url}/api/catalog/items/{item_id}/inventario"
         
-        # Obtener cliente de catálogo
-        catalogo_client = current_app.extensions.get("catalogo")
-        if not catalogo_client:
-            return jsonify({"error": "Catalogo client not initialized"}), 500
+        current_app.logger.info(f"Calling catalog service: {url} with params: {params}")
         
-        # Obtener datos del catalogo-service
-        result = run_async(catalogo_client.get_item_inventory(item_id, page, size))
+        response = requests.get(
+            url,
+            params=params,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
         
-        # Verificar si hay error
-        if "error" in result:
-            status_code = 500 if result.get("status", 500) != 404 else 404
-            return jsonify(result), status_code
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Catalog service error: {response.status_code} - {response.text[:200]}"
+            )
             
-        return jsonify(result), 200
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al consultar inventario",
+                details=error_data
+            ), response.status_code
         
-    except ValueError as e:
-        logger.error(f"Error de validación en get_item_inventory: {e}")
-        return jsonify({"error": "Invalid parameters", "details": str(e)}), 400
+        # Respuesta exitosa
+        current_app.logger.info(f"Catalog service success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout al conectar con servicio de catálogo: {catalogo_url}")
+        return jsonify(error="Timeout al consultar inventario"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error conectando con servicio de catálogo: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
     except Exception as e:
-        logger.error(f"Error en get_item_inventory: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        current_app.logger.error(f"Error inesperado en catalog endpoint: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
 
 
 @bp.route('/api/v1/catalog/items', methods=['POST'])
 def create_catalog_item():
-    """Crea un nuevo item en el catálogo"""
+    """
+    Crea un nuevo item en el catálogo
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
     try:
         # Obtener datos del body
         item_data = request.get_json()
         if not item_data:
-            return jsonify({"error": "Request body required"}), 400
+            return jsonify(error="Request body required"), 400
         
-        # Log de la petición
-        log_request("/api/v1/catalog/items", "POST", body=item_data)
+        # Construir URL
+        url = f"{catalogo_url}/api/catalog/items"
         
-        # Obtener cliente de catálogo
-        catalogo_client = current_app.extensions.get("catalogo")
-        if not catalogo_client:
-            return jsonify({"error": "Catalogo client not initialized"}), 500
+        current_app.logger.info(f"Calling catalog service: {url}")
         
-        # Crear item en el catalogo-service
-        result = run_async(catalogo_client.create_item(item_data))
+        response = requests.post(
+            url,
+            json=item_data,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+                "Content-Type": "application/json"
+            }
+        )
         
-        # Verificar si hay error
-        if "error" in result:
-            return jsonify(result), 500
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Catalog service error: {response.status_code} - {response.text[:200]}"
+            )
             
-        return jsonify(result), 201
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al crear producto",
+                details=error_data
+            ), response.status_code
         
+        # Respuesta exitosa
+        current_app.logger.info(f"Catalog service success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout al conectar con servicio de catálogo: {catalogo_url}")
+        return jsonify(error="Timeout al crear producto"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error conectando con servicio de catálogo: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
     except Exception as e:
-        logger.error(f"Error en create_catalog_item: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        current_app.logger.error(f"Error inesperado en catalog endpoint: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
 
 
 @bp.route('/api/v1/catalog/items/<string:item_id>', methods=['PUT'])
 def update_catalog_item(item_id: str):
-    """Actualiza un item existente del catálogo"""
+    """
+    Actualiza un item existente del catálogo
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
     try:
         # Obtener datos del body
         item_data = request.get_json()
         if not item_data:
-            return jsonify({"error": "Request body required"}), 400
+            return jsonify(error="Request body required"), 400
         
-        # Log de la petición
-        log_request(f"/api/v1/catalog/items/{item_id}", "PUT", body=item_data)
+        # Construir URL
+        url = f"{catalogo_url}/api/catalog/items/{item_id}"
         
-        # Obtener cliente de catálogo
-        catalogo_client = current_app.extensions.get("catalogo")
-        if not catalogo_client:
-            return jsonify({"error": "Catalogo client not initialized"}), 500
+        current_app.logger.info(f"Calling catalog service: {url}")
         
-        # Actualizar item en el catalogo-service
-        result = run_async(catalogo_client.update_item(item_id, item_data))
+        response = requests.put(
+            url,
+            json=item_data,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+                "Content-Type": "application/json"
+            }
+        )
         
-        # Verificar si hay error
-        if "error" in result:
-            status_code = 500 if result.get("status", 500) != 404 else 404
-            return jsonify(result), status_code
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Catalog service error: {response.status_code} - {response.text[:200]}"
+            )
             
-        return jsonify(result), 200
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al actualizar producto",
+                details=error_data
+            ), response.status_code
         
+        # Respuesta exitosa
+        current_app.logger.info(f"Catalog service success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout al conectar con servicio de catálogo: {catalogo_url}")
+        return jsonify(error="Timeout al actualizar producto"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error conectando con servicio de catálogo: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
     except Exception as e:
-        logger.error(f"Error en update_catalog_item: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        current_app.logger.error(f"Error inesperado en catalog endpoint: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
 
 
 @bp.route('/api/v1/catalog/items/<string:item_id>', methods=['DELETE'])
 def delete_catalog_item(item_id: str):
-    """Elimina un item del catálogo"""
+    """
+    Elimina un item del catálogo
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
     try:
-        # Log de la petición
-        log_request(f"/api/v1/catalog/items/{item_id}", "DELETE")
+        # Construir URL
+        url = f"{catalogo_url}/api/catalog/items/{item_id}"
         
-        # Obtener cliente de catálogo
-        catalogo_client = current_app.extensions.get("catalogo")
-        if not catalogo_client:
-            return jsonify({"error": "Catalogo client not initialized"}), 500
+        current_app.logger.info(f"Calling catalog service: {url}")
         
-        # Eliminar item del catalogo-service
-        result = run_async(catalogo_client.delete_item(item_id))
+        response = requests.delete(
+            url,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
         
-        # Verificar si hay error
-        if "error" in result:
-            status_code = 500 if result.get("status", 500) != 404 else 404
-            return jsonify(result), status_code
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Catalog service error: {response.status_code} - {response.text[:200]}"
+            )
             
-        return jsonify(result), 200
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al eliminar producto",
+                details=error_data
+            ), response.status_code
         
+        # Respuesta exitosa
+        current_app.logger.info(f"Catalog service success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout al conectar con servicio de catálogo: {catalogo_url}")
+        return jsonify(error="Timeout al eliminar producto"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error conectando con servicio de catálogo: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
     except Exception as e:
-        logger.error(f"Error en delete_catalog_item: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        current_app.logger.error(f"Error inesperado en catalog endpoint: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
+
+
+@bp.route('/api/v1/catalog/health', methods=['GET'])
+def catalog_health_check():
+    """
+    Health check del servicio de catálogo
+    """
+    catalogo_url = get_catalogo_service_url()
+    
+    if not catalogo_url:
+        return jsonify(
+            status="unhealthy",
+            reason="CATALOG_SERVICE_URL no configurada"
+        ), 503
+    
+    try:
+        response = requests.get(
+            f"{catalogo_url}/health",
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            return jsonify(
+                status="healthy",
+                catalog_service="connected",
+                catalog_url=catalogo_url
+            ), 200
+        else:
+            return jsonify(
+                status="degraded",
+                catalog_service="error",
+                status_code=response.status_code,
+                catalog_url=catalogo_url
+            ), 503
+            
+    except Timeout:
+        return jsonify(
+            status="unhealthy",
+            catalog_service="timeout",
+            catalog_url=catalogo_url
+        ), 503
+    except Exception as e:
+        return jsonify(
+            status="unhealthy",
+            catalog_service="disconnected",
+            error=str(e),
+            catalog_url=catalogo_url
+        ), 503
+
+
+@bp.route('/api/v1/catalog/items/bulk-upload', methods=['POST'])
+def bulk_upload_products():
+    """
+    Carga masiva de productos desde Excel o CSV
+    HU021 - Proxy hacia catalogo-service
+    
+    Permite a proveedores registrar productos médicos de manera masiva.
+    
+    Query params:
+    - proveedor_id: ID del proveedor (requerido)
+    - reemplazar_duplicados: Si es true, reemplaza productos duplicados (default: false)
+    
+    Body:
+    - file: Archivo Excel (.xlsx) o CSV (.csv)
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Verificar que se envió un archivo
+        if 'file' not in request.files:
+            return jsonify(error="No se envió ningún archivo"), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify(error="No se seleccionó ningún archivo"), 400
+        
+        # Obtener parámetros de query
+        proveedor_id = request.args.get('proveedor_id')
+        if not proveedor_id:
+            return jsonify(error="proveedor_id es requerido"), 400
+        
+        reemplazar_duplicados = request.args.get('reemplazar_duplicados', 'false').lower() == 'true'
+        
+        # Construir URL con parámetros
+        url = f"{catalogo_url}/api/catalog/items/bulk-upload"
+        params = {
+            'proveedor_id': proveedor_id,
+            'reemplazar_duplicados': reemplazar_duplicados
+        }
+        
+        current_app.logger.info(f"📤 Bulk upload: {url} (proveedor: {proveedor_id})")
+        
+        # Reenviar archivo al servicio de catálogo
+        files = {
+            'file': (file.filename, file.stream, file.content_type)
+        }
+        
+        response = requests.post(
+            url,
+            params=params,
+            files=files,
+            timeout=60,  # 60 segundos para carga masiva
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Bulk upload error: {response.status_code} - {response.text[:200]}"
+            )
+            
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error en carga masiva",
+                details=error_data
+            ), response.status_code
+        
+        # Respuesta exitosa
+        current_app.logger.info(f"✅ Bulk upload success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout en bulk upload: {catalogo_url}")
+        return jsonify(error="Timeout en carga masiva"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error en bulk upload: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado en bulk upload: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
+
+
+@bp.route('/api/v1/catalog/bulk-upload/status/<string:task_id>', methods=['GET'])
+def get_bulk_upload_status(task_id: str):
+    """
+    Consulta el estado de una carga masiva asíncrona
+    HU021 - Proxy hacia catalogo-service
+    
+    Retorna el estado actual de la tarea con progreso y resultados.
+    
+    Estados posibles:
+    - pending: En cola esperando procesamiento
+    - processing: Siendo procesado por el worker
+    - completed: Completado con éxito
+    - failed: Falló el procesamiento
+    
+    Response:
+    - task_id: ID de la tarea
+    - status: Estado actual
+    - progress: {total, processed, successful, failed}
+    - result: Resultado final (solo si completed)
+    - error: Mensaje de error (solo si failed)
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        url = f"{catalogo_url}/api/catalog/bulk-upload/status/{task_id}"
+        
+        current_app.logger.info(f"📊 Getting bulk upload status: {task_id}")
+        
+        response = requests.get(
+            url,
+            timeout=5,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Get status error: {response.status_code} - {response.text[:200]}"
+            )
+            
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error consultando estado de tarea",
+                details=error_data
+            ), response.status_code
+        
+        # Respuesta exitosa
+        current_app.logger.info(f"✅ Status retrieved: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout consultando estado: {task_id}")
+        return jsonify(error="Timeout consultando estado de tarea"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error consultando estado: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado consultando estado: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500

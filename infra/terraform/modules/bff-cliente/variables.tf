@@ -31,6 +31,11 @@ variable "catalogo_service_url" {
 }
 
 variable "cliente_service_url" {
-  description = "URL of the cliente service (internal ALB)"
+  description = "URL of the cliente service (Service Connect DNS)"
+  type        = string
+}
+
+variable "service_connect_namespace_name" {
+  description = "Service Connect namespace for internal service discovery"
   type        = string
 }

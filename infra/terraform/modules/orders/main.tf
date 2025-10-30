@@ -1,6 +1,37 @@
+############################
+# Orders service (ECS + SC)#
+############################
+
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
+# Log group
+resource "aws_cloudwatch_log_group" "orders" {
+  name              = "/medisupply/${var.env}/orders"
+  retention_in_days = 14
+  tags = {
+    Project = var.project
+    Env     = var.env
+  }
+}
+
+# Security Group: permite egress; el ingreso para Service Connect
+# es tráfico interno entre ENIs. Dejamos opcional una regla
+# de ingreso si quieres permitir desde CIDR VPC al puerto app.
 resource "aws_security_group" "ecs_sg" {
-  name        = "${var.project}-${var.env}-orders-ecs-sg"
-  description = "SG for Orders ECS"
+  name        = "${var.project}-${var.env}-orders-sg"
+  description = "SG para ECS tasks de orders"
   vpc_id      = var.vpc_id
 
   egress {
@@ -10,130 +41,128 @@ resource "aws_security_group" "ecs_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Project = var.project, Env = var.env }
-}
+  # (Opcional) Si quieres permitir inbound explicito al puerto app desde VPC:
+  ingress {
+    description = "Trafico interno VPC al puerto de la app"
+    from_port   = var.app_port
+    to_port     = var.app_port
+    protocol    = "tcp"
+    cidr_blocks = ["10.20.0.0/16"] # ajusta al CIDR de tu VPC
+  }
 
-data "aws_iam_policy_document" "task_exec_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com"]
-    }
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = {
+    Project = var.project
+    Env     = var.env
   }
 }
 
-resource "aws_iam_role" "task_exec_role" {
-  name               = "${var.project}-${var.env}-orders-task-exec"
-  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
-  tags               = { Project = var.project, Env = var.env }
-}
-
-# Policy para leer el secret de la DB
-resource "aws_iam_policy" "secrets_policy" {
-  name = "${var.project}-${var.env}-orders-secrets-policy"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
-        Resource = [
-          var.db_url_secret_arn
-        ]
-      }
-    ]
-  })
-
-  tags = { Project = var.project, Env = var.env }
-}
-
-resource "aws_iam_role_policy_attachment" "exec_secrets_attach" {
-  role       = aws_iam_role.task_exec_role.name
-  policy_arn = aws_iam_policy.secrets_policy.arn
-}
-
-resource "aws_iam_role_policy_attachment" "exec_ecr" {
-  role       = aws_iam_role.task_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
-# App role (si necesitas permisos extra dentro del contenedor)
-resource "aws_iam_role" "task_app_role" {
-  name               = "${var.project}-${var.env}-orders-task-app"
-  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
-  tags               = { Project = var.project, Env = var.env }
-}
-
-resource "aws_cloudwatch_log_group" "orders" {
-  name              = "/ecs/orders"
-  retention_in_days = 7
-  tags              = { Project = var.project, Env = var.env }
-}
-
+# Task Definition
 resource "aws_ecs_task_definition" "orders" {
   family                   = "orders"
-  network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "512"
-  memory                   = "1024"
-  execution_role_arn       = aws_iam_role.task_exec_role.arn
-  task_role_arn            = aws_iam_role.task_app_role.arn
+  network_mode             = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
+  execution_role_arn       = var.ecs_execution_role_arn
+  task_role_arn            = var.ecs_task_role_arn
 
   container_definitions = jsonencode([
     {
-      name         = "orders",
-      image        = var.ecr_image,
-      essential    = true,
-      portMappings = [{ containerPort = var.app_port, hostPort = var.app_port, protocol = "tcp" }],
+      name      = "orders"
+      image     = var.ecr_image
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = var.app_port
+          protocol      = "tcp"
+          name          = "http"   # necesario para Service Connect
+        }
+      ]
+
       environment = [
-        { name = "ENV", value = var.env },
-        { name = "PORT", value = tostring(var.app_port) },
-        { name = "RUN_DDL_ON_STARTUP", value = "false" },
-        { name = "WEB_CONCURRENCY", value = "2" }
-      ],
+        { name = "PORT",                   value = tostring(var.app_port) },
+        { name = "ENVIRONMENT",            value = var.env },
+        { name = "LOG_LEVEL",              value = "info" }
+      ]
+
       secrets = [
-        { name = "DATABASE_URL", valueFrom = var.db_url_secret_arn }
-      ],
+        {
+          name      = "DB_URL"
+          valueFrom = var.db_url_secret_arn
+        }
+      ]
+
       logConfiguration = {
-        logDriver = "awslogs",
+        logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.orders.name,
-          awslogs-region        = var.aws_region,
+          awslogs-group         = aws_cloudwatch_log_group.orders.name
+          awslogs-region        = var.aws_region
           awslogs-stream-prefix = "orders"
         }
-      },
+      }
+
+      # Healthcheck de contenedor (coincide con Dockerfile)
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:${var.app_port}/health || exit 1"],
-        interval    = 30,
-        timeout     = 5,
-        retries     = 3,
-        startPeriod = 60
+        command     = ["CMD-SHELL","python -c \"import sys,urllib.request;r=urllib.request.urlopen('http://127.0.0.1:${var.app_port}/health',timeout=3);sys.exit(0 if r.status==200 else 1)\" || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 40
       }
     }
   ])
 
-  tags = { Project = var.project, Env = var.env }
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+  }
 }
 
+# ECS Service con Service Connect habilitado
 resource "aws_ecs_service" "orders" {
   name            = "orders-svc"
   cluster         = var.ecs_cluster_arn
   task_definition = aws_ecs_task_definition.orders.arn
   desired_count   = 1
   launch_type     = "FARGATE"
+  enable_execute_command  = true
+
+  deployment_controller { type = "ECS" }
 
   network_configuration {
-    subnets          = var.private_subnets
-    security_groups  = [aws_security_group.ecs_sg.id]
+    subnets         = var.private_subnets
+    security_groups = [aws_security_group.ecs_sg.id]
     assign_public_ip = false
   }
 
-  deployment_minimum_healthy_percent = 50
-  deployment_maximum_percent         = 200
+  # Service Connect: expone 'orders' como DNS interno
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name  # p.ej., "svc.local"
 
-  tags = { Project = var.project, Env = var.env }
+    service {
+      client_alias {
+        dns_name = "orders"
+        port     = var.app_port
+      }
+      port_name = "http"   # debe coincidir con el name del portMapping
+    }
+  }
+
+  # Sin load_balancer{} (no hay ALB, SC hace routing interno)
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+  }
 }

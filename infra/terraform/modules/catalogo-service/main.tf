@@ -278,6 +278,24 @@ resource "aws_iam_role" "catalogo_ecs_execution_role" {
     Project = var.project
     Env     = var.env
   }
+  }
+
+  # Permiso para acceder al secreto de la base de datos en Secrets Manager
+  resource "aws_iam_role_policy" "catalogo_ecs_execution_secrets_policy" {
+    name   = "catalogo-ecs-execution-secrets-policy"
+    role   = aws_iam_role.catalogo_ecs_execution_role.id
+    policy = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Effect = "Allow"
+          Action = [
+            "secretsmanager:GetSecretValue"
+          ]
+          Resource = aws_secretsmanager_secret.catalogo_db_credentials.arn
+        }
+      ]
+    })
 }
 
 resource "aws_iam_role_policy_attachment" "catalogo_ecs_execution_role_policy" {
@@ -341,6 +359,28 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
   })
 }
 
+# Policy para ECS Execute Command (debugging y acceso directo)
+resource "aws_iam_role_policy" "catalogo_ecs_exec_policy" {
+  name = "${var.project}-${var.env}-catalogo-ecs-exec-policy"
+  role = aws_iam_role.catalogo_ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # ============================================================
 # SECRETS MANAGER
 # ============================================================
@@ -363,7 +403,7 @@ resource "aws_secretsmanager_secret_version" "catalogo_db_credentials" {
     endpoint     = aws_db_instance.catalogo_postgres.endpoint
     port         = aws_db_instance.catalogo_postgres.port
     dbname       = aws_db_instance.catalogo_postgres.db_name
-    database_url = "postgresql://${aws_db_instance.catalogo_postgres.username}:${urlencode(random_password.catalogo_db_password.result)}@${aws_db_instance.catalogo_postgres.endpoint}:${aws_db_instance.catalogo_postgres.port}/${aws_db_instance.catalogo_postgres.db_name}"
+    database_url = "postgresql://${aws_db_instance.catalogo_postgres.username}:${urlencode(random_password.catalogo_db_password.result)}@${aws_db_instance.catalogo_postgres.address}:${aws_db_instance.catalogo_postgres.port}/${aws_db_instance.catalogo_postgres.db_name}"
   })
 }
 
@@ -404,6 +444,7 @@ resource "aws_ecs_task_definition" "catalogo" {
         {
           containerPort = var.container_port
           protocol      = "tcp"
+          name          = "catalogo-http"  # Unique port name for Service Connect
         }
       ]
 
@@ -549,10 +590,26 @@ resource "aws_ecs_service" "catalogo" {
   task_definition = aws_ecs_task_definition.catalogo.arn
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
+  
+  enable_execute_command = true  # Permite acceso directo al contenedor para debugging
 
   network_configuration {
     subnets         = var.private_subnets
     security_groups = [aws_security_group.catalogo_ecs_sg.id]
+  }
+
+  # Service Connect: exposes catalogo-service for internal service discovery
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name
+
+    service {
+      client_alias {
+        dns_name = "catalogo"
+        port     = var.container_port
+      }
+      port_name = "catalogo-http"  # Must match the portMapping name
+    }
   }
 
   load_balancer {
