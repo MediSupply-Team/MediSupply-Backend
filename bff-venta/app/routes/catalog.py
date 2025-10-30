@@ -483,3 +483,177 @@ def catalog_health_check():
             error=str(e),
             catalog_url=catalogo_url
         ), 503
+
+
+@bp.route('/api/v1/catalog/items/bulk-upload', methods=['POST'])
+def bulk_upload_products():
+    """
+    Carga masiva de productos desde Excel o CSV
+    HU021 - Proxy hacia catalogo-service
+    
+    Permite a proveedores registrar productos médicos de manera masiva.
+    
+    Query params:
+    - proveedor_id: ID del proveedor (requerido)
+    - reemplazar_duplicados: Si es true, reemplaza productos duplicados (default: false)
+    
+    Body:
+    - file: Archivo Excel (.xlsx) o CSV (.csv)
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Verificar que se envió un archivo
+        if 'file' not in request.files:
+            return jsonify(error="No se envió ningún archivo"), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify(error="No se seleccionó ningún archivo"), 400
+        
+        # Obtener parámetros de query
+        proveedor_id = request.args.get('proveedor_id')
+        if not proveedor_id:
+            return jsonify(error="proveedor_id es requerido"), 400
+        
+        reemplazar_duplicados = request.args.get('reemplazar_duplicados', 'false').lower() == 'true'
+        
+        # Construir URL con parámetros
+        url = f"{catalogo_url}/api/catalog/items/bulk-upload"
+        params = {
+            'proveedor_id': proveedor_id,
+            'reemplazar_duplicados': reemplazar_duplicados
+        }
+        
+        current_app.logger.info(f"📤 Bulk upload: {url} (proveedor: {proveedor_id})")
+        
+        # Reenviar archivo al servicio de catálogo
+        files = {
+            'file': (file.filename, file.stream, file.content_type)
+        }
+        
+        response = requests.post(
+            url,
+            params=params,
+            files=files,
+            timeout=60,  # 60 segundos para carga masiva
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Bulk upload error: {response.status_code} - {response.text[:200]}"
+            )
+            
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error en carga masiva",
+                details=error_data
+            ), response.status_code
+        
+        # Respuesta exitosa
+        current_app.logger.info(f"✅ Bulk upload success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout en bulk upload: {catalogo_url}")
+        return jsonify(error="Timeout en carga masiva"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error en bulk upload: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado en bulk upload: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
+
+
+@bp.route('/api/v1/catalog/bulk-upload/status/<string:task_id>', methods=['GET'])
+def get_bulk_upload_status(task_id: str):
+    """
+    Consulta el estado de una carga masiva asíncrona
+    HU021 - Proxy hacia catalogo-service
+    
+    Retorna el estado actual de la tarea con progreso y resultados.
+    
+    Estados posibles:
+    - pending: En cola esperando procesamiento
+    - processing: Siendo procesado por el worker
+    - completed: Completado con éxito
+    - failed: Falló el procesamiento
+    
+    Response:
+    - task_id: ID de la tarea
+    - status: Estado actual
+    - progress: {total, processed, successful, failed}
+    - result: Resultado final (solo si completed)
+    - error: Mensaje de error (solo si failed)
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        url = f"{catalogo_url}/api/catalog/bulk-upload/status/{task_id}"
+        
+        current_app.logger.info(f"📊 Getting bulk upload status: {task_id}")
+        
+        response = requests.get(
+            url,
+            timeout=5,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Get status error: {response.status_code} - {response.text[:200]}"
+            )
+            
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error consultando estado de tarea",
+                details=error_data
+            ), response.status_code
+        
+        # Respuesta exitosa
+        current_app.logger.info(f"✅ Status retrieved: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout consultando estado: {task_id}")
+        return jsonify(error="Timeout consultando estado de tarea"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error consultando estado: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado consultando estado: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500

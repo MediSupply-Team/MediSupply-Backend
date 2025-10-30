@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Request, HTTPException, status
+from fastapi import APIRouter, Depends, Query, Request, HTTPException, status, UploadFile
 from app.db import get_session
 from app.schemas import SearchResponse, ProductCreate, ProductUpdate
 from app.repositories.catalog_repo import buscar_productos, detalle_inventario
@@ -48,6 +48,10 @@ async def list_items(
     # Construir respuesta
     items = []
     for r in rows:
+        # DEBUG: Log valores de campos de proveedor
+        if hasattr(r, 'id') and r.id.startswith('PROD_BULK'):
+            logger.info(f"   DEBUG: {r.id} -> cert={getattr(r, 'certificado_sanitario', 'NO ATTR')}, dias={getattr(r, 'tiempo_entrega_dias', 'NO ATTR')}, prov={getattr(r, 'proveedor_id', 'NO ATTR')}")
+        
         item = {
             "id": r.id,
             "nombre": r.nombre,
@@ -56,6 +60,10 @@ async def list_items(
             "presentacion": r.presentacion,
             "precioUnitario": float(r.precio_unitario),
             "requisitosAlmacenamiento": r.requisitos_almacenamiento,
+            # HU021 - Campos de proveedor
+            "certificadoSanitario": r.certificado_sanitario,
+            "tiempoEntregaDias": r.tiempo_entrega_dias,
+            "proveedorId": r.proveedor_id,
         }
         
         # Agregar resumen de inventario si existe
@@ -94,7 +102,11 @@ async def get_product(id: str, session=Depends(get_session)):
     return {
         "id": row.id, "nombre": row.nombre, "codigo": row.codigo, "categoria": row.categoria_id,
         "presentacion": row.presentacion, "precioUnitario": float(row.precio_unitario),
-        "requisitosAlmacenamiento": row.requisitos_almacenamiento
+        "requisitosAlmacenamiento": row.requisitos_almacenamiento,
+        # HU021 - Campos de proveedor
+        "certificadoSanitario": row.certificado_sanitario,
+        "tiempoEntregaDias": row.tiempo_entrega_dias,
+        "proveedorId": row.proveedor_id
     }
 
 @router.get("/items/{id}/inventario")
@@ -150,7 +162,10 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
         stock_minimo=product.stockMinimo or 10,
         stock_critico=product.stockCritico or 5,
         requiere_lote=product.requiereLote or False,
-        requiere_vencimiento=product.requiereVencimiento if product.requiereVencimiento is not None else True
+        requiere_vencimiento=product.requiereVencimiento if product.requiereVencimiento is not None else True,
+        certificado_sanitario=product.certificadoSanitario,
+        tiempo_entrega_dias=product.tiempoEntregaDias,
+        proveedor_id=product.proveedorId
     )
     
     session.add(new_product)
@@ -300,3 +315,145 @@ async def delete_product(id: str, session=Depends(get_session)):
     logger.info(f"✅ Producto eliminado: {id}")
     
     return {"message": f"Producto {id} eliminado exitosamente"}
+
+
+@router.post("/items/bulk-upload", status_code=status.HTTP_202_ACCEPTED)
+async def bulk_upload_products(
+    file: UploadFile,
+    proveedor_id: str = Query(..., description="ID del proveedor que carga los productos"),
+    reemplazar_duplicados: bool = Query(False, description="Si es true, reemplaza productos duplicados; si es false, los ignora")
+):
+    """
+    **HU021 - Carga masiva de productos desde Excel o CSV (ASÍNCRONO con SQS)**
+    
+    Permite a un proveedor registrar productos médicos de manera masiva.
+    El archivo se sube a S3 y se procesa de forma asíncrona mediante SQS.
+    
+    **Retorna inmediatamente** con un task_id para consultar el estado.
+    
+    ### Formato del archivo:
+    
+    **Columnas requeridas:**
+    - `id`: ID único del producto
+    - `nombre`: Nombre del producto (obligatorio)
+    - `codigo`: Código o referencia (obligatorio, único)
+    - `categoria`: Categoría del producto (obligatorio)
+    - `precio_unitario`: Precio unitario (obligatorio)
+    - `certificado_sanitario`: Número del certificado sanitario (obligatorio)
+    - `condiciones_almacenamiento`: Condiciones de almacenamiento (obligatorio)
+    - `tiempo_entrega_dias`: Tiempo estimado de entrega en días (obligatorio)
+    
+    **Columnas opcionales:**
+    - `presentacion`: Presentación del producto
+    - `stock_minimo`: Stock mínimo (default: 10)
+    - `stock_critico`: Stock crítico (default: 5)
+    - `requiere_lote`: Si requiere lote (true/false, default: false)
+    - `requiere_vencimiento`: Si requiere fecha de vencimiento (true/false, default: true)
+    
+    ### Parámetros:
+    - `file`: Archivo Excel (.xlsx) o CSV (.csv)
+    - `proveedor_id`: ID del proveedor
+    - `reemplazar_duplicados`: Si es true, actualiza productos existentes; si es false, los ignora
+    
+    ### Respuesta:
+    - `total`: Total de productos en el archivo
+    - `exitosos`: Productos cargados exitosamente
+    - `rechazados`: Productos rechazados
+    - `duplicados`: Productos duplicados encontrados
+    - `errores`: Lista de errores por fila
+    - `productos_creados`: Lista de IDs de productos creados
+    
+    ### Procesamiento Asíncrono:
+    1. Archivo se sube a S3
+    2. Se crea tarea en Redis
+    3. Se envía mensaje a SQS
+    4. Worker procesa en background
+    5. Consultar estado en GET /bulk-upload/status/{task_id}
+    """
+    import uuid
+    from app.services.aws_service import aws_service
+    from app.services.task_service import task_service
+    
+    logger.info(f"📤 Carga masiva asíncrona - Proveedor: {proveedor_id}, Archivo: {file.filename}")
+    
+    # Validar tipo de archivo
+    if not file.filename.endswith(('.xlsx', '.csv')):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato de archivo no soportado. Use Excel (.xlsx) o CSV (.csv)"
+        )
+    
+    try:
+        # Generar task_id único
+        task_id = str(uuid.uuid4())
+        
+        # Leer archivo en memoria
+        file_content = await file.read()
+        
+        # Subir archivo a S3
+        s3_key = await aws_service.upload_file_to_s3(
+            file_content=file_content,
+            filename=file.filename,
+            content_type=file.content_type
+        )
+        
+        # Crear tarea en Redis
+        await task_service.create_task(
+            task_id=task_id,
+            filename=file.filename,
+            proveedor_id=proveedor_id,
+            s3_key=s3_key
+        )
+        
+        # Enviar mensaje a SQS para procesamiento asíncrono
+        await aws_service.send_sqs_message(
+            task_id=task_id,
+            s3_key=s3_key,
+            filename=file.filename,
+            proveedor_id=proveedor_id,
+            reemplazar_duplicados=reemplazar_duplicados
+        )
+        
+        logger.info(f"✅ Tarea de carga masiva encolada - Task ID: {task_id}")
+        
+        return {
+            "message": "Archivo recibido y encolado para procesamiento",
+            "task_id": task_id,
+            "status": "pending",
+            "status_url": f"/api/catalog/bulk-upload/status/{task_id}",
+            "filename": file.filename,
+            "proveedor_id": proveedor_id
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error en carga masiva: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error procesando el archivo: {str(e)}"
+        )
+
+
+@router.get("/bulk-upload/status/{task_id}")
+async def get_bulk_upload_status(task_id: str):
+    """
+    Consulta el estado de una carga masiva asíncrona
+    
+    Args:
+        task_id: ID de la tarea retornado por POST /bulk-upload
+    
+    Returns:
+        Estado actual de la tarea con progreso y resultados
+    """
+    from app.services.task_service import task_service
+    
+    task = await task_service.get_task(task_id)
+    
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Tarea {task_id} no encontrada"
+        )
+    
+    return task

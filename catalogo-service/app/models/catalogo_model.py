@@ -19,6 +19,11 @@ class Producto(Base):
     stock_critico: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     requiere_lote: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     requiere_vencimiento: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    # Campos para HU021 - Carga masiva y gestión de proveedores
+    certificado_sanitario: Mapped[Optional[str]] = mapped_column(String(255))
+    tiempo_entrega_dias: Mapped[Optional[int]] = mapped_column(Integer)
+    proveedor_id: Mapped[Optional[str]] = mapped_column(String(64))
 
 class Inventario(Base):
     __tablename__ = "inventario"

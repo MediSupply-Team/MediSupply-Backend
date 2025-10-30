@@ -68,6 +68,11 @@ class ProductCreate(BaseModel):
     requiereLote: Optional[bool] = Field(False, description="Indica si requiere número de lote")
     requiereVencimiento: Optional[bool] = Field(True, description="Indica si requiere fecha de vencimiento")
     
+    # HU021 - Campos para proveedores
+    certificadoSanitario: Optional[str] = Field(None, max_length=255, description="Número o referencia del certificado sanitario")
+    tiempoEntregaDias: Optional[int] = Field(None, ge=1, description="Tiempo estimado de entrega en días")
+    proveedorId: Optional[str] = Field(None, max_length=64, description="ID del proveedor")
+    
     # Bodegas iniciales donde estará disponible el producto
     bodegasIniciales: Optional[List[BodegaInicial]] = Field(
         None, 
