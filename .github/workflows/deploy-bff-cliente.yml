@@ -7,6 +7,11 @@ on:
       - 'bff-cliente/**'
       - '.github/workflows/deploy-bff-cliente.yml'
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: true
+        default: "develop"
 
 env:
   AWS_REGION: us-east-1
@@ -27,6 +32,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -45,18 +52,36 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          
+          echo "🔨 Building Docker image..."
+          docker build -t "${IMAGE_URI}" .
+          
+          echo "📤 Pushing image with SHA tag..."
+          docker push "${IMAGE_URI}"
+          
+          echo "🏷️  Tagging and pushing as latest..."
+          docker tag "${IMAGE_URI}" "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          docker push "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          
+          echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "✅ Image built and pushed: ${IMAGE_URI}"
 
       - name: Get current task definition
         run: |
+          echo "📥 Downloading current task definition..."
           aws ecs describe-task-definition \
-            --task-definition medisupply-dev-bff-cliente \
+            --task-definition ${{ env.ECR_REPOSITORY }} \
             --query 'taskDefinition' \
             --output json > task-definition.json
+          
+          # Verify download succeeded
+          if [ ! -s task-definition.json ]; then
+            echo "❌ Error: task-definition.json is empty or missing"
+            exit 1
+          fi
+          
+          echo "✅ Task definition downloaded successfully"
 
       - name: Update task definition with new image
         id: task-def
@@ -74,9 +99,67 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
-      - name: Deployment Summary
+      - name: Post-deploy status
+        if: always()
         run: |
-          echo "✅ Deployment successful!"
+          echo "📊 Service Status:"
+          aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --query "services[0].{status:status,desired:desiredCount,running:runningCount,taskDef:taskDefinition}" \
+            --output table
+          
+          echo ""
+          echo "📋 Recent Events:"
+          aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --query "services[0].events[0:10].[createdAt,message]" \
+            --output table
+          
+          echo ""
+          echo "🔍 Task Status:"
+          aws ecs list-tasks \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --service-name "${{ env.ECS_SERVICE }}" \
+            --output table
+
+      - name: Check service health
+        run: |
+          echo "⏳ Waiting 30 seconds for service to be ready..."
+          sleep 30
+          
+          echo "🔍 Getting ALB DNS name..."
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --query "LoadBalancers[?contains(LoadBalancerName, 'medisupply-dev-bff-cliente')].DNSName" \
+            --output text)
+          
+          if [ -n "$ALB_DNS" ]; then
+            echo "🔗 ALB DNS: $ALB_DNS"
+            echo "🧪 Testing /health endpoint..."
+            
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${ALB_DNS}/health" || echo "000")
+            
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+              echo "✅ Health check passed (HTTP $HTTP_STATUS)"
+            else
+              echo "⚠️ Health check failed (HTTP $HTTP_STATUS)"
+              echo "📝 Showing recent logs:"
+              aws logs tail "/ecs/medisupply-dev-bff-cliente" --since 5m --format short || true
+            fi
+          else
+            echo "⚠️ Could not retrieve ALB DNS name"
+          fi
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "========================================"
+          echo "📦 DEPLOYMENT SUMMARY"
+          echo "========================================"
           echo "🔗 Service: ${{ env.ECS_SERVICE }}"
           echo "🖼️  Image: ${{ steps.build-image.outputs.image }}"
-          echo "📊 Check logs: aws logs tail /ecs/medisupply-dev-bff-cliente --follow"
+          echo "🏷️  Cluster: ${{ env.ECS_CLUSTER }}"
+          echo "========================================"
+          echo "📊 To view logs:"
+          echo "aws logs tail /ecs/medisupply-dev-bff-cliente --follow"

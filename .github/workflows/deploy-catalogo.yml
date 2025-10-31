@@ -19,7 +19,6 @@ env:
   ECS_CLUSTER: orders-cluster
   ECS_SERVICE: medisupply-dev-catalogo-service
   CONTAINER_NAME: catalogo-service
-  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   build-and-deploy:
@@ -29,7 +28,7 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout (rama indicada o contexto del push)
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
@@ -40,28 +39,6 @@ jobs:
           role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Fix Redis imports (temporary workaround)
-        working-directory: ./catalogo-service
-        run: |
-          echo "🔧 Comentando líneas de Redis en catalog.py..."
-          
-          # Hacer backup
-          cp app/routes/catalog.py app/routes/catalog.py.backup
-          
-          # Comentar imports de Redis
-          sed -i 's/^from app.cache import/# from app.cache import/' app/routes/catalog.py
-          
-          # Comentar líneas específicas de Redis en la función list_items
-          sed -i '/redis = await get_redis()/s/^/    # /' app/routes/catalog.py
-          sed -i '/key = search_key(/s/^/    # /' app/routes/catalog.py
-          sed -i '/if categoriaId:/,/await redis.delete(key)/s/^/    # /' app/routes/catalog.py
-          sed -i '/cached = await redis.get(key)/s/^/    # /' app/routes/catalog.py
-          sed -i '/if cached:/,/return payload/s/^/    # /' app/routes/catalog.py
-          sed -i '/await redis.setex(/s/^/    # /' app/routes/catalog.py
-          
-          echo "✅ Redis comentado. Verificando cambios:"
-          grep -n "redis" app/routes/catalog.py || echo "✅ No se encontraron líneas de Redis sin comentar"
-
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -70,26 +47,40 @@ jobs:
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+          IMAGE_TAG: ${{ github.sha }}
         working-directory: ./catalogo-service
         run: |
-          IMAGE_URI=${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          
+          echo "🔨 Building Docker image..."
           docker build -t "${IMAGE_URI}" .
+          
+          echo "📤 Pushing image with SHA tag..."
           docker push "${IMAGE_URI}"
           
-          # También pushear con tag latest
+          echo "🏷️  Tagging and pushing as latest..."
           docker tag "${IMAGE_URI}" "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
           docker push "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
           
           echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "✅ Image built and pushed: ${IMAGE_URI}"
 
       - name: Download current task definition
         run: |
+          echo "📥 Downloading current task definition..."
           aws ecs describe-task-definition \
-            --task-definition medisupply-dev-catalogo-service \
+            --task-definition ${{ env.ECR_REPOSITORY }} \
             --query 'taskDefinition' > task-definition.json
+          
+          # Verify download succeeded
+          if [ ! -s task-definition.json ]; then
+            echo "❌ Error: task-definition.json is empty or missing"
+            exit 1
+          fi
+          
+          echo "✅ Task definition downloaded successfully"
 
-      - name: Fill new image in task definition
+      - name: Update task definition with new image
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -97,7 +88,7 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.build-image.outputs.image }}
 
-      - name: Deploy task definition to ECS
+      - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
@@ -106,8 +97,9 @@ jobs:
           wait-for-service-stability: true
 
       - name: Post-deploy status
+        if: always()
         run: |
-          echo "📊 Estado del servicio:"
+          echo "📊 Service Status:"
           aws ecs describe-services \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --services "${{ env.ECS_SERVICE }}" \
@@ -115,19 +107,48 @@ jobs:
             --output table
           
           echo ""
-          echo "📋 Últimos eventos:"
+          echo "📋 Recent Events:"
           aws ecs describe-services \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --services "${{ env.ECS_SERVICE }}" \
             --query "services[0].events[0:10].[createdAt,message]" \
             --output table
+          
+          echo ""
+          echo "🔍 Task Status:"
+          aws ecs list-tasks \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --service-name "${{ env.ECS_SERVICE }}" \
+            --output table
 
-      - name: Test catalog endpoint
+      - name: Check service health
         run: |
-          echo "🧪 Esperando 30 segundos para que el servicio esté listo..."
+          echo "⏳ Waiting 30 seconds for service to be ready..."
           sleep 30
           
-          echo "🧪 Probando endpoint de catálogo..."
+          # Get ALB DNS from BFF Venta
           ALB_DNS="medisupply-dev-bff-venta-alb-607524362.us-east-1.elb.amazonaws.com"
           
-          curl -f "http://${ALB_DNS}/api/catalog/items" || echo "⚠️ Endpoint falló, revisar logs"
+          echo "🧪 Testing catalog endpoint..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${ALB_DNS}/catalog/items" || echo "000")
+          
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Endpoint responded successfully (HTTP $HTTP_STATUS)"
+          else
+            echo "⚠️ Endpoint failed with HTTP $HTTP_STATUS"
+            echo "📝 Showing recent logs:"
+            aws logs tail "/ecs/medisupply-dev-catalogo-service" --since 5m --format short || true
+          fi
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "========================================"
+          echo "📦 DEPLOYMENT SUMMARY"
+          echo "========================================"
+          echo "🔗 Service: ${{ env.ECS_SERVICE }}"
+          echo "🖼️  Image: ${{ steps.build-image.outputs.image }}"
+          echo "🏷️  Cluster: ${{ env.ECS_CLUSTER }}"
+          echo "========================================"
+          echo "📊 To view logs:"
+          echo "aws logs tail /ecs/medisupply-dev-catalogo-service --follow"
