@@ -119,7 +119,7 @@ resource "aws_security_group" "alb" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["10.20.0.0/16"]
+    cidr_blocks = ["0.0.0.0/0"] #cidr_blocks = ["10.20.0.0/16"]
   }
 
   egress {
@@ -168,10 +168,10 @@ resource "aws_security_group" "svc" {
 # ============================================================
 resource "aws_lb" "this" {
   name               = "${substr(local.service_id, 0, 26)}-alb"
-  internal           = true
+  internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = var.private_subnets
+  subnets            = var.public_subnets
 
   tags = {
     Project = var.project
