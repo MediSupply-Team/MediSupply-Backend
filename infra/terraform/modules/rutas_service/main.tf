@@ -146,7 +146,8 @@ resource "aws_security_group" "svc" {
     from_port       = var.app_port
     to_port         = var.app_port
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
+    security_groups = [var.shared_alb_sg_id] 
+    #security_groups = [aws_security_group.alb.id]
   }
 
   egress {
@@ -166,19 +167,6 @@ resource "aws_security_group" "svc" {
 # ============================================================
 # APPLICATION LOAD BALANCER (INTERNAL)
 # ============================================================
-resource "aws_lb" "this" {
-  name               = "${substr(local.service_id, 0, 26)}-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
-  subnets            = var.public_subnets
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = var.service_name
-  }
-}
 
 resource "aws_lb_target_group" "this" {
   name        = "${substr(local.service_id, 0, 28)}-tg"
@@ -202,17 +190,6 @@ resource "aws_lb_target_group" "this" {
     Project = var.project
     Env     = var.env
     Service = var.service_name
-  }
-}
-
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.this.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.this.arn
   }
 }
 
@@ -311,11 +288,26 @@ resource "aws_ecs_service" "this" {
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
 
-  depends_on = [aws_lb_listener.http]
 
   tags = {
     Project = var.project
     Env     = var.env
     Service = var.service_name
+  }
+}
+
+resource "aws_lb_listener_rule" "rutas_path" {
+  listener_arn = var.shared_http_listener_arn
+  priority     = 30  # distinto de las otras reglas
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.this.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/*"]  # <- añade "/rutas"
+    }
   }
 }

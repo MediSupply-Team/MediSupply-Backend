@@ -235,15 +235,15 @@ output "quick_reference" {
 }
 
 # Rutas Service outputs
-output "rutas_alb_dns" {
-  description = "DNS del ALB de Rutas"
-  value       = module.rutas_service.alb_dns_name
-}
+# output "rutas_alb_dns" {
+#   description = "DNS del ALB de Rutas"
+#   value       = module.rutas_service.alb_dns_name
+# }
 
-output "rutas_alb_url" {
-  description = "URL completa del servicio de Rutas"
-  value       = "http://${module.rutas_service.alb_dns_name}"
-}
+# output "rutas_alb_url" {
+#   description = "URL completa del servicio de Rutas"
+#   value       = "http://${module.rutas_service.alb_dns_name}"
+# }
 
 output "rutas_service_name" {
   description = "Nombre del servicio de Rutas en ECS"

@@ -85,3 +85,13 @@ variable "health_check_path" {
   type        = string
   default     = "/health"
 }
+
+variable "shared_http_listener_arn" {
+  type        = string
+  description = "ARN del listener HTTP del ALB compartido (BFF Venta)"
+}
+
+variable "shared_alb_sg_id" {
+  type        = string
+  description = "Security Group ID del ALB compartido (BFF Venta)"
+}

@@ -512,7 +512,8 @@ module "bff_venta" {
   bff_env = merge(
     var.bff_env,
     {
-      RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"
+      #RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"
+      RUTAS_SERVICE_URL = "http://${module.bff_venta.alb_dns_name}"
     }
   )
 
@@ -681,4 +682,7 @@ module "rutas_service" {
   memory        = "1024"
 
   health_check_path = "/health"
+
+  shared_http_listener_arn = module.bff_venta.alb_listener_arn
+  shared_alb_sg_id         = module.bff_venta.alb_sg_id
 }
