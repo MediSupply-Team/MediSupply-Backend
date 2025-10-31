@@ -86,6 +86,25 @@ resource "aws_ecs_cluster" "orders" {
 }
 
 # ============================================================
+# ECR REPOSITORY FOR ORDERS
+# ============================================================
+
+resource "aws_ecr_repository" "orders" {
+  name                 = "orders-service"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "orders"
+  }
+}
+
+# ============================================================
 # DATABASE
 # ============================================================
 
@@ -439,7 +458,7 @@ module "orders" {
   private_subnets = module.vpc.private_subnets
 
   # Imagen ECR completa (repo:tag o repo@sha256:digest) â€” evita :latest
-  ecr_image         = var.ecr_image
+  ecr_image = "${aws_ecr_repository.orders.repository_url}:latest"
   app_port          = 3000
   db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
 
