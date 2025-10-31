@@ -71,13 +71,13 @@ variable "desired_count" {
 variable "cpu" {
   description = "CPU units"
   type        = string
-  default     = "512"
+  default     = "256"
 }
 
 variable "memory" {
   description = "Memory in MB"
   type        = string
-  default     = "1024"
+  default     = "512"
 }
 
 variable "health_check_path" {
