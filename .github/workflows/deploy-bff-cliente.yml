@@ -20,14 +20,13 @@ env:
   ECS_CLUSTER: orders-cluster
   CONTAINER_NAME: bff-cliente
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   deploy:
     name: Deploy to ECS
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout code
