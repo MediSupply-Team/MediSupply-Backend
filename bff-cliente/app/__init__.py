@@ -1,7 +1,6 @@
 from flask import Flask
 from dotenv import load_dotenv
 from .config import Config
-from .services.cliente_client import ClienteServiceClient
 from .routes.health import bp as health_bp
 from .routes.client import bp as client_bp
 from .routes.orders import bp as orders_bp
@@ -35,13 +34,7 @@ def create_app():
     app.register_blueprint(client_bp)  # Rutas de cliente
     app.register_blueprint(orders_bp)
 
-    # Inicializar cliente de cliente-service
-    app.extensions["cliente"] = ClienteServiceClient(
-        base_url=app.config["CLIENTE_SERVICE_URL"],
-        timeout=app.config["HTTP_TIMEOUT"]
-    )
-
-     # Inicializar servicio SQS
+    # Inicializar servicio SQS
     app.extensions["sqs"] = SQSService(
         region_name=app.config["AWS_REGION"],
         queue_url=app.config["SQS_QUEUE_URL"],

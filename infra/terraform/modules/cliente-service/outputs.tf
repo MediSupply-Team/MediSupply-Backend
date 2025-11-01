@@ -19,8 +19,8 @@ output "service_name" {
 }
 
 output "cloudwatch_log_group_name" {
-  description = "CloudWatch log group name"
-  value       = aws_cloudwatch_log_group.cliente.name
+  description = "CloudWatch log group name (empty in LocalStack)"
+  value       = length(aws_cloudwatch_log_group.cliente) > 0 ? aws_cloudwatch_log_group.cliente[0].name : ""
 }
 
 output "db_credentials_secret_arn" {

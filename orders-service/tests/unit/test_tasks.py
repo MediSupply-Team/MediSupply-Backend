@@ -49,7 +49,13 @@ async def test_tasks_happy_flow_updates_order_and_idempotency(
 ):
     _patch_sessionlocal_to_test_engine(test_engine, monkeypatch)
 
-    order = Order(customer_id="C-TASK", items=[{"sku": "X1", "qty": 1}])
+    order = Order(
+        customer_id="C-TASK", 
+        items=[{"sku": "X1", "qty": 1}],
+        created_by_role="seller",
+        source="bff-cliente",
+        user_name="test_user"
+    )
     test_session.add(order)
     await test_session.flush()
 

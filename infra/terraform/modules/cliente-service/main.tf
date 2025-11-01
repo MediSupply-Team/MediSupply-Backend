@@ -8,6 +8,7 @@ terraform {
 }
 
 locals {
+  is_local   = var.environment == "local"
   service_id = "${var.project}-${var.env}-cliente-service"
 }
 
@@ -34,6 +35,7 @@ resource "aws_ecr_repository" "cliente" {
 # CLOUDWATCH LOGS
 # ============================================================
 resource "aws_cloudwatch_log_group" "cliente" {
+  count             = local.is_local ? 0 : 1
   name              = "/ecs/${local.service_id}"
   retention_in_days = 30
 
@@ -125,8 +127,10 @@ resource "aws_db_instance" "cliente_postgres" {
 # SECRETS MANAGER
 # ============================================================
 resource "aws_secretsmanager_secret" "cliente_db_credentials" {
-  name        = "${local.service_id}-db-credentials"
+  #name        = "${local.service_id}-db-credentials"
+  name        = "${local.service_id}-db-credentials-cuentasergio"
   description = "Database credentials for cliente-service"
+  recovery_window_in_days = 0
 
   tags = {
     Project = var.project
@@ -219,6 +223,28 @@ resource "aws_iam_role" "cliente_ecs_task_role" {
     Env     = var.env
     Service = "cliente-service"
   }
+}
+
+# Policy para ECS Execute Command (debugging y acceso directo)
+resource "aws_iam_role_policy" "cliente_ecs_exec_policy" {
+  name = "${local.service_id}-ecs-exec-policy"
+  role = aws_iam_role.cliente_ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 
 # ============================================================
@@ -359,6 +385,7 @@ resource "aws_ecs_task_definition" "cliente" {
         {
           containerPort = var.container_port
           protocol      = "tcp"
+          name          = "cliente-http"  # Unique port name for Service Connect
         }
       ]
 
@@ -398,10 +425,10 @@ resource "aws_ecs_task_definition" "cliente" {
         }
       ]
 
-      logConfiguration = {
+      logConfiguration = local.is_local ? null : {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.cliente.name
+          awslogs-group         = aws_cloudwatch_log_group.cliente[0].name
           awslogs-region        = "us-east-1"
           awslogs-stream-prefix = "ecs"
         }
@@ -433,10 +460,26 @@ resource "aws_ecs_service" "cliente" {
   task_definition = aws_ecs_task_definition.cliente.arn
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
+  
+  enable_execute_command = true  # Permite acceso directo al contenedor para debugging
 
   network_configuration {
     subnets         = var.private_subnets
     security_groups = [aws_security_group.cliente_ecs_sg.id]
+  }
+
+  # Service Connect: exposes cliente-service for internal service discovery
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name
+
+    service {
+      client_alias {
+        dns_name = "cliente"
+        port     = var.container_port
+      }
+      port_name = "cliente-http"  # Must match the portMapping name
+    }
   }
 
   load_balancer {

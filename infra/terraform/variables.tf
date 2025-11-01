@@ -1,152 +1,294 @@
-variable "project" {
+# ============================================================
+# ENVIRONMENT CONFIGURATION
+# ============================================================
+variable "environment" {
+  description = "Environment type: local (LocalStack) or aws (AWS)"
   type        = string
-  description = "Nombre del proyecto"
-  default     = "medisupply"
+  validation {
+    condition     = contains(["local", "aws"], var.environment)
+    error_message = "Environment must be 'local' or 'aws'."
+  }
+}
+
+variable "project" {
+  description = "Project name"
+  type        = string
 }
 
 variable "env" {
+  description = "Environment (dev, staging, prod)"
   type        = string
-  description = "Entorno (dev/stg/prod)"
-  default     = "dev"
 }
 
 variable "aws_region" {
+  description = "AWS Region"
   type        = string
-  description = "Región AWS"
-  default     = "us-east-1"
 }
 
-# Imagen del micro de Orders (ECR) para ECS
-variable "orders_ecr_image" {
+# ============================================================
+# MAIN DATABASE (Orders & Rutas)
+# ============================================================
+variable "db_instance_class" {
+  description = "RDS instance class"
   type        = string
-  description = "URI de la imagen de orders en ECR (repository:tag)"
+  default     = ""
 }
 
-variable "orders_app_port" {
+variable "db_allocated_storage" {
+  description = "Allocated storage in GB"
   type        = number
-  description = "Puerto del contenedor Orders"
-  default     = 3000
 }
 
-# BFF Venta
-variable "bff_name" {
-  type        = string
-  description = "Nombre lógico del BFF"
-  default     = "bff-venta"
-}
-
-variable "bff_repo_name" {
-  type        = string
-  description = "Nombre del repo ECR para el BFF"
-  default     = "medisupply-dev-bff-venta"
-}
-
-variable "bff_app_port" {
+variable "db_max_allocated_storage" {
+  description = "Maximum allocated storage for autoscaling in GB"
   type        = number
-  description = "Puerto del contenedor BFF"
-  default     = 8000
+  default     = 100
 }
 
-variable "bff_env" {
-  type        = map(string)
-  description = "Variables de entorno adicionales para BFF"
-  default     = {}
-}
-
-# Flag para elegir destino del consumer (HAProxy local vs ALB)
-variable "use_haproxy" {
+variable "db_publicly_accessible" {
+  description = "Make database publicly accessible"
   type        = bool
-  description = "true: target http://127.0.0.1/orders, false: target ALB BFF"
+  default     = false
+}
+
+variable "db_multi_az" {
+  description = "Enable Multi-AZ deployment"
+  type        = bool
+  default     = false
+}
+
+variable "db_backup_retention_period" {
+  description = "Number of days to retain backups"
+  type        = number
+  default     = 7
+}
+
+variable "db_enable_cloudwatch_logs" {
+  description = "Enable CloudWatch logs export"
+  type        = bool
   default     = true
 }
 
+variable "db_performance_insights_enabled" {
+  description = "Enable Performance Insights"
+  type        = bool
+  default     = true
+}
+
+variable "db_monitoring_interval" {
+  description = "Enhanced monitoring interval in seconds (0, 1, 5, 10, 15, 30, 60)"
+  type        = number
+  default     = 60
+}
+
+# Variables adicionales de DB que vi en los errores
+variable "db_storage_type" {
+  description = "Storage type (gp2, gp3, io1)"
+  type        = string
+  default     = "gp3"
+}
+
+variable "db_storage_encrypted" {
+  description = "Enable storage encryption"
+  type        = bool
+  default     = true
+}
+
+variable "db_backup_window" {
+  description = "Backup window (UTC)"
+  type        = string
+  default     = "03:00-04:00"
+}
+
+variable "db_maintenance_window" {
+  description = "Maintenance window (UTC)"
+  type        = string
+  default     = "mon:04:00-mon:05:00"
+}
+
+variable "db_skip_final_snapshot" {
+  description = "Skip final snapshot on deletion"
+  type        = bool
+  default     = false
+}
+
+# ============================================================
+# ORDERS SERVICE
+# ============================================================
 variable "ecr_image" {
-  description = "Imagen ECR de orders"
+  description = "ECR image URI for orders service"
   type        = string
 }
 
 variable "app_port" {
-  description = "Puerto del contenedor orders"
-  type        = number
-  default     = 3000
-}
-
-# ============================================================
-# CATALOGO SERVICE VARIABLES
-# ============================================================
-
-variable "catalogo_container_port" {
-  description = "Puerto del contenedor catalogo-service"
+  description = "Application port"
   type        = number
   default     = 8000
 }
 
+variable "orders_ecr_image" {
+  description = "URI de la imagen de orders en ECR (repository:tag)"
+  type        = string
+  default     = ""
+}
+
+# ============================================================
+# CONSUMER (SQS + Worker)
+# ============================================================
+variable "use_haproxy" {
+  description = "Whether to use HAProxy load balancing"
+  type        = bool
+  default     = false
+}
+
+# ============================================================
+# BFF VENTA
+# ============================================================
+variable "bff_name" {
+  description = "BFF service name"
+  type        = string
+  default     = ""
+}
+
+variable "bff_app_port" {
+  description = "BFF application port"
+  type        = number
+}
+
+variable "bff_repo_name" {
+  description = "BFF ECR repository name"
+  type        = string
+}
+
+variable "bff_env" {
+  description = "Environment variables for BFF"
+  type        = map(string)
+  default     = {}
+}
+
+# ============================================================
+# CATALOGO SERVICE
+# ============================================================
+variable "catalogo_service_url" {
+  description = "URL del catalogo service para los BFFs"
+  type        = string
+  default     = "placeholder-will-be-updated-after-deploy"
+}
+
+variable "catalogo_container_port" {
+  description = "Catalogo service container port"
+  type        = number
+  default     = 3000
+}
+
 variable "catalogo_desired_count" {
-  description = "Número deseado de tareas ECS para catalogo-service"
+  description = "Desired count of catalogo tasks"
   type        = number
   default     = 2
 }
 
 variable "catalogo_cpu" {
-  description = "CPU allocation para catalogo-service"
-  type        = number
-  default     = 256
+  description = "CPU units for catalogo service"
+  type        = string
+  default     = "512"
 }
 
 variable "catalogo_memory" {
-  description = "Memory allocation para catalogo-service (MB)"
-  type        = number
-  default     = 512
+  description = "Memory for catalogo service"
+  type        = string
+  default     = "1024"
 }
 
 variable "catalogo_db_instance_class" {
-  description = "Clase de instancia RDS para catalogo-service"
+  description = "RDS instance class for catalogo database"
   type        = string
-  default     = "db.t3.micro"
 }
 
 variable "catalogo_db_allocated_storage" {
-  description = "Almacenamiento inicial DB catalogo-service (GB)"
+  description = "Allocated storage for catalogo database in GB"
   type        = number
-  default     = 20
 }
 
 variable "catalogo_db_backup_retention_days" {
-  description = "Días retención backups catalogo-service"
+  description = "Backup retention period for catalogo database"
   type        = number
   default     = 7
 }
 
 # ============================================================
-# BFF Venta - Catalogo Service Integration
+# BFF CATALOGO
 # ============================================================
-
-variable "catalogo_service_url" {
-  description = "URL del catalogo service para el BFF venta"
+variable "bff_catalogo_image_tag" {
+  description = "Image tag for BFF catalogo"
   type        = string
-  default     = "placeholder-will-be-updated-after-deploy"
+  default     = "latest"
 }
 
 # ============================================================
-# SHARED VARIABLES
+# TAGS ADICIONALES
 # ============================================================
-
 variable "additional_tags" {
-  description = "Tags adicionales para recursos"
+  description = "Additional tags to apply to resources"
   type        = map(string)
-  default = {
-    Owner = "MediSupply-Team"
-  }
+  default     = {}
 }
 
-# ===== Reports Service =====
-variable "report_ecr_image" {
-  description = "URI de la imagen de reports en ECR (repository:tag)"
+# ============================================================
+# NETWORKING (probablemente necesarias también)
+# ============================================================
+variable "vpc_id" {
+  description = "VPC ID"
   type        = string
+  default     = ""
 }
 
-variable "report_db_url" {
-  description = "Cadena de conexión de la base de datos para reports (se guardará en Secrets Manager)"
+variable "public_subnets" {
+  description = "Public subnet IDs"
+  type        = list(string)
+  default     = []
+}
+
+variable "private_subnets" {
+  description = "Private subnet IDs"
+  type        = list(string)
+  default     = []
+}
+
+# ============================================================
+# ECS & SERVICE DISCOVERY
+# ============================================================
+variable "ecs_cluster_arn" {
+  description = "ECS Cluster ARN"
   type        = string
-  sensitive   = true
+  default     = ""
+}
+
+variable "service_connect_namespace_name" {
+  description = "Service Connect namespace name"
+  type        = string
+  default     = ""
+}
+
+# ============================================================
+# IAM ROLES (si son necesarias)
+# ============================================================
+variable "ecs_execution_role_arn" {
+  description = "IAM Role ARN for ECS task execution"
+  type        = string
+  default     = ""
+}
+
+variable "ecs_task_role_arn" {
+  description = "IAM Role ARN for ECS task runtime"
+  type        = string
+  default     = ""
+}
+
+# ============================================================
+# SECRETS
+# ============================================================
+variable "db_url_secret_arn" {
+  description = "ARN of DB_URL secret in Secrets Manager"
+  type        = string
+  default     = ""
 }

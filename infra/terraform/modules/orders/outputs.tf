@@ -14,8 +14,8 @@ output "task_definition_arn" {
 }
 
 output "log_group_name" {
-  description = "CloudWatch log group name"
-  value       = aws_cloudwatch_log_group.orders.name
+  description = "CloudWatch log group name (empty in LocalStack)"
+  value       = length(aws_cloudwatch_log_group.orders) > 0 ? aws_cloudwatch_log_group.orders[0].name : ""
 }
 
 output "security_group_id" {

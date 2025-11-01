@@ -11,6 +11,10 @@
 # - CloudWatch Logs
 # - Secrets Manager
 
+locals {
+  is_local = var.environment == "local"
+}
+
 # ============================================================
 # ECR REPOSITORY
 # ============================================================
@@ -359,9 +363,9 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
   })
 }
 
-# Policy para ECS Exec (SSM Session Manager)
-resource "aws_iam_role_policy" "catalogo_ecs_exec" {
-  name = "${var.project}-${var.env}-catalogo-task-ecs-exec"
+# Policy para ECS Execute Command (debugging y acceso directo)
+resource "aws_iam_role_policy" "catalogo_ecs_exec_policy" {
+  name = "${var.project}-${var.env}-catalogo-ecs-exec-policy"
   role = aws_iam_role.catalogo_ecs_task_role.id
 
   policy = jsonencode({
@@ -376,16 +380,6 @@ resource "aws_iam_role_policy" "catalogo_ecs_exec" {
           "ssmmessages:OpenDataChannel"
         ]
         Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:DescribeLogGroups",
-          "logs:CreateLogStream",
-          "logs:DescribeLogStreams",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:*:*:*"
       }
     ]
   })
@@ -396,7 +390,9 @@ resource "aws_iam_role_policy" "catalogo_ecs_exec" {
 # ============================================================
 
 resource "aws_secretsmanager_secret" "catalogo_db_credentials" {
-  name = "${var.project}-${var.env}-catalogo-db-credentials-v2" # Cambiar nombre
+  #name = "${var.project}-${var.env}-catalogo-db-credentials-v2" # Cambiar nombre
+  name = "${var.project}-${var.env}-catalogo-db-credentials-v2-cuentasergio" # Cambiar nombre
+  recovery_window_in_days = 0
 
   tags = {
     Service = "catalogo-service"
@@ -422,6 +418,7 @@ resource "aws_secretsmanager_secret_version" "catalogo_db_credentials" {
 # ============================================================
 
 resource "aws_cloudwatch_log_group" "catalogo" {
+  count             = local.is_local ? 0 : 1
   name              = "/ecs/${var.project}-${var.env}-catalogo-service"
   retention_in_days = 30
 
@@ -454,6 +451,7 @@ resource "aws_ecs_task_definition" "catalogo" {
         {
           containerPort = var.container_port
           protocol      = "tcp"
+          name          = "catalogo-http"  # Unique port name for Service Connect
         }
       ]
 
@@ -507,10 +505,10 @@ resource "aws_ecs_task_definition" "catalogo" {
         }
       ]
 
-      logConfiguration = {
+      logConfiguration = local.is_local ? null : {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.catalogo.name
+          awslogs-group         = aws_cloudwatch_log_group.catalogo[0].name
           awslogs-region        = "us-east-1"
           awslogs-stream-prefix = "ecs"
         }
@@ -599,10 +597,26 @@ resource "aws_ecs_service" "catalogo" {
   task_definition = aws_ecs_task_definition.catalogo.arn
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
+  
+  enable_execute_command = true  # Permite acceso directo al contenedor para debugging
 
   network_configuration {
     subnets         = var.private_subnets
     security_groups = [aws_security_group.catalogo_ecs_sg.id]
+  }
+
+  # Service Connect: exposes catalogo-service for internal service discovery
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name
+
+    service {
+      client_alias {
+        dns_name = "catalogo"
+        port     = var.container_port
+      }
+      port_name = "catalogo-http"  # Must match the portMapping name
+    }
   }
 
   load_balancer {

@@ -1,11 +1,11 @@
-name: Deploy Report Service
+name: Deploy reports Service
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "nueva-cuenta" ]
     paths:
-      - "report-service/**"             # 👈 ruta del código fuente del nuevo servicio
-      - ".github/workflows/deploy-report.yml"
+      - "report-service/**"  # ✅ CORRECTO - tu nombre original
+      - ".github/workflows/deploy-reports.yml"
   workflow_dispatch:
     inputs:
       ref:
@@ -15,10 +15,10 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: medisupply-dev-report         # 👈 nuevo repo ECR
-  ECS_CLUSTER: orders-cluster                   # mismo cluster ECS
-  ECS_SERVICE: medisupply-dev-report-svc        # 👈 nuevo servicio ECS
-  CONTAINER_NAME: report                        # 👈 nombre del contenedor (igual al del módulo)
+  ECR_REPOSITORY: medisupply-dev-reports          
+  ECS_CLUSTER: orders-cluster  # ✅ ÚNICO CAMBIO NECESARIO
+  ECS_SERVICE: medisupply-dev-reports-svc          
+  CONTAINER_NAME: reports                           
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout código
+      - name: Checkout (rama indicada o contexto del push)
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
@@ -37,7 +37,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
+          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -54,17 +54,17 @@ jobs:
           IMAGE_URI=${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}
           docker build -t "${IMAGE_URI}" .
           docker push "${IMAGE_URI}"
-
+          
           # También pushear con tag latest
           docker tag "${IMAGE_URI}" "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
           docker push "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
-
+          
           echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
       - name: Download current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition medisupply-dev-report \
+            --task-definition medisupply-dev-reports \
             --query 'taskDefinition' > task-definition.json
 
       - name: Fill new image in task definition
@@ -90,7 +90,6 @@ jobs:
             --services "${{ env.ECS_SERVICE }}" \
             --query "services[0].{status:status,desired:desiredCount,running:runningCount,taskDef:taskDefinition}" \
             --output table
-
           aws ecs describe-services \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --services "${{ env.ECS_SERVICE }}" \

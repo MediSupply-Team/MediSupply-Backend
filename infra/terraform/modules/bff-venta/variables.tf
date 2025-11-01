@@ -1,5 +1,15 @@
 variable "project" { type = string }
 variable "env" { type = string }
+
+variable "environment" {
+  description = "Deployment environment (local for LocalStack, aws for real AWS)"
+  type        = string
+  validation {
+    condition     = contains(["local", "aws"], var.environment)
+    error_message = "Environment must be either 'local' or 'aws'."
+  }
+}
+
 variable "aws_region" { type = string }
 variable "vpc_id" { type = string }
 variable "public_subnets" { type = list(string) }
@@ -21,5 +31,10 @@ variable "sqs_arn" {
 
 variable "catalogo_service_url" {
   description = "URL of the catalogo service (internal ALB)"
+  type        = string
+}
+
+variable "service_connect_namespace_name" {
+  description = "Service Connect namespace for internal service discovery"
   type        = string
 }

@@ -1,4 +1,5 @@
 locals {
+  is_local = var.environment == "local"
   bff_id = "${var.project}-${var.env}-${var.bff_name}"
   # ❌ ELIMINAR ESTA LÍNEA (usar var.sqs_arn directamente):
   # sqs_arn = replace(var.sqs_url, "https://sqs.${var.aws_region}.amazonaws.com/", "arn:aws:sqs:${var.aws_region}:")
@@ -12,6 +13,7 @@ resource "aws_ecr_repository" "bff" {
 }
 
 resource "aws_cloudwatch_log_group" "bff" {
+  count             = local.is_local ? 0 : 1
   name              = "/ecs/${local.bff_id}"
   retention_in_days = 14
   tags              = { Project = var.project, Env = var.env, Component = var.bff_name }
@@ -178,10 +180,10 @@ resource "aws_ecs_task_definition" "td" {
         }
       ],
       
-      logConfiguration = {
+      logConfiguration = local.is_local ? null : {
         logDriver = "awslogs",
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.bff.name,
+          awslogs-group         = aws_cloudwatch_log_group.bff[0].name,
           awslogs-region        = var.aws_region,
           awslogs-stream-prefix = var.bff_name
         }
@@ -225,6 +227,13 @@ resource "aws_ecs_service" "svc" {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.svc_sg.id]
     assign_public_ip = false
+  }
+
+  # Service Connect: enable as client only to discover other services
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name
+    # No 'service' block needed - this service is client-only
   }
 
   load_balancer {
