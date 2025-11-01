@@ -80,6 +80,9 @@ jobs:
           fi
           
           echo "✅ Task definition downloaded successfully"
+          echo "📝 Container names in task definition:"
+          jq -r '.containerDefinitions[].name' task-definition.json
+          echo "🔍 Looking for container: ${{ env.CONTAINER_NAME }}"
 
       - name: Fill new image in task definition
         id: task-def
