@@ -16,11 +16,10 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: medisupply-dev-bff-cliente          
-  ECS_CLUSTER: orders-cluster  # ✅ ÚNICO CAMBIO NECESARIO
-  ECS_SERVICE: medisupply-dev-bff-cliente-svc          
-  CONTAINER_NAME: medisupply-dev-bff-cliente                           
-  IMAGE_TAG: ${{ github.sha }}
+  ECR_REPOSITORY: medisupply-dev-bff-cliente
+  ECS_CLUSTER: orders-cluster
+  ECS_SERVICE: medisupply-dev-bff-cliente-svc
+  CONTAINER_NAME: bff-cliente
 
 jobs:
   build-and-deploy:
