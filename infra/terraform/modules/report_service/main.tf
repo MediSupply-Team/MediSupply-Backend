@@ -8,7 +8,6 @@ terraform {
 }
 
 locals {
-  is_local   = var.environment == "local"
   service_id = "${var.project}-${var.env}-${var.service_name}"
 }
 
@@ -35,7 +34,6 @@ resource "aws_ecr_repository" "this" {
 # CLOUDWATCH LOGS
 # ============================================================
 resource "aws_cloudwatch_log_group" "this" {
-  count             = local.is_local ? 0 : 1
   name              = "/ecs/${local.service_id}"
   retention_in_days = 7
 
@@ -239,10 +237,10 @@ resource "aws_ecs_task_definition" "this" {
         }
       ]
 
-      logConfiguration = local.is_local ? null : {
+      logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.this[0].name
+          awslogs-group         = aws_cloudwatch_log_group.this.name
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = var.service_name
         }
@@ -290,7 +288,6 @@ resource "aws_ecs_service" "this" {
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
 
-  depends_on = [aws_lb_listener_rule.rutas_path]
 
   tags = {
     Project = var.project
@@ -299,9 +296,9 @@ resource "aws_ecs_service" "this" {
   }
 }
 
-resource "aws_lb_listener_rule" "rutas_path" {
+resource "aws_lb_listener_rule" "reports_path" {
   listener_arn = var.shared_http_listener_arn
-  priority     = 30  # distinto de las otras reglas
+  priority     = 10  # distinto de las otras reglas
 
   action {
     type             = "forward"
@@ -310,7 +307,7 @@ resource "aws_lb_listener_rule" "rutas_path" {
 
   condition {
     path_pattern {
-      values = ["/api/*"]  
+      values = ["/api/reports/*","/health"]  
     }
   }
 }

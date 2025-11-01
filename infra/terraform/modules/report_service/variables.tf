@@ -8,15 +8,6 @@ variable "env" {
   type        = string
 }
 
-variable "environment" {
-  description = "Deployment environment (local for LocalStack, aws for real AWS)"
-  type        = string
-  validation {
-    condition     = contains(["local", "aws"], var.environment)
-    error_message = "Environment must be either 'local' or 'aws'."
-  }
-}
-
 variable "aws_region" {
   description = "AWS region"
   type        = string
@@ -25,7 +16,7 @@ variable "aws_region" {
 variable "service_name" {
   description = "Service name"
   type        = string
-  default     = "rutas"
+  default     = "reports"
 }
 
 variable "vpc_id" {

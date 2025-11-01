@@ -22,6 +22,15 @@ variable "env" {
   }
 }
 
+variable "environment" {
+  description = "Deployment environment (local for LocalStack, aws for real AWS)"
+  type        = string
+  validation {
+    condition     = contains(["local", "aws"], var.environment)
+    error_message = "Environment must be either 'local' or 'aws'."
+  }
+}
+
 # ============================================================
 # NUEVAS VARIABLES PARA MANEJO DE RECURSOS EXISTENTES
 # ============================================================

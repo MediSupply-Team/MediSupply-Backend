@@ -1,10 +1,10 @@
-name: Deploy BFF Venta
+name: Deploy BFF Venta Service
 
 on:
   push:
-    branches: ["main", "develop"]
+    branches: ["main", "develop", "nueva-cuenta" ]
     paths:
-      - "bff-venta/**"
+      - "bff-venta/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-bff-venta.yml"
   workflow_dispatch:
     inputs:
@@ -19,7 +19,6 @@ env:
   ECS_CLUSTER: orders-cluster
   ECS_SERVICE: medisupply-dev-bff-venta-svc
   CONTAINER_NAME: bff-venta
-  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   build-and-deploy:
@@ -37,7 +36,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
+          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -48,22 +47,41 @@ jobs:
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+          IMAGE_TAG: ${{ github.sha }}
         working-directory: ./bff-venta
         run: |
-          IMAGE_URI=${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}
-          docker build --platform linux/amd64 -t "${IMAGE_URI}" .
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          
+          echo "🔨 Building Docker image..."
+          docker build -t "${IMAGE_URI}" .
+          
+          echo "📤 Pushing image with SHA tag..."
           docker push "${IMAGE_URI}"
-          # También push con tag latest
+          
+          echo "🏷️  Tagging and pushing as latest..."
           docker tag "${IMAGE_URI}" "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
           docker push "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          
           echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "✅ Image built and pushed: ${IMAGE_URI}"
 
       - name: Download current task definition
         run: |
+          echo "📥 Downloading current task definition..."
           aws ecs describe-task-definition \
-            --task-definition medisupply-dev-bff-venta \
+            --task-definition ${{ env.ECR_REPOSITORY }} \
             --query 'taskDefinition' > task-definition.json
+          
+          # Verify download succeeded
+          if [ ! -s task-definition.json ]; then
+            echo "❌ Error: task-definition.json is empty or missing"
+            exit 1
+          fi
+          
+          echo "✅ Task definition downloaded successfully"
+          echo "📝 Container names in task definition:"
+          jq -r '.containerDefinitions[].name' task-definition.json
+          echo "🔍 Looking for container: ${{ env.CONTAINER_NAME }}"
 
       - name: Fill new image in task definition
         id: task-def
@@ -83,20 +101,13 @@ jobs:
 
       - name: Post-deploy status
         run: |
-          echo "✅ Deployment successful!"
-          echo "🔗 Service: ${{ env.ECS_SERVICE }}"
-          echo "🖼️  Image: ${{ steps.build-image.outputs.image }}"
-          echo ""
-          echo "📊 Service Status:"
           aws ecs describe-services \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --services "${{ env.ECS_SERVICE }}" \
             --query "services[0].{status:status,desired:desiredCount,running:runningCount,taskDef:taskDefinition}" \
             --output table
-          echo ""
-          echo "📋 Recent Events:"
           aws ecs describe-services \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --services "${{ env.ECS_SERVICE }}" \
-            --query "services[0].events[0:5].[createdAt,message]" \
+            --query "services[0].events[0:10].[createdAt,message]" \
             --output table

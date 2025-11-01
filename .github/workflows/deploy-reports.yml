@@ -1,12 +1,11 @@
-
-name: Deploy BFF Cliente Service
+name: Deploy reports Service
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "nueva-cuenta" ]
     paths:
-      - "bff-cliente/**"  # ✅ CORRECTO - tu nombre original
-      - ".github/workflows/deploy-bff-cliente.yml"
+      - "report-service/**"  # ✅ CORRECTO - tu nombre original
+      - ".github/workflows/deploy-reports.yml"
   workflow_dispatch:
     inputs:
       ref:
@@ -16,10 +15,11 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: medisupply-dev-bff-cliente
-  ECS_CLUSTER: orders-cluster
-  ECS_SERVICE: medisupply-dev-bff-cliente-svc
-  CONTAINER_NAME: bff-cliente
+  ECR_REPOSITORY: medisupply-dev-reports          
+  ECS_CLUSTER: orders-cluster  # ✅ ÚNICO CAMBIO NECESARIO
+  ECS_SERVICE: medisupply-dev-reports-svc          
+  CONTAINER_NAME: reports                           
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   build-and-deploy:
@@ -48,41 +48,24 @@ jobs:
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-        working-directory: ./bff-cliente
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+        working-directory: ./report-service
         run: |
-          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
-          
-          echo "🔨 Building Docker image..."
+          IMAGE_URI=${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}
           docker build -t "${IMAGE_URI}" .
-          
-          echo "📤 Pushing image with SHA tag..."
           docker push "${IMAGE_URI}"
           
-          echo "🏷️  Tagging and pushing as latest..."
+          # También pushear con tag latest
           docker tag "${IMAGE_URI}" "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
           docker push "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
           
           echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
-          echo "✅ Image built and pushed: ${IMAGE_URI}"
 
       - name: Download current task definition
         run: |
-          echo "📥 Downloading current task definition..."
           aws ecs describe-task-definition \
-            --task-definition ${{ env.ECR_REPOSITORY }} \
+            --task-definition medisupply-dev-reports \
             --query 'taskDefinition' > task-definition.json
-          
-          # Verify download succeeded
-          if [ ! -s task-definition.json ]; then
-            echo "❌ Error: task-definition.json is empty or missing"
-            exit 1
-          fi
-          
-          echo "✅ Task definition downloaded successfully"
-          echo "📝 Container names in task definition:"
-          jq -r '.containerDefinitions[].name' task-definition.json
-          echo "🔍 Looking for container: ${{ env.CONTAINER_NAME }}"
 
       - name: Fill new image in task definition
         id: task-def

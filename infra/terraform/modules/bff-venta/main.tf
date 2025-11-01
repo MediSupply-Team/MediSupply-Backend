@@ -1,8 +1,13 @@
 locals {
+  is_local = var.environment == "local"
   bff_id = "${var.project}-${var.env}-${var.bff_name}"
 
   # ARN derivado desde la URL SQS
   sqs_arn = replace(var.sqs_url, "https://sqs.${var.aws_region}.amazonaws.com/", "arn:aws:sqs:${var.aws_region}:")
+  
+  # 🔧 SOLUCIÓN: Calcular la URL del catálogo usando el DNS del ALB de este mismo módulo
+  # Si el placeholder está presente, usar el DNS real del ALB
+  computed_catalogo_url = var.catalogo_service_url == "placeholder-will-be-updated-after-deploy" ? "http://${aws_lb.alb.dns_name}/catalog" : var.catalogo_service_url
 }
 
 resource "aws_ecr_repository" "bff" {
@@ -21,6 +26,7 @@ resource "aws_ecr_repository" "bff" {
 }
 
 resource "aws_cloudwatch_log_group" "bff" {
+  count             = local.is_local ? 0 : 1
   name              = "/ecs/${local.bff_id}"
   retention_in_days = 14
 
@@ -258,10 +264,10 @@ resource "aws_ecs_task_definition" "td" {
         }
       ]
 
-      logConfiguration = {
+      logConfiguration = local.is_local ? null : {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.bff.name
+          awslogs-group         = aws_cloudwatch_log_group.bff[0].name
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = var.bff_name
         }
@@ -271,7 +277,8 @@ resource "aws_ecs_task_definition" "td" {
         [for k, v in var.bff_env : { name = k, value = v }],
         [
           { name = "SQS_QUEUE_URL", value = var.sqs_url },
-          { name = "CATALOGO_SERVICE_URL", value = var.catalogo_service_url }
+          # 🔧 CAMBIO: Usar la URL computada en lugar de la variable directamente
+          { name = "CATALOGO_SERVICE_URL", value = local.computed_catalogo_url }
         ]
       )
 
@@ -285,6 +292,11 @@ resource "aws_ecs_task_definition" "td" {
       }
     }
   ])
+
+  # 🔧 AGREGADO: Lifecycle para crear una nueva versión en cada apply
+  lifecycle {
+    create_before_destroy = true
+  }
 
   tags = {
     Project   = var.project
@@ -301,7 +313,7 @@ resource "aws_ecs_service" "svc" {
   desired_count   = 2 # ⬅️ subimos a 2 para rollouts suaves
   launch_type     = "FARGATE"
   enable_execute_command = true
-  health_check_grace_period_seconds = 120 # ⬅️ la “gracia” vive en el service
+  health_check_grace_period_seconds = 120 # ⬅️ la "gracia" vive en el service
 
   network_configuration {
     subnets          = var.private_subnets

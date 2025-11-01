@@ -4,8 +4,8 @@ output "repository_url" {
 }
 
 output "log_group_name" {
-  description = "CloudWatch log group name (empty in LocalStack)"
-  value       = length(aws_cloudwatch_log_group.this) > 0 ? aws_cloudwatch_log_group.this[0].name : ""
+  description = "CloudWatch log group name"
+  value       = aws_cloudwatch_log_group.this.name
 }
 
 output "service_name" {

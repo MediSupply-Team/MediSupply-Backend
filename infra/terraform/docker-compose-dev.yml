@@ -1,0 +1,35 @@
+# docker-compose.dev.yml
+version: '3.8'
+
+services:
+  bff-venta:
+    build: ../bff-venta
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/db
+      - AWS_ENDPOINT_URL=http://localstack:4566
+    depends_on:
+      - postgres
+      - localstack
+
+  bff-cliente:
+    build: ../bff-cliente
+    ports:
+      - "8002:8001"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/db
+
+  # ... otros servicios
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=password
+
+  localstack:
+    image: localstack/localstack
+    ports:
+      - "4566:4566"
