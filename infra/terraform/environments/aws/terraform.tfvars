@@ -22,7 +22,7 @@ db_monitoring_interval           = 60
 # ============================================================
 # ORDERS SERVICE
 # ============================================================
-ecr_image = "838693051133.dkr.ecr.us-east-1.amazonaws.com/miso-prod-orders:latest"
+ecr_image = "217466752988.dkr.ecr.us-east-1.amazonaws.com/medisupply-dev-orders:latest"
 app_port  = 8000
 
 # ============================================================
@@ -35,30 +35,30 @@ use_haproxy = true
 # ============================================================
 bff_name      = "bff-venta"
 bff_app_port  = 8080
-bff_repo_name = "miso-prod-bff-venta"
+bff_repo_name = "medisupply-dev-bff-venta"
 
 bff_env = {
-  FLASK_ENV         = "production"
-  LOG_LEVEL         = "INFO"
-  ORDERS_SERVICE_URL = "" # Se configura dinámicamente con el ALB
+  FLASK_ENV          = "development"
+  LOG_LEVEL          = "DEBUG"
+  ORDERS_SERVICE_URL = ""
 }
 
 # ============================================================
 # CATALOGO SERVICE
 # ============================================================
-catalogo_service_url         = "placeholder-will-be-updated-after-deploy"
-catalogo_container_port      = 3000
-catalogo_desired_count       = 2
-catalogo_cpu                 = "512"
-catalogo_memory              = "1024"
-catalogo_db_instance_class   = "db.t4g.micro"
-catalogo_db_allocated_storage = 20
+catalogo_service_url              = "placeholder-will-be-updated-after-deploy"
+catalogo_container_port           = 3000
+catalogo_desired_count            = 2
+catalogo_cpu                      = "512"
+catalogo_memory                   = "1024"
+catalogo_db_instance_class        = "db.t4g.micro"
+catalogo_db_allocated_storage     = 20
 catalogo_db_backup_retention_days = 7
 
 # ============================================================
-# BFF CATALOGO (si lo usas)
+# BFF CATALOGO
 # ============================================================
-bff_catalogo_image_tag = "v1.0.0"
+bff_catalogo_image_tag = "latest"
 
 # ============================================================
 # TAGS ADICIONALES
@@ -66,6 +66,6 @@ bff_catalogo_image_tag = "v1.0.0"
 additional_tags = {
   CostCenter  = "Education"
   Owner       = "MISOTeam"
-  Environment = "Production"
+  Environment = "Development"
   Project     = "SchoolProject"
 }
