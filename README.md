@@ -98,11 +98,17 @@ infra/terraform/
 Siempre en la carpeta: <Path de tu proyecto>\infra\terraform
 
 ## AWS
-# Desplegar
-terraform apply -var-file="environments/aws/terraform.tfvars" -auto-approve
+# Iniciar
+terraform init -var-file="environments/aws/terraform.tfvars"
+
+# Validar
+terraform validate
 
 # Ver cambios sin aplicar
 terraform plan -var-file="environments/aws/terraform.tfvars"
+
+# Desplegar
+terraform apply -var-file="environments/aws/terraform.tfvars" -auto-approve
 
 # Destruir
 terraform destroy -var-file="environments/aws/terraform.tfvars" -auto-approve
@@ -116,20 +122,28 @@ docker-compose up -d localstack
 # Desplegar
 Siempre en la carpeta: <Path de tu proyecto>\infra\terraform
 
-terraform apply -var-file="environments/local/terraform.tfvars" -auto-approve
+# Iniciar
+terraform init -var-file="environments/local/terraform.tfvars"
+
+# Validar
+terraform validate
 
 # Ver cambios sin aplicar
 terraform plan -var-file="environments/local/terraform.tfvars"
+
+# Desplegar
+terraform apply -var-file="environments/local/terraform.tfvars" -auto-approve
 
 # Destruir
 terraform destroy -var-file="environments/local/terraform.tfvars" -auto-approve
 
 # Detener LocalStack
+Siempre en la carpeta: <Path de tu proyecto>\infra
 docker-compose down
 ---
 
 # AWS - Desplegar solo un módulo
-terraform apply -var-file="environments/aws/terraform.tfvars" -target=module.bff_venta -auto-approve
+terraform apply -var-file="environments/aws/terraform.tfvars" -target="module.bff_venta" -auto-approve
 
 # LocalStack - Desplegar solo un módulo
-terraform apply -var-file="environments/local/terraform.tfvars" -target=module.catalogo_service -auto-approve
+terraform apply -var-file="environments/local/terraform.tfvars" -target="module.catalogo_service" -auto-approve
