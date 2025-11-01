@@ -814,3 +814,45 @@ module "report_service" {
   shared_http_listener_arn = module.bff_venta.alb_listener_arn
   shared_alb_sg_id         = module.bff_venta.alb_sg_id
 }
+
+# =========================
+# Secret de DB para Reports (igual que rutas)
+# =========================
+resource "aws_secretsmanager_secret" "report_db_url" {
+  name        = "medisupply/dev/report/DB_URL"
+  description = "DB URL para reports (entorno dev)"
+  tags = {
+    Project = "medisupply"
+    Env     = "dev"
+    Service = "report"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "report_db_url_v" {
+  secret_id     = aws_secretsmanager_secret.report_db_url.id
+  secret_string = var.report_db_url
+}
+
+# =========================
+# Módulo reports_service (misma estructura de rutas_service)
+# =========================
+module "reports_service" {
+  source = "./modules/reports_service"
+
+  project         = "medisupply"
+  env             = "dev"
+
+  # Red / ECS
+  vpc_id          = module.vpc.vpc_id
+  public_subnets  = module.vpc.public_subnets
+  private_subnets = module.vpc.private_subnets
+  cluster_arn     = aws_ecs_cluster.orders.arn
+
+  # Imagen + Secret
+  report_ecr_image   = var.report_ecr_image
+  db_url_secret_name = aws_secretsmanager_secret.report_db_url.name
+
+  # Parámetros de ejecución
+  app_port      = 8000
+  desired_count = 1
+}
