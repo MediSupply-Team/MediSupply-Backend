@@ -11,6 +11,10 @@
 # - CloudWatch Logs
 # - Secrets Manager
 
+locals {
+  is_local = var.environment == "local"
+}
+
 # ============================================================
 # ECR REPOSITORY
 # ============================================================
@@ -413,6 +417,7 @@ resource "aws_secretsmanager_secret_version" "catalogo_db_credentials" {
 # ============================================================
 
 resource "aws_cloudwatch_log_group" "catalogo" {
+  count             = local.is_local ? 0 : 1
   name              = "/ecs/${var.project}-${var.env}-catalogo-service"
   retention_in_days = 30
 
@@ -499,10 +504,10 @@ resource "aws_ecs_task_definition" "catalogo" {
         }
       ]
 
-      logConfiguration = {
+      logConfiguration = local.is_local ? null : {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.catalogo.name
+          awslogs-group         = aws_cloudwatch_log_group.catalogo[0].name
           awslogs-region        = "us-east-1"
           awslogs-stream-prefix = "ecs"
         }

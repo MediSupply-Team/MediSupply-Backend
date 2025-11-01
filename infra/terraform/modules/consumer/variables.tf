@@ -50,3 +50,12 @@ variable "service_connect_namespace_name" {
   description = "Service Connect namespace name (e.g., 'svc.local')"
   type        = string
 }
+
+variable "environment" {
+  description = "Environment type: local (LocalStack) or aws (AWS)"
+  type        = string
+  validation {
+    condition     = contains(["local", "aws"], var.environment)
+    error_message = "Environment must be 'local' or 'aws'."
+  }
+}
