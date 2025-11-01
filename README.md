@@ -109,9 +109,13 @@ terraform destroy -var-file="environments/aws/terraform.tfvars" -auto-approve
 ---
 ## LocalStack
 # Iniciar LocalStack
+Siempre en la carpeta: <Path de tu proyecto>\infra
+
 docker-compose up -d localstack
 
 # Desplegar
+Siempre en la carpeta: <Path de tu proyecto>\infra\terraform
+
 terraform apply -var-file="environments/local/terraform.tfvars" -auto-approve
 
 # Ver cambios sin aplicar
