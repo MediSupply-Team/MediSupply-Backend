@@ -184,7 +184,7 @@ resource "aws_security_group" "svc_sg" {
 }
 
 resource "aws_lb" "alb" {
-  name               = "${local.bff_id}-lb"
+  name               = "${local.bff_id}-alb"
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
   subnets            = var.public_subnets
