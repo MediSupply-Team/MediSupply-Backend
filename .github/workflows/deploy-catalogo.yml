@@ -16,7 +16,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: medisupply-dev-catalogo          
+  ECR_REPOSITORY: medisupply-dev-catalogo-service          
   ECS_CLUSTER: orders-cluster  # ✅ ÚNICO CAMBIO NECESARIO
   ECS_SERVICE: medisupply-dev-catalogo-svc          
   CONTAINER_NAME: medisupply-dev-catalogo-service                           
