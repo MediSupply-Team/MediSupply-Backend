@@ -1,34 +1,40 @@
-name: Deploy BFF Cliente to ECS
+
+name: Deploy BFF Cliente Service
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ "main", "develop" ]
     paths:
-      - 'bff-cliente/**'
-      - '.github/workflows/deploy-bff-cliente.yml'
+      - "bff-cliente/**"  # ✅ CORRECTO - tu nombre original
+      - ".github/workflows/deploy-bff-cliente.yml"
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: true
+        default: "develop"
 
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: medisupply-dev-bff-cliente
-  ECS_SERVICE: medisupply-dev-bff-cliente-svc
   ECS_CLUSTER: orders-cluster
+  ECS_SERVICE: medisupply-dev-bff-cliente-svc
   CONTAINER_NAME: bff-cliente
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
-  deploy:
-    name: Deploy to ECS
+  build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
-      - name: Checkout code
+      - name: Checkout (rama indicada o contexto del push)
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
@@ -38,27 +44,47 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build, tag, and push image
         id: build-image
-        working-directory: ./bff-cliente
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
+        working-directory: ./bff-cliente
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          
+          echo "🔨 Building Docker image..."
+          docker build -t "${IMAGE_URI}" .
+          
+          echo "📤 Pushing image with SHA tag..."
+          docker push "${IMAGE_URI}"
+          
+          echo "🏷️  Tagging and pushing as latest..."
+          docker tag "${IMAGE_URI}" "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          docker push "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          
+          echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "✅ Image built and pushed: ${IMAGE_URI}"
 
-      - name: Get current task definition
+      - name: Download current task definition
         run: |
+          echo "📥 Downloading current task definition..."
           aws ecs describe-task-definition \
-            --task-definition medisupply-dev-bff-cliente \
-            --query 'taskDefinition' \
-            --output json > task-definition.json
+            --task-definition ${{ env.ECR_REPOSITORY }} \
+            --query 'taskDefinition' > task-definition.json
+          
+          # Verify download succeeded
+          if [ ! -s task-definition.json ]; then
+            echo "❌ Error: task-definition.json is empty or missing"
+            exit 1
+          fi
+          
+          echo "✅ Task definition downloaded successfully"
+          echo "📝 Container names in task definition:"
+          jq -r '.containerDefinitions[].name' task-definition.json
+          echo "🔍 Looking for container: ${{ env.CONTAINER_NAME }}"
 
-      - name: Update task definition with new image
+      - name: Fill new image in task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -66,7 +92,7 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.build-image.outputs.image }}
 
-      - name: Deploy to Amazon ECS
+      - name: Deploy task definition to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
@@ -74,9 +100,15 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
-      - name: Deployment Summary
+      - name: Post-deploy status
         run: |
-          echo "✅ Deployment successful!"
-          echo "🔗 Service: ${{ env.ECS_SERVICE }}"
-          echo "🖼️  Image: ${{ steps.build-image.outputs.image }}"
-          echo "📊 Check logs: aws logs tail /ecs/medisupply-dev-bff-cliente --follow"
+          aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --query "services[0].{status:status,desired:desiredCount,running:runningCount,taskDef:taskDefinition}" \
+            --output table
+          aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --query "services[0].events[0:10].[createdAt,message]" \
+            --output table

@@ -31,6 +31,7 @@ variable "aws_region" {
 variable "db_instance_class" {
   description = "RDS instance class"
   type        = string
+  default     = ""
 }
 
 variable "db_allocated_storage" {
@@ -146,6 +147,7 @@ variable "use_haproxy" {
 variable "bff_name" {
   description = "BFF service name"
   type        = string
+  default     = ""
 }
 
 variable "bff_app_port" {
