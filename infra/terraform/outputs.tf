@@ -249,3 +249,8 @@ output "rutas_service_name" {
   description = "Nombre del servicio de Rutas en ECS"
   value       = module.rutas_service.service_name
 }
+
+output "reports_service_name" {
+  description = "Nombre del servicio de reports en ECS"
+  value       = module.report_service.service_name
+}

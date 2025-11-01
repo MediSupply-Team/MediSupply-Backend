@@ -20,6 +20,7 @@ provider "aws" {
 resource "aws_cloudwatch_log_group" "orders" {
   name              = "/medisupply/${var.env}/orders"
   retention_in_days = 14
+  #recovery_window_in_days = 0
   tags = {
     Project = var.project
     Env     = var.env
@@ -50,9 +51,7 @@ resource "aws_security_group" "ecs_sg" {
     cidr_blocks = ["10.20.0.0/16"] # ajusta al CIDR de tu VPC
   }
 
-  lifecycle {
-    create_before_destroy = true
-  }
+  #recovery_window_in_days = 0
 
   tags = {
     Project = var.project
