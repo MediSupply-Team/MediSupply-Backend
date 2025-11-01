@@ -9,8 +9,20 @@ client = TestClient(app)
 
 def test_orders_happy_creates_rows_and_enqueues():
     idem_key = "00000000-0000-0000-0000-000000000010"
-    body = {"customer_id": "C-HAPPY", "items": [{"sku": "X1", "qty": 1}], "created_by_role": "seller", "source": "bff-cliente"}
-
+    body = {
+        "customer_id": "C-HAPPY", 
+        "items": [{"sku": "X1", "qty": 1}], 
+        "created_by_role": "seller", 
+        "source": "bff-cliente",
+        "user_name": "test_user",
+        "address": {
+            "street": "Av. Reforma 123",
+            "city": "Ciudad de México",
+            "state": "CDMX",
+            "zip_code": "01000",
+            "country": "México"
+        }
+    }
     r = client.post("/orders", headers={"Idempotency-Key": idem_key}, json=body)
     assert r.status_code in (200, 201, 202)
     data = r.json()
