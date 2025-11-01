@@ -19,7 +19,7 @@ env:
   ECR_REPOSITORY: medisupply-dev-bff-cliente          
   ECS_CLUSTER: orders-cluster  # ✅ ÚNICO CAMBIO NECESARIO
   ECS_SERVICE: medisupply-dev-bff-cliente-svc          
-  CONTAINER_NAME: bff-cliente                           
+  CONTAINER_NAME: medisupply-dev-bff-cliente                           
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:

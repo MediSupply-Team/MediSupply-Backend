@@ -19,7 +19,7 @@ env:
   ECR_REPOSITORY: medisupply-dev-catalogo          
   ECS_CLUSTER: orders-cluster  # ✅ ÚNICO CAMBIO NECESARIO
   ECS_SERVICE: medisupply-dev-catalogo-svc          
-  CONTAINER_NAME: catalogo                           
+  CONTAINER_NAME: medisupply-dev-catalogo-service                           
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
