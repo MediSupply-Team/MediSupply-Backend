@@ -20,6 +20,7 @@ variable "aws_region" {
 variable "orders_ecr_image" {
   type        = string
   description = "URI de la imagen de orders en ECR (repository:tag)"
+  default     = ""
 }
 
 variable "orders_app_port" {
@@ -63,6 +64,7 @@ variable "use_haproxy" {
 variable "ecr_image" {
   description = "Imagen ECR de orders"
   type        = string
+  default     = ""
 }
 
 variable "app_port" {
