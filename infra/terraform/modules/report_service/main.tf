@@ -288,7 +288,6 @@ resource "aws_ecs_service" "this" {
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
 
-  depends_on = [aws_lb_listener_rule.rutas_path]
 
   tags = {
     Project = var.project
@@ -297,9 +296,9 @@ resource "aws_ecs_service" "this" {
   }
 }
 
-resource "aws_lb_listener_rule" "rutas_path" {
+resource "aws_lb_listener_rule" "reports_path" {
   listener_arn = var.shared_http_listener_arn
-  priority     = 30  # distinto de las otras reglas
+  priority     = 10  # distinto de las otras reglas
 
   action {
     type             = "forward"
@@ -308,7 +307,7 @@ resource "aws_lb_listener_rule" "rutas_path" {
 
   condition {
     path_pattern {
-      values = ["/api/*"]  
+      values = ["/api/reports/*"]  
     }
   }
 }

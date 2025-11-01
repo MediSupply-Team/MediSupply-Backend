@@ -386,7 +386,8 @@ resource "aws_iam_role_policy" "catalogo_ecs_exec_policy" {
 # ============================================================
 
 resource "aws_secretsmanager_secret" "catalogo_db_credentials" {
-  name = "${var.project}-${var.env}-catalogo-db-credentials-v2" # Cambiar nombre
+  #name = "${var.project}-${var.env}-catalogo-db-credentials-v2" # Cambiar nombre
+  name = "${var.project}-${var.env}-catalogo-db-credentials-v2-cuentasergio" # Cambiar nombre
 
   tags = {
     Service = "catalogo-service"

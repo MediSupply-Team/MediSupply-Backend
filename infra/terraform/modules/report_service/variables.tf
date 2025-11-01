@@ -16,7 +16,7 @@ variable "aws_region" {
 variable "service_name" {
   description = "Service name"
   type        = string
-  default     = "rutas"
+  default     = "reports"
 }
 
 variable "vpc_id" {

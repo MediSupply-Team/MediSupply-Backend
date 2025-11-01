@@ -1,6 +1,7 @@
-﻿terraform {
+terraform {
   backend "s3" {
-    bucket         = "miso-tfstate-838693051133"
+    #bucket         = "miso-tfstate-838693051135"
+    bucket         = "miso-tfstate-217466752988" #cuenta sergio
     key            = "infra.tfstate"
     region         = "us-east-1"
     encrypt        = true
@@ -85,6 +86,25 @@ resource "aws_ecs_cluster" "orders" {
 }
 
 # ============================================================
+# ECR REPOSITORY FOR ORDERS
+# ============================================================
+
+resource "aws_ecr_repository" "orders" {
+  name                 = "orders-service"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "orders"
+  }
+}
+
+# ============================================================
 # DATABASE
 # ============================================================
 
@@ -114,6 +134,14 @@ resource "aws_security_group" "postgres_sg" {
     to_port         = 5432
     protocol        = "tcp"
     security_groups = [module.rutas_service.security_group_id]
+    description     = "Allow PostgreSQL from Rutas ECS tasks"
+  }
+
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [module.report_service.security_group_id]
     description     = "Allow PostgreSQL from Rutas ECS tasks"
   }
 
@@ -373,6 +401,8 @@ resource "aws_db_instance" "postgres" {
 resource "aws_secretsmanager_secret" "db_url" {
   name = "medisupply/${var.env}/orders/DB_URL"
 
+  recovery_window_in_days = 0
+
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_URL"
     Project = var.project
@@ -387,6 +417,8 @@ resource "aws_secretsmanager_secret_version" "db_url" {
 
 resource "aws_secretsmanager_secret" "db_password" {
   name = "medisupply/${var.env}/orders/DB_PASSWORD"
+
+  recovery_window_in_days = 0
 
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_PASSWORD"
@@ -409,6 +441,8 @@ resource "aws_secretsmanager_secret" "rutas_db_url" {
   description             = "Database connection URL for Rutas service"
   recovery_window_in_days = 7
 
+  #recovery_window_in_days = 0
+
   tags = {
     Project = var.project
     Env     = var.env
@@ -421,7 +455,30 @@ resource "aws_secretsmanager_secret_version" "rutas_db_url_v" {
   # Usar el mismo usuario que orders
   secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/rutas?sslmode=require"
 }
+# ============================================================
+# REPORTS DATABASE SECRETS
+# ============================================================
 
+resource "aws_secretsmanager_secret" "reports_db_url" {
+  name                    = "${var.project}/${var.env}/reports/DB_URL"
+  description             = "Database connection URL for reports service"
+  recovery_window_in_days = 7
+
+  #recovery_window_in_days = 0
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "reports"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "reports_db_url_v" {
+
+  secret_id = aws_secretsmanager_secret.reports_db_url.id
+  # Usar el mismo usuario que orders
+  secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/reports?sslmode=require"
+}
 # ============================================================
 # SERVICES MODULES
 # ============================================================
@@ -438,7 +495,7 @@ module "orders" {
   private_subnets = module.vpc.private_subnets
 
   # Imagen ECR completa (repo:tag o repo@sha256:digest) â€” evita :latest
-  ecr_image         = var.ecr_image
+  ecr_image         = "${aws_ecr_repository.orders.repository_url}:latest"
   app_port          = 3000
   db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
 
@@ -492,7 +549,8 @@ module "bff_venta" {
   bff_env = merge(
     var.bff_env,
     {
-      RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"
+      #RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"
+      RUTAS_SERVICE_URL = "http://${module.bff_venta.alb_dns_name}"
     }
   )
 
@@ -565,7 +623,7 @@ module "bff_cliente" {
 
   # Servicios backend (usando Service Connect DNS)
   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
-  cliente_service_url  = "http://cliente:8000"  # Service Connect DNS
+  cliente_service_url  = "http://cliente:8000" # Service Connect DNS
 
   # Service Connect namespace
   service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
@@ -657,8 +715,40 @@ module "rutas_service" {
   app_port      = 8000
   image_tag     = "latest"
   desired_count = 1
-  cpu           = "512"
-  memory        = "1024"
+  cpu           = "256"
+  memory        = "512"
 
   health_check_path = "/health"
+
+  shared_http_listener_arn = module.bff_venta.alb_listener_arn
+  shared_alb_sg_id         = module.bff_venta.alb_sg_id
+}
+
+# Reports Service
+module "report_service" {
+  source = "./modules/report_service"
+
+  project    = var.project
+  env        = var.env
+  aws_region = var.aws_region
+
+  service_name = "reports"
+
+  vpc_id          = module.vpc.vpc_id
+  public_subnets  = module.vpc.public_subnets
+  private_subnets = module.vpc.private_subnets
+
+  ecs_cluster_arn   = aws_ecs_cluster.orders.arn
+  db_url_secret_arn = aws_secretsmanager_secret.reports_db_url.arn
+
+  app_port      = 8000
+  image_tag     = "latest"
+  desired_count = 1
+  cpu           = "256"
+  memory        = "512"
+
+  health_check_path = "/health"
+
+  shared_http_listener_arn = module.bff_venta.alb_listener_arn
+  shared_alb_sg_id         = module.bff_venta.alb_sg_id
 }

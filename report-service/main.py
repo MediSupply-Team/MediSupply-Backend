@@ -13,5 +13,5 @@ def on_startup():
 @app.get("/health")
 def health(): return {"ok": True}
 
-# Monta el router de reportes
+# Monta el router de reportes 
 app.include_router(reports_router)
