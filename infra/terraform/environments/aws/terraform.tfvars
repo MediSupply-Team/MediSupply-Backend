@@ -34,7 +34,7 @@ use_haproxy = true
 # BFF VENTA
 # ============================================================
 bff_name      = "bff-venta"
-bff_app_port  = 8080
+bff_app_port  = 8000
 bff_repo_name = "medisupply-dev-bff-venta"
 
 bff_env = {
