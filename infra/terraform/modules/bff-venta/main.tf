@@ -184,7 +184,7 @@ resource "aws_security_group" "svc_sg" {
 }
 
 resource "aws_lb" "alb" {
-  name               = "${local.bff_id}"
+  name               = "${local.bff_id}-lb"
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
   subnets            = var.public_subnets
@@ -198,7 +198,7 @@ resource "aws_lb" "alb" {
 }
 
 resource "aws_lb_target_group" "tg" {
-  name                 = "${local.bff_id}"
+  name                 = "${local.bff_id}-tg"
   port                 = var.bff_app_port
   protocol             = "HTTP"
   target_type          = "ip"
