@@ -93,57 +93,128 @@ infra/terraform/
         └── outputs.tf
 ```
 ---
-## AWS  y LocalStack
+# 🚀 Terraform - AWS y LocalStack
 
-Siempre en la carpeta: <Path de tu proyecto>\infra\terraform
+> **Nota:** Todos los comandos se ejecutan desde: `<Path de tu proyecto>/infra/terraform`
 
-## AWS
-# Iniciar
-terraform init -var-file="environments/aws/terraform.tfvars"
+---
 
-# Validar
+## ☁️ AWS
+
+### Inicializar (solo primera vez o después de cambios en backend)
+```powershell
+terraform init -backend-config="environments/aws/backend.hcl" -migrate-state
+```
+
+### Validar configuración
+```powershell
 terraform validate
+```
 
-# Ver cambios sin aplicar
+### Ver cambios sin aplicar
+```powershell
 terraform plan -var-file="environments/aws/terraform.tfvars"
+```
 
-# Desplegar
+### Desplegar
+```powershell
 terraform apply -var-file="environments/aws/terraform.tfvars" -auto-approve
+```
 
-# Destruir
+### Destruir
+```powershell
 terraform destroy -var-file="environments/aws/terraform.tfvars" -auto-approve
----
-## LocalStack
-# Iniciar LocalStack
-Siempre en la carpeta: <Path de tu proyecto>\infra
+```
 
+---
+
+## 🐳 LocalStack
+
+### 1. Iniciar LocalStack
+> Ejecutar desde: `<Path de tu proyecto>/infra`
+```powershell
 docker-compose up -d localstack
+```
 
-# Desplegar
-Siempre en la carpeta: <Path de tu proyecto>\infra\terraform
+### 2. Verificar que LocalStack está corriendo
+```powershell
+docker ps | Select-String localstack
+```
 
-# Iniciar
-terraform init -var-file="environments/local/terraform.tfvars"
+### 3. Inicializar Terraform
+> Volver a: `<Path de tu proyecto>/infra/terraform`
+```powershell
+terraform init -backend-config=environments/local/backend.hcl
+```
 
-# Validar
-terraform validate
-
-# Ver cambios sin aplicar
+### 4. Ver cambios sin aplicar
+```powershell
 terraform plan -var-file="environments/local/terraform.tfvars"
+```
 
-# Desplegar
+### 5. Desplegar
+```powershell
 terraform apply -var-file="environments/local/terraform.tfvars" -auto-approve
+```
 
-# Destruir
+### 6. Destruir
+```powershell
 terraform destroy -var-file="environments/local/terraform.tfvars" -auto-approve
+```
 
-# Detener LocalStack
-Siempre en la carpeta: <Path de tu proyecto>\infra
+### 7. Detener LocalStack
+> Ejecutar desde: `<Path de tu proyecto>/infra`
+```powershell
 docker-compose down
+```
+
 ---
 
-# AWS - Desplegar solo un módulo
-terraform apply -var-file="environments/aws/terraform.tfvars" -target="module.bff_venta" -auto-approve
+## 🎯 Desplegar Módulos Específicos
 
-# LocalStack - Desplegar solo un módulo
-terraform apply -var-file="environments/local/terraform.tfvars" -target="module.catalogo_service" -auto-approve
+### AWS
+```powershell
+terraform apply -var-file="environments/aws/terraform.tfvars" -target=module.bff_venta -auto-approve
+```
+
+### LocalStack
+```powershell
+terraform apply -var-file="environments/local/terraform.tfvars" -target=module.catalogo_service -auto-approve
+```
+
+---
+
+## 📦 Módulos Disponibles
+
+- `module.bff_venta` - BFF de ventas
+- `module.bff_cliente` - BFF de clientes  
+- `module.catalogo_service` - Servicio de catálogo
+- `module.cliente_service` - Servicio de clientes
+- `module.orders` - Servicio de órdenes
+- `module.consumer` - Consumer de eventos
+- `module.rutas_service` - Servicio de rutas
+- `module.report_service` - Servicio de reportes
+
+---
+
+## 🔍 Comandos Útiles
+
+### Ver recursos en el state
+```powershell
+terraform state list
+```
+
+### Ver detalles de un recurso
+```powershell
+terraform state show module.bff_venta.aws_ecs_service.svc
+```
+
+### Ver outputs
+```powershell
+terraform output
+```
+
+### Verificar estado del backend (AWS)
+```powershell
+aws s3 ls s3://miso-tfstate-217466752988/
+```
