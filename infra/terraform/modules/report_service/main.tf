@@ -298,7 +298,7 @@ resource "aws_ecs_service" "this" {
 
 resource "aws_lb_listener_rule" "reports_path" {
   listener_arn = var.shared_http_listener_arn
-  priority     = 90  # distinto de las otras reglas
+  priority     = 10  # distinto de las otras reglas
 
   action {
     type             = "forward"
