@@ -48,24 +48,41 @@ jobs:
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
-        working-directory: ./ruta-service
+          IMAGE_TAG: ${{ github.sha }}
+        working-directory: ./bff-cliente
         run: |
-          IMAGE_URI=${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          
+          echo "🔨 Building Docker image..."
           docker build -t "${IMAGE_URI}" .
+          
+          echo "📤 Pushing image with SHA tag..."
           docker push "${IMAGE_URI}"
           
-          # También pushear con tag latest
+          echo "🏷️  Tagging and pushing as latest..."
           docker tag "${IMAGE_URI}" "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
           docker push "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
           
           echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "✅ Image built and pushed: ${IMAGE_URI}"
 
       - name: Download current task definition
         run: |
+          echo "📥 Downloading current task definition..."
           aws ecs describe-task-definition \
-            --task-definition medisupply-dev-rutas \
+            --task-definition ${{ env.ECR_REPOSITORY }} \
             --query 'taskDefinition' > task-definition.json
+          
+          # Verify download succeeded
+          if [ ! -s task-definition.json ]; then
+            echo "❌ Error: task-definition.json is empty or missing"
+            exit 1
+          fi
+          
+          echo "✅ Task definition downloaded successfully"
+          echo "📝 Container names in task definition:"
+          jq -r '.containerDefinitions[].name' task-definition.json
+          echo "🔍 Looking for container: ${{ env.CONTAINER_NAME }}"
 
       - name: Fill new image in task definition
         id: task-def
