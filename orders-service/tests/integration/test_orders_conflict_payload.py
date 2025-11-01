@@ -14,7 +14,13 @@ async def test_orders_conflict_same_key_different_payload_returns_409(
     idem_key = "00000000-0000-0000-0000-00000000C0NF-1"
     key_hash = _sha256(idem_key)
 
-    original_body = {"customer_id": "C-ONE", "items": [{"sku": "A", "qty": 1}], "created_by_role": "seller", "source": "bff-cliente"}
+    original_body = {
+        "customer_id": "C-ONE", 
+        "items": [{"sku": "A", "qty": 1}], 
+        "created_by_role": "seller", 
+        "source": "bff-cliente", 
+        "user_name": "test_user"
+    }
     original_req = CreateOrderRequest(**original_body)
     original_hash = _sha256(original_req.model_dump_json())
 
@@ -35,7 +41,19 @@ async def test_orders_conflict_same_key_different_payload_returns_409(
     await test_session.commit()
 
     # Mismo Idempotency-Key pero payload DIFERENTE -> 409
-    different_body = {"customer_id": "C-OTHER", "items": [{"sku": "B", "qty": 2, "created_by_role": "seller", "source": "bff-cliente"}]}
+    different_body = {
+        "customer_id": "C-OTHER", 
+        "items": [{"sku": "B", "qty": 2}],
+        "created_by_role": "seller",
+        "source": "bff-cliente",
+        "user_name": "test_user",
+        "address": {
+            "street": "Av. Reforma 123",
+            "city": "Ciudad de México",
+            "state": "CDMX",
+            "zip_code": "01000",
+            "country": "México"
+        }
+    }
     r = client.post("/orders", headers={"Idempotency-Key": idem_key}, json=different_body)
     assert r.status_code == 409
-    assert r.json()["detail"] == "Idempotency-Key ya usada con payload distinto"

@@ -18,7 +18,13 @@ async def _count(session, model):
 
 @pytest.mark.anyio
 async def test_direct_pending_same_body_enters_try_and_creates_order(test_session, monkeypatch):
-    body = {"customer_id": "C-PEND-DIRECT", "items": [{"sku": "PD1", "qty": 1}]}
+    body = {
+        "customer_id": "C-PEND-DIRECT", 
+        "items": [{"sku": "PD1", "qty": 1}],
+        "created_by_role": "seller",
+        "source": "bff-cliente",
+        "user_name": "test_user"
+    }
     req = CreateOrderRequest(**body)
     body_hash = _sha256(req.model_dump_json())
 
@@ -68,7 +74,13 @@ async def test_direct_done_returns_cached_early_return(test_session, monkeypatch
     """
     Cubre: rama DONE + response_body (líneas 48–49) => return temprano.
     """
-    body = {"customer_id": "C-DONE-DIRECT", "items": [{"sku": "D1", "qty": 1}]}
+    body = {
+        "customer_id": "C-DONE-DIRECT", 
+        "items": [{"sku": "D1", "qty": 1}],
+        "created_by_role": "seller",
+        "source": "bff-cliente",
+        "user_name": "test_user"
+    }
     req = CreateOrderRequest(**body)
     body_hash = _sha256(req.model_dump_json())
 
@@ -109,8 +121,34 @@ async def test_direct_conflict_same_key_different_payload_raises_409(test_sessio
     """
     Cubre: raise HTTPException(409) (línea 46).
     """
-    body1 = {"customer_id": "C1", "items": [{"sku": "A", "qty": 1}]}
-    body2 = {"customer_id": "C2", "items": [{"sku": "B", "qty": 2}]}
+    body1 = {
+        "customer_id": "C-PEND-DIRECT", 
+        "items": [{"sku": "PD1", "qty": 1}],
+        "created_by_role": "seller",
+        "source": "bff-cliente",
+        "user_name": "test_user",
+        "address": {
+            "street": "Av. Reforma 123",
+            "city": "Ciudad de México",
+            "state": "CDMX",
+            "zip_code": "01000",
+            "country": "México"
+        }
+    }
+    body2 = {
+        "customer_id": "C-DONE-DIRECT", 
+        "items": [{"sku": "D1", "qty": 1}],
+        "created_by_role": "seller",
+        "source": "bff-cliente",
+        "user_name": "test_user",
+        "address": {
+            "street": "Av. Reforma 123",
+            "city": "Ciudad de México",
+            "state": "CDMX",
+            "zip_code": "01000",
+            "country": "México"
+        }
+    }
 
     req1 = CreateOrderRequest(**body1)
     req2 = CreateOrderRequest(**body2)
