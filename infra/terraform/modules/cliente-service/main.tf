@@ -130,6 +130,7 @@ resource "aws_secretsmanager_secret" "cliente_db_credentials" {
   #name        = "${local.service_id}-db-credentials"
   name        = "${local.service_id}-db-credentials-cuentasergio"
   description = "Database credentials for cliente-service"
+  recovery_window_in_days = 0
 
   tags = {
     Project = var.project

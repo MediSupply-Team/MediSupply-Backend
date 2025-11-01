@@ -135,6 +135,7 @@ resource "aws_ecs_cluster" "orders" {
 resource "aws_ecr_repository" "orders" {
   name                 = "orders-service"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true 
 
   image_scanning_configuration {
     scan_on_push = true
@@ -493,7 +494,7 @@ resource "aws_secretsmanager_secret_version" "db_password" {
 resource "aws_secretsmanager_secret" "rutas_db_url" {
   name                    = "${var.project}/${var.env}/rutas/DB_URL"
   description             = "Database connection URL for Rutas service"
-  recovery_window_in_days = local.is_local ? 0 : 7
+  recovery_window_in_days = 0
 
   tags = {
     Project = var.project
@@ -518,7 +519,7 @@ resource "aws_secretsmanager_secret_version" "rutas_db_url_v" {
 resource "aws_secretsmanager_secret" "reports_db_url" {
   name                    = "${var.project}/${var.env}/reports/DB_URL"
   description             = "Database connection URL for reports service"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 
   #recovery_window_in_days = 0
 
