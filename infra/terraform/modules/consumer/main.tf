@@ -82,8 +82,9 @@ resource "aws_iam_role_policy_attachment" "exec_attach" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Logs
+# Logs - Condicional para LocalStack
 resource "aws_cloudwatch_log_group" "lg" {
+  count             = local.is_local ? 0 : 1
   name              = "/ecs/${var.project}-${var.env}-haproxy-consumer"
   retention_in_days = 14
   tags              = { Project = var.project, Env = var.env }
@@ -115,6 +116,8 @@ resource "aws_security_group" "sg" {
 }
 
 locals {
+  is_local = var.environment == "local"
+  
   consumer_lb_target = var.use_haproxy ? "http://127.0.0.1/orders" : "http://${var.bff_alb_dns_name}/orders"
   # URL para conectarse al servicio orders via Service Connect
   orders_url = var.orders_service_url != "" ? var.orders_service_url : "http://orders:3000/orders"
@@ -140,10 +143,10 @@ resource "aws_ecs_task_definition" "td" {
       name      = "worker",
       image     = "${aws_ecr_repository.worker.repository_url}:latest",
       essential = true,
-      logConfiguration = {
+      logConfiguration = local.is_local ? null : {
         logDriver = "awslogs",
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.lg.name,
+          awslogs-group         = aws_cloudwatch_log_group.lg[0].name,
           awslogs-region        = var.aws_region,
           awslogs-stream-prefix = "worker"
         }
