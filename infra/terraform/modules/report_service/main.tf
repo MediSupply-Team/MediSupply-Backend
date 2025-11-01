@@ -307,7 +307,7 @@ resource "aws_lb_listener_rule" "reports_path" {
 
   condition {
     path_pattern {
-      values = ["/api/reports/*"]  
+      values = ["/api/reports/*","/health"]  
     }
   }
 }
