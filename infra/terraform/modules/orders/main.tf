@@ -12,15 +12,20 @@ terraform {
   }
 }
 
-provider "aws" {
-  region = var.aws_region
+#provider "aws" {
+#  region = var.aws_region
+#}
+
+locals {
+  is_local = var.environment == "local"
 }
 
-# Log group
+# Log group - Solo crear en AWS, no en LocalStack
 resource "aws_cloudwatch_log_group" "orders" {
+  count = local.is_local ? 0 : 1
+
   name              = "/medisupply/${var.env}/orders"
   retention_in_days = 14
-  #recovery_window_in_days = 0
   tags = {
     Project = var.project
     Env     = var.env
@@ -51,7 +56,9 @@ resource "aws_security_group" "ecs_sg" {
     cidr_blocks = ["10.20.0.0/16"] # ajusta al CIDR de tu VPC
   }
 
-  #recovery_window_in_days = 0
+  lifecycle {
+    create_before_destroy = true
+  }
 
   tags = {
     Project = var.project
@@ -96,10 +103,11 @@ resource "aws_ecs_task_definition" "orders" {
         }
       ]
 
-      logConfiguration = {
+      # logConfiguration - Condicional: solo en AWS, no en LocalStack
+      logConfiguration = local.is_local ? null : {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.orders.name
+          awslogs-group         = aws_cloudwatch_log_group.orders[0].name
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = "orders"
         }

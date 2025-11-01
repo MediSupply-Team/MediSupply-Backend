@@ -91,3 +91,41 @@ infra/terraform/
         ├── main.tf            # SQS Queues, HAProxy, Worker
         ├── variables.tf
         └── outputs.tf
+```
+---
+## AWS  y LocalStack
+
+Siempre en la carpeta: <Path de tu proyecto>\infra\terraform
+
+## AWS
+# Desplegar
+terraform apply -var-file="environments/aws/terraform.tfvars" -auto-approve
+
+# Ver cambios sin aplicar
+terraform plan -var-file="environments/aws/terraform.tfvars"
+
+# Destruir
+terraform destroy -var-file="environments/aws/terraform.tfvars" -auto-approve
+---
+## LocalStack
+# Iniciar LocalStack
+docker-compose up -d localstack
+
+# Desplegar
+terraform apply -var-file="environments/local/terraform.tfvars" -auto-approve
+
+# Ver cambios sin aplicar
+terraform plan -var-file="environments/local/terraform.tfvars"
+
+# Destruir
+terraform destroy -var-file="environments/local/terraform.tfvars" -auto-approve
+
+# Detener LocalStack
+docker-compose down
+---
+
+# AWS - Desplegar solo un módulo
+terraform apply -var-file="environments/aws/terraform.tfvars" -target=module.bff_venta -auto-approve
+
+# LocalStack - Desplegar solo un módulo
+terraform apply -var-file="environments/local/terraform.tfvars" -target=module.catalogo_service -auto-approve

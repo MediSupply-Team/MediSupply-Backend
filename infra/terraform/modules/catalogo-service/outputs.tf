@@ -86,8 +86,8 @@ output "db_security_group_id" {
 
 # CloudWatch Logs
 output "cloudwatch_log_group_name" {
-  description = "Nombre del log group de CloudWatch para catalogo-service"
-  value       = aws_cloudwatch_log_group.catalogo.name
+  description = "Nombre del log group de CloudWatch para catalogo-service (empty in LocalStack)"
+  value       = length(aws_cloudwatch_log_group.catalogo) > 0 ? aws_cloudwatch_log_group.catalogo[0].name : ""
 }
 
 # Secrets Manager

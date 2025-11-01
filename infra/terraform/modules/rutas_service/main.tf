@@ -8,6 +8,7 @@ terraform {
 }
 
 locals {
+  is_local   = var.environment == "local"
   service_id = "${var.project}-${var.env}-${var.service_name}"
 }
 
@@ -34,6 +35,7 @@ resource "aws_ecr_repository" "this" {
 # CLOUDWATCH LOGS
 # ============================================================
 resource "aws_cloudwatch_log_group" "this" {
+  count             = local.is_local ? 0 : 1
   name              = "/ecs/${local.service_id}"
   retention_in_days = 7
 
@@ -237,10 +239,10 @@ resource "aws_ecs_task_definition" "this" {
         }
       ]
 
-      logConfiguration = {
+      logConfiguration = local.is_local ? null : {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.this.name
+          awslogs-group         = aws_cloudwatch_log_group.this[0].name
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = var.service_name
         }
