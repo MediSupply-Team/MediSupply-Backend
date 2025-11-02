@@ -239,10 +239,20 @@ async def cargar_datos_iniciales(engine) -> bool:
     async with engine.begin() as conn:
         result = await conn.execute(text("SELECT COUNT(*) FROM producto"))
         count = result.scalar()
+        
+        # También verificar inventarios
+        result_inv = await conn.execute(text("SELECT COUNT(*) FROM inventario"))
+        count_inv = result_inv.scalar()
+    
+    print(f"   📊 Estado actual: {count} productos, {count_inv} inventarios")
+    
+    if count >= 25:
+        print(f"   ℹ️  Ya existen {count} productos en la base de datos (suficientes)")
+        return True
     
     if count > 0:
-        print(f"   ℹ️  Ya existen {count} productos en la base de datos")
-        return True
+        print(f"   ⚠️  Existen {count} productos pero es menos de lo esperado (25)")
+        print(f"   🔄 Continuando con carga de datos adicionales...")
     
     # Cargar datos desde todos los archivos SQL en data/ en orden
     data_dir = Path(__file__).parent.parent / "data"
@@ -270,7 +280,7 @@ async def cargar_datos_iniciales(engine) -> bool:
         
         inserted = 0
         
-        for statement in statements:
+        for idx, statement in enumerate(statements, 1):
             if not statement or statement.startswith('--'):
                 continue
             
@@ -282,7 +292,10 @@ async def cargar_datos_iniciales(engine) -> bool:
                 error_msg = str(e).lower()
                 # Ignorar errores de tablas/índices que ya existen y duplicados
                 if 'already exists' not in error_msg and 'duplicate' not in error_msg:
-                    print(f"      ⚠️  Error: {str(e)[:80]}")
+                    print(f"      ⚠️  Error en statement {idx}: {str(e)[:100]}")
+                    # Imprimir primeras líneas del statement para debugging
+                    stmt_preview = statement[:150].replace('\n', ' ')
+                    print(f"         Statement: {stmt_preview}...")
         
         if inserted > 0:
             print(f"      ✅ {inserted} statements ejecutados desde {sql_file.name}")
