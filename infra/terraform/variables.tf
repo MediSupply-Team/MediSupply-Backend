@@ -4,6 +4,7 @@
 variable "environment" {
   description = "Environment type: local (LocalStack) or aws (AWS)"
   type        = string
+  default     = "aws"
   validation {
     condition     = contains(["local", "aws"], var.environment)
     error_message = "Environment must be 'local' or 'aws'."
@@ -37,6 +38,7 @@ variable "db_instance_class" {
 variable "db_allocated_storage" {
   description = "Allocated storage in GB"
   type        = number
+  default     = 20
 }
 
 variable "db_max_allocated_storage" {
@@ -158,6 +160,7 @@ variable "bff_app_port" {
 variable "bff_repo_name" {
   description = "BFF ECR repository name"
   type        = string
+  default     = "medisupply-dev-bff-venta"
 }
 
 variable "bff_env" {
@@ -202,11 +205,13 @@ variable "catalogo_memory" {
 variable "catalogo_db_instance_class" {
   description = "RDS instance class for catalogo database"
   type        = string
+  default     = "db.t3.micro"
 }
 
 variable "catalogo_db_allocated_storage" {
   description = "Allocated storage for catalogo database in GB"
   type        = number
+  default     = 20
 }
 
 variable "catalogo_db_backup_retention_days" {
