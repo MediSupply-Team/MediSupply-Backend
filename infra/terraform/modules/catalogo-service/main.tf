@@ -164,64 +164,14 @@ resource "aws_db_instance" "catalogo_postgres" {
 }
 
 # ============================================================
-# S3 BUCKET FOR BULK UPLOADS
+# S3 BUCKET - COMPARTIDO CON VISITA-SERVICE
 # ============================================================
+# Usamos el bucket existente: medisupply-dev-visita-uploads
+# Los archivos de carga masiva se guardarán con prefijo: bulk-uploads/
+# Las fotos de visitas usan prefijo: visitas/
 
-resource "aws_s3_bucket" "catalogo_bulk_uploads" {
-  bucket        = "${var.project}-${var.env}-catalogo-bulk-uploads"
-  force_destroy = true
-
-  tags = {
-    Name    = "${var.project}-${var.env}-catalogo-bulk-uploads"
-    Service = "catalogo-service"
-    Project = var.project
-    Env     = var.env
-    Purpose = "Bulk product uploads"
-  }
-}
-
-resource "aws_s3_bucket_versioning" "catalogo_bulk_uploads" {
-  bucket = aws_s3_bucket.catalogo_bulk_uploads.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "catalogo_bulk_uploads" {
-  bucket = aws_s3_bucket.catalogo_bulk_uploads.id
-
-  rule {
-    id     = "delete-old-uploads"
-    status = "Enabled"
-
-    expiration {
-      days = 30 # Eliminar archivos después de 30 días
-    }
-
-    noncurrent_version_expiration {
-      noncurrent_days = 7
-    }
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "catalogo_bulk_uploads" {
-  bucket = aws_s3_bucket.catalogo_bulk_uploads.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "catalogo_bulk_uploads" {
-  bucket = aws_s3_bucket.catalogo_bulk_uploads.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+data "aws_s3_bucket" "shared_uploads" {
+  bucket = var.s3_bucket_name
 }
 
 # ============================================================
@@ -432,8 +382,8 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.catalogo_bulk_uploads.arn,
-          "${aws_s3_bucket.catalogo_bulk_uploads.arn}/*"
+          data.aws_s3_bucket.shared_uploads.arn,
+          "${data.aws_s3_bucket.shared_uploads.arn}/*"
         ]
       },
       {
@@ -562,7 +512,7 @@ resource "aws_ecs_task_definition" "catalogo" {
         },
         {
           name  = "S3_BUCKET_NAME"
-          value = aws_s3_bucket.catalogo_bulk_uploads.id
+          value = data.aws_s3_bucket.shared_uploads.id
         },
         {
           name  = "DB_HOST"
