@@ -164,6 +164,67 @@ resource "aws_db_instance" "catalogo_postgres" {
 }
 
 # ============================================================
+# S3 BUCKET FOR BULK UPLOADS
+# ============================================================
+
+resource "aws_s3_bucket" "catalogo_bulk_uploads" {
+  bucket        = "${var.project}-${var.env}-catalogo-bulk-uploads"
+  force_destroy = true
+
+  tags = {
+    Name    = "${var.project}-${var.env}-catalogo-bulk-uploads"
+    Service = "catalogo-service"
+    Project = var.project
+    Env     = var.env
+    Purpose = "Bulk product uploads"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "catalogo_bulk_uploads" {
+  bucket = aws_s3_bucket.catalogo_bulk_uploads.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "catalogo_bulk_uploads" {
+  bucket = aws_s3_bucket.catalogo_bulk_uploads.id
+
+  rule {
+    id     = "delete-old-uploads"
+    status = "Enabled"
+
+    expiration {
+      days = 30 # Eliminar archivos después de 30 días
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 7
+    }
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "catalogo_bulk_uploads" {
+  bucket = aws_s3_bucket.catalogo_bulk_uploads.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "catalogo_bulk_uploads" {
+  bucket = aws_s3_bucket.catalogo_bulk_uploads.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# ============================================================
 # SQS FIFO QUEUE
 # ============================================================
 
@@ -292,24 +353,24 @@ resource "aws_iam_role" "catalogo_ecs_execution_role" {
     Project = var.project
     Env     = var.env
   }
-  }
+}
 
-  # Permiso para acceder al secreto de la base de datos en Secrets Manager
-  resource "aws_iam_role_policy" "catalogo_ecs_execution_secrets_policy" {
-    name   = "catalogo-ecs-execution-secrets-policy"
-    role   = aws_iam_role.catalogo_ecs_execution_role.id
-    policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [
-        {
-          Effect = "Allow"
-          Action = [
-            "secretsmanager:GetSecretValue"
-          ]
-          Resource = aws_secretsmanager_secret.catalogo_db_credentials.arn
-        }
-      ]
-    })
+# Permiso para acceder al secreto de la base de datos en Secrets Manager
+resource "aws_iam_role_policy" "catalogo_ecs_execution_secrets_policy" {
+  name = "catalogo-ecs-execution-secrets-policy"
+  role = aws_iam_role.catalogo_ecs_execution_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = aws_secretsmanager_secret.catalogo_db_credentials.arn
+      }
+    ]
+  })
 }
 
 resource "aws_iam_role_policy_attachment" "catalogo_ecs_execution_role_policy" {
@@ -341,7 +402,7 @@ resource "aws_iam_role" "catalogo_ecs_task_role" {
   }
 }
 
-# Policy para acceso a SQS y Secrets Manager
+# Policy para acceso a SQS, S3 y Secrets Manager
 resource "aws_iam_role_policy" "catalogo_task_policy" {
   name = "${var.project}-${var.env}-catalogo-task-policy"
   role = aws_iam_role.catalogo_ecs_task_role.id
@@ -360,6 +421,19 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
         Resource = [
           aws_sqs_queue.catalogo_events.arn,
           aws_sqs_queue.catalogo_dlq.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.catalogo_bulk_uploads.arn,
+          "${aws_s3_bucket.catalogo_bulk_uploads.arn}/*"
         ]
       },
       {
@@ -401,7 +475,7 @@ resource "aws_iam_role_policy" "catalogo_ecs_exec_policy" {
 
 resource "aws_secretsmanager_secret" "catalogo_db_credentials" {
   #name = "${var.project}-${var.env}-catalogo-db-credentials-v2" # Cambiar nombre
-  name = "${var.project}-${var.env}-catalogo-db-credentials-v2-cuentasergio" # Cambiar nombre
+  name                    = "${var.project}-${var.env}-catalogo-db-credentials-v2-cuentasergio" # Cambiar nombre
   recovery_window_in_days = 0
 
   tags = {
@@ -461,7 +535,7 @@ resource "aws_ecs_task_definition" "catalogo" {
         {
           containerPort = var.container_port
           protocol      = "tcp"
-          name          = "catalogo-http"  # Unique port name for Service Connect
+          name          = "catalogo-http" # Unique port name for Service Connect
         }
       ]
 
@@ -485,6 +559,10 @@ resource "aws_ecs_task_definition" "catalogo" {
         {
           name  = "SQS_REGION"
           value = "us-east-1"
+        },
+        {
+          name  = "S3_BUCKET_NAME"
+          value = aws_s3_bucket.catalogo_bulk_uploads.id
         },
         {
           name  = "DB_HOST"
@@ -607,8 +685,8 @@ resource "aws_ecs_service" "catalogo" {
   task_definition = aws_ecs_task_definition.catalogo.arn
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
-  
-  enable_execute_command = true  # Permite acceso directo al contenedor para debugging
+
+  enable_execute_command = true # Permite acceso directo al contenedor para debugging
 
   network_configuration {
     subnets         = var.private_subnets
@@ -625,7 +703,7 @@ resource "aws_ecs_service" "catalogo" {
         dns_name = "catalogo"
         port     = var.container_port
       }
-      port_name = "catalogo-http"  # Must match the portMapping name
+      port_name = "catalogo-http" # Must match the portMapping name
     }
   }
 

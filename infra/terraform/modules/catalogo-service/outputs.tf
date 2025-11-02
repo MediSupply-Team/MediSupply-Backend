@@ -35,6 +35,17 @@ output "db_port" {
   value       = aws_db_instance.catalogo_postgres.port
 }
 
+# S3 Bucket
+output "s3_bucket_name" {
+  description = "Nombre del bucket S3 para cargas masivas"
+  value       = aws_s3_bucket.catalogo_bulk_uploads.id
+}
+
+output "s3_bucket_arn" {
+  description = "ARN del bucket S3 para cargas masivas"
+  value       = aws_s3_bucket.catalogo_bulk_uploads.arn
+}
+
 # SQS Queue
 output "sqs_queue_url" {
   description = "URL de la cola SQS FIFO para catalogo-service"
