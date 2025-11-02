@@ -170,7 +170,8 @@ resource "aws_security_group" "postgres_sg" {
     cidr_blocks = local.is_local ? ["10.20.0.0/16"] : []
     security_groups = local.is_local ? [] : [
       module.orders.security_group_id,
-      module.rutas_service.security_group_id
+      module.rutas_service.security_group_id,
+      module.report_service.security_group_id
     ]
     description = local.is_local ? "Allow from VPC (LocalStack)" : "Allow from services"
   }
@@ -410,7 +411,8 @@ resource "aws_db_instance" "postgres" {
   maintenance_window      = var.db_maintenance_window
 
   # Snapshots
-  skip_final_snapshot       = var.db_skip_final_snapshot
+  #skip_final_snapshot       = var.db_skip_final_snapshot
+  skip_final_snapshot = true
   final_snapshot_identifier = "${var.project}-${var.env}-orders-postgres-final-snapshot"
 
   # Monitoring - solo en AWS
@@ -447,7 +449,7 @@ resource "aws_db_instance" "postgres" {
 
 resource "aws_secretsmanager_secret" "db_url" {
   name = "medisupply/${var.env}/orders/DB_URL"
-  recovery_window_in_days = local.is_local ? 0 : 7
+  recovery_window_in_days = 0
 
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_URL"
@@ -467,7 +469,7 @@ resource "aws_secretsmanager_secret_version" "db_url" {
 
 resource "aws_secretsmanager_secret" "db_password" {
   name = "medisupply/${var.env}/orders/DB_PASSWORD"
-  recovery_window_in_days = local.is_local ? 0 : 7
+  recovery_window_in_days = 0
 
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_PASSWORD"
@@ -585,6 +587,7 @@ module "consumer" {
 
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
+  ecr_force_delete = true
 }
 
 # BFF Venta

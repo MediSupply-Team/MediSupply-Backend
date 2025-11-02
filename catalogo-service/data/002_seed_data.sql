@@ -1,55 +1,5 @@
-CREATE TABLE producto (
-  id VARCHAR(64) PRIMARY KEY,
-  codigo VARCHAR(64) UNIQUE NOT NULL,
-  nombre VARCHAR(255) NOT NULL,
-  categoria_id VARCHAR(64) NOT NULL,
-  presentacion VARCHAR(128),
-  precio_unitario NUMERIC(12,2) NOT NULL,
-  requisitos_almacenamiento VARCHAR(128),
-  activo BOOLEAN NOT NULL DEFAULT TRUE
-);
-
-CREATE TABLE inventario (
-  id BIGSERIAL PRIMARY KEY,
-  producto_id VARCHAR(64) NOT NULL REFERENCES producto(id),
-  pais CHAR(2) NOT NULL,
-  bodega_id VARCHAR(64) NOT NULL,
-  lote VARCHAR(64) NOT NULL,
-  cantidad INT NOT NULL,
-  vence DATE NOT NULL,
-  condiciones VARCHAR(128)
-);
-
-CREATE INDEX idx_prod_codigo ON producto(codigo);
-CREATE INDEX idx_prod_cat ON producto(categoria_id);
-CREATE INDEX idx_inv_lookup ON inventario(producto_id, pais, bodega_id, lote);
-CREATE INDEX idx_inv_vence  ON inventario(vence);
-
--- Constraint único para prevenir inventarios duplicados en la misma bodega/lote
--- IF NOT EXISTS no existe en ALTER TABLE, así que usamos DO block
-DO $$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'uk_inventario_location_lote'
-    ) THEN
-        ALTER TABLE inventario ADD CONSTRAINT uk_inventario_location_lote 
-          UNIQUE (producto_id, pais, bodega_id, lote);
-    END IF;
-END $$;
-
-CREATE TABLE consulta_catalogo_log (
-  id BIGSERIAL PRIMARY KEY,
-  user_id VARCHAR(64),
-  endpoint TEXT NOT NULL,
-  filtros JSONB NOT NULL,
-  took_ms INT NOT NULL,
-  canal VARCHAR(16) NOT NULL DEFAULT 'mobile',
-  ts TIMESTAMP NOT NULL DEFAULT now()
-);
-
 -- ===================================================================
--- DATOS DE PRUEBA PARA DEMOSTRACIÓN
+-- DATOS DE PRUEBA PARA DEMOSTRACIÓN - PRODUCTOS E INVENTARIO
 -- ===================================================================
 
 -- Insertar productos de muestra (25 productos para probar paginación)
@@ -87,7 +37,8 @@ INSERT INTO producto (id, codigo, nombre, categoria_id, presentacion, precio_uni
 ('PROD022', 'RAN150', 'Ranitidina 150mg', 'GASTROINTESTINAL', 'Tableta', 320.00, 'Temperatura ambiente', TRUE),
 ('PROD023', 'DOM10', 'Domperidona 10mg', 'GASTROINTESTINAL', 'Tableta', 290.00, 'Lugar seco', TRUE),
 ('PROD024', 'LOP2', 'Loperamida 2mg', 'GASTROINTESTINAL', 'Cápsula', 380.00, 'Temperatura ambiente', TRUE),
-('PROD025', 'SMT40', 'Simeticona 40mg', 'GASTROINTESTINAL', 'Tableta masticable', 250.00, 'Lugar seco', TRUE);
+('PROD025', 'SMT40', 'Simeticona 40mg', 'GASTROINTESTINAL', 'Tableta masticable', 250.00, 'Lugar seco', TRUE)
+ON CONFLICT (id) DO NOTHING;
 
 -- Insertar inventario para los productos (múltiples países y bodegas para probar filtros)
 INSERT INTO inventario (producto_id, pais, bodega_id, lote, cantidad, vence, condiciones) VALUES
@@ -153,4 +104,6 @@ INSERT INTO inventario (producto_id, pais, bodega_id, lote, cantidad, vence, con
 ('PROD022', 'CO', 'BOG_CENTRAL', 'RAN002_2024', 350, '2025-10-31', 'Almacén digestivos'),
 ('PROD023', 'MX', 'CDMX_NORTE', 'DOM001_2024', 300, '2025-12-31', 'Bodega medicamentos'),
 ('PROD024', 'PE', 'LIM_CALLAO', 'LOP001_2024', 250, '2026-02-28', 'Área gastrointestinal'),
-('PROD025', 'CO', 'MED_SUR', 'SMT001_2024', 800, '2026-04-30', 'Almacén general');
+('PROD025', 'CO', 'MED_SUR', 'SMT001_2024', 800, '2026-04-30', 'Almacén general')
+ON CONFLICT (producto_id, pais, bodega_id, lote) DO NOTHING;
+
