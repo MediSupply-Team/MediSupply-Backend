@@ -11,7 +11,20 @@ def test_sha256():
 
 def test_get_idempotency_key_generated_when_missing():
     # Sin header: debe generarse un UUID (string no vacío)
-    r = client.post("/orders", json={"customer_id": "C1", "items": []})
+    r = client.post("/orders", json={
+        "customer_id": "C1", 
+        "items": [],
+        "created_by_role": "seller",
+        "source": "bff-cliente",
+        "user_name": "test_user",
+        "address": {
+            "street": "Av. Reforma 123",
+            "city": "Ciudad de México",
+            "state": "CDMX",
+            "zip_code": "01000",
+            "country": "México"
+        }
+    })
     assert r.status_code in (200, 201, 202)
     data = r.json()
     assert "request_id" in data

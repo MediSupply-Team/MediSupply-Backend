@@ -23,14 +23,14 @@ RUN chmod +x /app/entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1
 
-# Puerto 8000 para coincidir con Terraform
-EXPOSE 8000
+# Puerto 3000 para coincidir con Terraform
+EXPOSE 3000
 
 # Health check para ECS (más tiempo de inicio para población de datos)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:8000/health || exit 1
+  CMD curl -f http://localhost:3000/health || exit 1
 
 # Usar entrypoint para inicialización
 ENTRYPOINT ["/app/entrypoint.sh"]
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3000"]
