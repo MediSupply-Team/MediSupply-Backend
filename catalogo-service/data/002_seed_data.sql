@@ -105,5 +105,5 @@ INSERT INTO inventario (producto_id, pais, bodega_id, lote, cantidad, vence, con
 ('PROD023', 'MX', 'CDMX_NORTE', 'DOM001_2024', 300, '2025-12-31', 'Bodega medicamentos'),
 ('PROD024', 'PE', 'LIM_CALLAO', 'LOP001_2024', 250, '2026-02-28', 'Área gastrointestinal'),
 ('PROD025', 'CO', 'MED_SUR', 'SMT001_2024', 800, '2026-04-30', 'Almacén general')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (producto_id, pais, bodega_id, lote) DO NOTHING;
 

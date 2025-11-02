@@ -25,6 +25,10 @@ CREATE INDEX idx_prod_cat ON producto(categoria_id);
 CREATE INDEX idx_inv_lookup ON inventario(producto_id, pais, bodega_id, lote);
 CREATE INDEX idx_inv_vence  ON inventario(vence);
 
+-- Constraint único para prevenir inventarios duplicados en la misma bodega/lote
+ALTER TABLE inventario ADD CONSTRAINT uk_inventario_location_lote 
+  UNIQUE (producto_id, pais, bodega_id, lote);
+
 CREATE TABLE consulta_catalogo_log (
   id BIGSERIAL PRIMARY KEY,
   user_id VARCHAR(64),
