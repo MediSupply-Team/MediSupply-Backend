@@ -171,7 +171,8 @@ resource "aws_security_group" "postgres_sg" {
     security_groups = local.is_local ? [] : [
       module.orders.security_group_id,
       module.rutas_service.security_group_id,
-      module.report_service.security_group_id
+      module.report_service.security_group_id,
+      module.visita_service.security_group_id
     ]
     description = local.is_local ? "Allow from VPC (LocalStack)" : "Allow from services"
   }
@@ -536,6 +537,33 @@ resource "aws_secretsmanager_secret_version" "reports_db_url_v" {
   # Usar el mismo usuario que orders
   secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/reports?sslmode=require"
 }
+
+# ============================================================
+# VISITA DATABASE SECRETS
+# ============================================================
+
+resource "aws_secretsmanager_secret" "visita_db_url" {
+  name                    = "${var.project}/${var.env}/visita/DB_URL"
+  description             = "Database connection URL for Visita service"
+  recovery_window_in_days = 0
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "visita"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "visita_db_url_v" {
+  secret_id = aws_secretsmanager_secret.visita_db_url.id
+  # Usar el mismo usuario y base de datos que orders (compartida)
+  secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/visitas?sslmode=require"
+  
+  lifecycle {
+     ignore_changes = [secret_string]
+  }
+}
+
 # ============================================================
 # SERVICES MODULES
 # ============================================================
@@ -816,4 +844,38 @@ module "report_service" {
 
   shared_http_listener_arn = module.bff_venta.alb_listener_arn
   shared_alb_sg_id         = module.bff_venta.alb_sg_id
+}
+
+# Visita Service
+module "visita_service" {
+  source = "./modules/visita_service"
+
+  project     = var.project
+  env         = var.env
+  environment = var.environment
+  aws_region  = var.aws_region
+
+  service_name = "visita"
+
+  vpc_id          = module.vpc.vpc_id
+  public_subnets  = module.vpc.public_subnets
+  private_subnets = module.vpc.private_subnets
+
+  ecs_cluster_arn   = aws_ecs_cluster.orders.arn
+  db_url_secret_arn = aws_secretsmanager_secret.visita_db_url.arn
+
+  app_port      = 8003
+  image_tag     = "latest"
+  desired_count = 1
+  cpu           = "256"
+  memory        = "512"
+
+  health_check_path = "/health"
+
+  # Usar ALB de BFF Cliente
+  shared_http_listener_arn = module.bff_cliente.alb_listener_arn
+  shared_alb_sg_id         = module.bff_cliente.alb_sg_id
+
+  # S3 bucket para uploads (fotos/videos)
+  s3_bucket_name = "${var.project}-${var.env}-visita-uploads"
 }
