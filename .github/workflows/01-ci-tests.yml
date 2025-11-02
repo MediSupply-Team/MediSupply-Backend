@@ -3,7 +3,7 @@ name: 01 - CI Tests (feature)
 on:
   push:
     branches:
-      - 'feature/**'
+      #- 'feature/**'
       - 'feat/**'
       - 'historia**'
 

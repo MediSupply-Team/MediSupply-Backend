@@ -2,7 +2,7 @@ name: Deploy Visita Service
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "feature/HU09-Registrar-la-visita-a-un-cliente" ]
     paths:
       - "visita-service/**"
       - ".github/workflows/deploy-visita.yml"
