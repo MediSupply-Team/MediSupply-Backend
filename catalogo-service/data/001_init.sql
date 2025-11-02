@@ -118,7 +118,26 @@ INSERT INTO inventario (producto_id, pais, bodega_id, lote, cantidad, vence, con
 
 -- Agregar inventario para más productos para tener datos suficientes
 ('PROD003', 'CO', 'BOG_CENTRAL', 'AZI001_2024', 200, '2025-09-30', 'Almacén antibióticos'),
+('PROD003', 'MX', 'GDL_OESTE', 'AZI002_2024', 150, '2025-08-31', 'Bodega secundaria'),
+('PROD004', 'CO', 'BOG_CENTRAL', 'CLX001_2024', 180, '2025-10-31', 'Almacén antibióticos'),
+('PROD005', 'CO', 'MED_SUR', 'CFX001_2024', 120, '2025-07-31', 'Refrigeración'),
 ('PROD008', 'CO', 'MED_SUR', 'ASP001_2024', 800, '2026-03-31', 'Bodega general'),
+('PROD008', 'MX', 'CDMX_NORTE', 'ASP002_2024', 600, '2026-02-28', 'Centro principal'),
+('PROD009', 'CO', 'BOG_CENTRAL', 'DIC001_2024', 400, '2025-12-31', 'Almacén analgésicos'),
+('PROD010', 'MX', 'GDL_OESTE', 'NAP001_2024', 350, '2025-11-30', 'Bodega principal'),
 ('PROD012', 'MX', 'CDMX_NORTE', 'AML001_2024', 350, '2025-10-31', 'Área cardiovascular'),
+('PROD012', 'CO', 'BOG_CENTRAL', 'AML002_2024', 280, '2025-09-30', 'Medicamentos cardiovasculares'),
+('PROD013', 'CO', 'BOG_CENTRAL', 'ATE001_2024', 300, '2025-11-30', 'Área cardiovascular'),
+('PROD014', 'MX', 'CDMX_NORTE', 'LSN001_2024', 400, '2026-01-31', 'Centro principal'),
+('PROD015', 'CO', 'MED_SUR', 'MET001_2024', 900, '2025-10-31', 'Bodega diabetes'),
+('PROD015', 'PE', 'LIM_CALLAO', 'MET002_2024', 700, '2025-09-30', 'Almacén medicamentos'),
 ('PROD017', 'PE', 'LIM_CALLAO', 'LOR001_2024', 600, '2026-02-28', 'Medicamentos respiratorios'),
-('PROD022', 'CL', 'SCL_CENTRO', 'RAN001_2024', 400, '2025-11-30', 'Zona gastrointestinal');
+('PROD017', 'CO', 'BOG_CENTRAL', 'LOR002_2024', 450, '2026-01-31', 'Área respiratoria'),
+('PROD018', 'MX', 'GDL_OESTE', 'CET001_2024', 500, '2025-12-31', 'Bodega principal'),
+('PROD019', 'CL', 'SCL_CENTRO', 'FEX001_2024', 350, '2026-03-31', 'Almacén respiratorios'),
+('PROD020', 'CO', 'BOG_CENTRAL', 'BUD001_2024', 100, '2025-06-30', 'Refrigeración controlada'),
+('PROD022', 'CL', 'SCL_CENTRO', 'RAN001_2024', 400, '2025-11-30', 'Zona gastrointestinal'),
+('PROD022', 'CO', 'BOG_CENTRAL', 'RAN002_2024', 350, '2025-10-31', 'Almacén digestivos'),
+('PROD023', 'MX', 'CDMX_NORTE', 'DOM001_2024', 300, '2025-12-31', 'Bodega medicamentos'),
+('PROD024', 'PE', 'LIM_CALLAO', 'LOP001_2024', 250, '2026-02-28', 'Área gastrointestinal'),
+('PROD025', 'CO', 'MED_SUR', 'SMT001_2024', 800, '2026-04-30', 'Almacén general');

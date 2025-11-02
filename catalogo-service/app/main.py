@@ -28,7 +28,17 @@ async def health_check():
 app.include_router(catalog_router, prefix="/catalog/api/catalog")
 app.include_router(inventario_router, prefix="/catalog/api/inventory")
 
+# Logs de configuración de rutas para debugging
 logger.info("📦 Catalog API iniciada con gestión de inventario")
+logger.info("🔗 Rutas registradas:")
+logger.info("   ├─ Catalog router: prefix='/catalog/api/catalog'")
+logger.info("   │  └─ Endpoints: /items, /items/{id}, /items/{id}/inventario, /items/bulk-upload")
+logger.info("   └─ Inventory router: prefix='/catalog/api/inventory'")
+logger.info("      └─ Endpoints: /movements, /transfers, /alerts, /reports/saldos")
+logger.info(f"⚙️  Configuración:")
+logger.info(f"   ├─ Puerto: 3000")
+logger.info(f"   ├─ Health check: /health")
+logger.info(f"   └─ API Prefix (interno): {settings.api_prefix}")
 
 @app.on_event("startup")
 async def on_startup():
