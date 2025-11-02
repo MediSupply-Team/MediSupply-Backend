@@ -345,7 +345,7 @@ async def inicializar_base_datos():
         print("1️⃣ Creando tablas base (SQLAlchemy)...")
         from app.db import Base
         # Importar modelos para que se registren en Base.metadata
-        from app.models.catalogo_model import Producto, Inventario, ConsultaCatalogoLog
+        from app.models.catalogo_model import Producto, Inventario
         from app.models.movimiento_model import MovimientoInventario, AlertaInventario
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
