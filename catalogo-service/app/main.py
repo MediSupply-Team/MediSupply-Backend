@@ -24,8 +24,8 @@ async def health_check():
     }
 
 # Registrar routers
-app.include_router(catalog_router, prefix=settings.api_prefix)
-app.include_router(inventario_router, prefix=settings.api_prefix)
+app.include_router(catalog_router, prefix=f"{settings.api_prefix}/catalog")
+app.include_router(inventario_router, prefix=f"{settings.api_prefix}/inventario")
 
 logger.info("📦 Catalog API iniciada con gestión de inventario")
 
