@@ -27,4 +27,17 @@ class AcceptedResponse(BaseModel):
 class CreatedOrderResponse(BaseModel):
     order_id: str
     status: str = "CREATED"
+
+class OrderResponse(BaseModel):
+    id: str
+    customer_id: str
+    items: List[dict]
+    status: str
+    created_by_role: str
+    source: str
+    user_name: Optional[str] = None
+    address: Optional[dict] = None
+    created_at: str
     
+    class Config:
+        from_attributes = True

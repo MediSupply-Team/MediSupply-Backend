@@ -170,7 +170,8 @@ resource "aws_security_group" "postgres_sg" {
     cidr_blocks = local.is_local ? ["10.20.0.0/16"] : []
     security_groups = local.is_local ? [] : [
       module.orders.security_group_id,
-      module.rutas_service.security_group_id
+      module.rutas_service.security_group_id,
+      module.report_service.security_group_id
     ]
     description = local.is_local ? "Allow from VPC (LocalStack)" : "Allow from services"
   }
@@ -410,7 +411,8 @@ resource "aws_db_instance" "postgres" {
   maintenance_window      = var.db_maintenance_window
 
   # Snapshots
-  skip_final_snapshot       = var.db_skip_final_snapshot
+  #skip_final_snapshot       = var.db_skip_final_snapshot
+  skip_final_snapshot = true
   final_snapshot_identifier = "${var.project}-${var.env}-orders-postgres-final-snapshot"
 
   # Monitoring - solo en AWS
@@ -447,7 +449,7 @@ resource "aws_db_instance" "postgres" {
 
 resource "aws_secretsmanager_secret" "db_url" {
   name = "medisupply/${var.env}/orders/DB_URL"
-  recovery_window_in_days = local.is_local ? 0 : 7
+  recovery_window_in_days = 0
 
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_URL"
@@ -467,7 +469,7 @@ resource "aws_secretsmanager_secret_version" "db_url" {
 
 resource "aws_secretsmanager_secret" "db_password" {
   name = "medisupply/${var.env}/orders/DB_PASSWORD"
-  recovery_window_in_days = local.is_local ? 0 : 7
+  recovery_window_in_days = 0
 
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_PASSWORD"
@@ -585,6 +587,7 @@ module "consumer" {
 
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
+  ecr_force_delete = true
 }
 
 # BFF Venta
@@ -813,46 +816,4 @@ module "report_service" {
 
   shared_http_listener_arn = module.bff_venta.alb_listener_arn
   shared_alb_sg_id         = module.bff_venta.alb_sg_id
-}
-
-# =========================
-# Secret de DB para Reports (igual que rutas)
-# =========================
-resource "aws_secretsmanager_secret" "report_db_url" {
-  name        = "medisupply/dev/report/DB_URL"
-  description = "DB URL para reports (entorno dev)"
-  tags = {
-    Project = "medisupply"
-    Env     = "dev"
-    Service = "report"
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "report_db_url_v" {
-  secret_id     = aws_secretsmanager_secret.report_db_url.id
-  secret_string = var.report_db_url
-}
-
-# =========================
-# Módulo reports_service (misma estructura de rutas_service)
-# =========================
-module "reports_service" {
-  source = "./modules/reports_service"
-
-  project         = "medisupply"
-  env             = "dev"
-
-  # Red / ECS
-  vpc_id          = module.vpc.vpc_id
-  public_subnets  = module.vpc.public_subnets
-  private_subnets = module.vpc.private_subnets
-  cluster_arn     = aws_ecs_cluster.orders.arn
-
-  # Imagen + Secret
-  report_ecr_image   = var.report_ecr_image
-  db_url_secret_name = aws_secretsmanager_secret.report_db_url.name
-
-  # Parámetros de ejecución
-  app_port      = 8000
-  desired_count = 1
 }

@@ -239,41 +239,78 @@ async def cargar_datos_iniciales(engine) -> bool:
     async with engine.begin() as conn:
         result = await conn.execute(text("SELECT COUNT(*) FROM producto"))
         count = result.scalar()
+        
+        # También verificar inventarios
+        result_inv = await conn.execute(text("SELECT COUNT(*) FROM inventario"))
+        count_inv = result_inv.scalar()
     
-    if count > 0:
-        print(f"   ℹ️  Ya existen {count} productos en la base de datos")
+    print(f"   📊 Estado actual: {count} productos, {count_inv} inventarios")
+    
+    if count >= 25:
+        print(f"   ℹ️  Ya existen {count} productos en la base de datos (suficientes)")
         return True
     
-    # Cargar datos desde 001_init.sql
-    sql_file = Path(__file__).parent.parent / "data" / "001_init.sql"
+    if count > 0:
+        print(f"   ⚠️  Existen {count} productos pero es menos de lo esperado (25)")
+        print(f"   🔄 Continuando con carga de datos adicionales...")
     
-    if not sql_file.exists():
-        print(f"   ⚠️  Archivo SQL no encontrado: {sql_file}")
+    # Cargar datos desde todos los archivos SQL en data/ en orden
+    data_dir = Path(__file__).parent.parent / "data"
+    
+    if not data_dir.exists():
+        print(f"   ⚠️  Directorio data no encontrado: {data_dir}")
         return False
     
-    print(f"   📄 Cargando datos desde {sql_file.name}...")
+    # Buscar archivos SQL y ordenarlos
+    sql_files = sorted(data_dir.glob("*.sql"))
     
-    with open(sql_file, 'r', encoding='utf-8') as f:
-        sql_content = f.read()
+    if not sql_files:
+        print(f"   ⚠️  No se encontraron archivos SQL en {data_dir}")
+        return False
     
-    statements = [s.strip() for s in sql_content.split(';') if s.strip()]
+    total_inserted = 0
     
-    inserted = 0
-    
-    for statement in statements:
-        if not statement or statement.startswith('--'):
-            continue
+    for sql_file in sql_files:
+        print(f"   📄 Cargando datos desde {sql_file.name}...")
         
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(text(statement))
-            inserted += 1
-        except Exception as e:
-            error_msg = str(e).lower()
-            if 'duplicate' not in error_msg:
-                print(f"   ⚠️  Error insertando datos: {str(e)[:100]}")
+        with open(sql_file, 'r', encoding='utf-8') as f:
+            sql_content = f.read()
+        
+        statements = [s.strip() for s in sql_content.split(';') if s.strip()]
+        
+        print(f"      📝 Encontrados {len(statements)} statements en {sql_file.name}")
+        
+        inserted = 0
+        errors = 0
+        
+        for idx, statement in enumerate(statements, 1):
+            # PostgreSQL maneja comentarios SQL correctamente, no necesitamos limpiarlos
+            if not statement.strip():
+                continue
+            
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(text(statement))
+                inserted += 1
+            except Exception as e:
+                errors += 1
+                error_msg = str(e).lower()
+                # Ignorar errores de tablas/índices que ya existen y duplicados
+                if 'already exists' not in error_msg and 'duplicate' not in error_msg:
+                    print(f"      ⚠️  Error en statement {idx}: {str(e)[:150]}")
+                    # Imprimir primeras líneas del statement para debugging
+                    stmt_preview = statement[:200].replace('\n', ' ')
+                    print(f"         Statement: {stmt_preview}...")
+        
+        if inserted > 0:
+            print(f"      ✅ {inserted} statements ejecutados desde {sql_file.name}")
+        if errors > 0:
+            print(f"      ⚠️  {errors} errores (ignorados: duplicados/ya existe)")
+        if inserted == 0 and errors == 0:
+            print(f"      ℹ️  No se ejecutó ningún statement de {sql_file.name}")
+        total_inserted += inserted
     
-    print(f"   ✅ {inserted} statements de datos ejecutados")
+    print(f"   ✅ Total: {total_inserted} statements de datos ejecutados")
     return True
 
 
@@ -344,6 +381,9 @@ async def inicializar_base_datos():
         # Paso 1: Crear tablas base con SQLAlchemy
         print("1️⃣ Creando tablas base (SQLAlchemy)...")
         from app.db import Base
+        # Importar modelos para que se registren en Base.metadata
+        from app.models.catalogo_model import Producto, Inventario
+        from app.models.movimiento_model import MovimientoInventario, AlertaInventario
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         print("   ✅ Tablas base verificadas\n")

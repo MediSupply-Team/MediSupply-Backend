@@ -29,7 +29,7 @@ from app.models.catalogo_model import Producto, Inventario
 
 import logging
 
-router = APIRouter(prefix="/inventory", tags=["inventory-movements"])
+router = APIRouter(tags=["inventory-movements"])
 logger = logging.getLogger(__name__)
 
 

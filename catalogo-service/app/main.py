@@ -24,10 +24,22 @@ async def health_check():
     }
 
 # Registrar routers
-app.include_router(catalog_router, prefix=settings.api_prefix)
-app.include_router(inventario_router, prefix=settings.api_prefix)
+# El ALB rutea /catalog/* al servicio, por lo que el prefix completo debe ser /catalog/api/*
+app.include_router(catalog_router, prefix="/catalog/api/catalog")
+app.include_router(inventario_router, prefix="/catalog/api/inventory")
 
+# Logs de configuración de rutas para debugging
 logger.info("📦 Catalog API iniciada con gestión de inventario")
+logger.info("🔗 Rutas registradas:")
+logger.info("   ├─ Catalog: prefix='/catalog/api/catalog'")
+logger.info("   │  └─ Endpoints: /catalog/api/catalog/items, /catalog/api/catalog/items/{id}")
+logger.info("   └─ Inventory: prefix='/catalog/api/inventory'")
+logger.info("      └─ Endpoints: /catalog/api/inventory/movements, /catalog/api/inventory/transfers, etc.")
+logger.info(f"⚙️  Configuración:")
+logger.info(f"   ├─ Puerto: 3000")
+logger.info(f"   ├─ Health check: /health")
+logger.info(f"   ├─ ALB path pattern: /catalog/*")
+logger.info(f"   └─ BFF llama: {{ALB_URL}}/catalog/api/catalog/items")
 
 @app.on_event("startup")
 async def on_startup():
