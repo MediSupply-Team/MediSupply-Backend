@@ -30,7 +30,7 @@ async def _process(event_id: str):
                 return
 
             # Simula “publicar” el evento (aquí iría Kafka/Rabbit/etc.)
-            order.status = OrderStatus.CREATED
+            order.status = OrderStatus.NEW
             evt.published_at = datetime.now(timezone.utc)
 
             key_hash = evt.payload["key_hash"]
