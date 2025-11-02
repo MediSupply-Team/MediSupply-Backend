@@ -37,7 +37,7 @@ INSERT INTO producto (id, codigo, nombre, categoria_id, presentacion, precio_uni
 ('PROD022', 'RAN150', 'Ranitidina 150mg', 'GASTROINTESTINAL', 'Tableta', 320.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
 ('PROD023', 'DOM10', 'Domperidona 10mg', 'GASTROINTESTINAL', 'Tableta', 290.00, 'Lugar seco', TRUE, 100, 50, TRUE, TRUE),
 ('PROD024', 'LOP2', 'Loperamida 2mg', 'GASTROINTESTINAL', 'Cápsula', 380.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
-('PROD025', 'SMT40', 'Simeticona 40mg', 'GASTROINTESTINAL', 'Tableta masticable', 250.00, 'Lugar seco', TRUE)
+('PROD025', 'SMT40', 'Simeticona 40mg', 'GASTROINTESTINAL', 'Tableta masticable', 250.00, 'Lugar seco', TRUE, 100, 50, TRUE, TRUE)
 ON CONFLICT (id) DO NOTHING;
 
 -- Insertar inventario para los productos (múltiples países y bodegas para probar filtros)
