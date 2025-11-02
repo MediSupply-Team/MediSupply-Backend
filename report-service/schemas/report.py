@@ -51,3 +51,10 @@ class ReportResponse(BaseModel):
     table: Table
     currency: str = "USD"
     export: ExportInfo = ExportInfo()
+
+class ExportResponse(BaseModel):
+    """Respuesta del endpoint de exportación con URL a S3"""
+    url: str
+    format: str
+    expires_in_seconds: int = 604800  # 7 días por defecto
+    message: str = "Archivo generado exitosamente"
