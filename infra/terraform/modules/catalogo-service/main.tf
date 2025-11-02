@@ -403,7 +403,7 @@ resource "aws_secretsmanager_secret_version" "catalogo_db_credentials" {
     endpoint     = aws_db_instance.catalogo_postgres.endpoint
     port         = aws_db_instance.catalogo_postgres.port
     dbname       = aws_db_instance.catalogo_postgres.db_name
-    database_url = "postgresql://${aws_db_instance.catalogo_postgres.username}:${urlencode(random_password.catalogo_db_password.result)}@${aws_db_instance.catalogo_postgres.address}:${aws_db_instance.catalogo_postgres.port}/${aws_db_instance.catalogo_postgres.db_name}"
+    database_url = "postgresql+asyncpg://${aws_db_instance.catalogo_postgres.username}:${urlencode(random_password.catalogo_db_password.result)}@${aws_db_instance.catalogo_postgres.address}:${aws_db_instance.catalogo_postgres.port}/${aws_db_instance.catalogo_postgres.db_name}"
   })
 }
 
