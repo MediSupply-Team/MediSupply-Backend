@@ -142,7 +142,7 @@ Content-Type: multipart/form-data
 estado=exitosa
 ```
 
-### Listar Hallazgos de una Visita
+### Listar Hallazgos de una Visita 
 ```bash
 GET http://localhost:8003/api/visitas/1/hallazgos
 ```
