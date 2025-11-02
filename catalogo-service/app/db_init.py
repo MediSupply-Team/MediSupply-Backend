@@ -278,7 +278,10 @@ async def cargar_datos_iniciales(engine) -> bool:
         
         statements = [s.strip() for s in sql_content.split(';') if s.strip()]
         
+        print(f"      📝 Encontrados {len(statements)} statements en {sql_file.name}")
+        
         inserted = 0
+        errors = 0
         
         for idx, statement in enumerate(statements, 1):
             if not statement or statement.startswith('--'):
@@ -289,16 +292,21 @@ async def cargar_datos_iniciales(engine) -> bool:
                     await conn.execute(text(statement))
                 inserted += 1
             except Exception as e:
+                errors += 1
                 error_msg = str(e).lower()
                 # Ignorar errores de tablas/índices que ya existen y duplicados
                 if 'already exists' not in error_msg and 'duplicate' not in error_msg:
-                    print(f"      ⚠️  Error en statement {idx}: {str(e)[:100]}")
+                    print(f"      ⚠️  Error en statement {idx}: {str(e)[:150]}")
                     # Imprimir primeras líneas del statement para debugging
-                    stmt_preview = statement[:150].replace('\n', ' ')
+                    stmt_preview = statement[:200].replace('\n', ' ')
                     print(f"         Statement: {stmt_preview}...")
         
         if inserted > 0:
             print(f"      ✅ {inserted} statements ejecutados desde {sql_file.name}")
+        if errors > 0:
+            print(f"      ⚠️  {errors} errores (ignorados: duplicados/ya existe)")
+        if inserted == 0 and errors == 0:
+            print(f"      ℹ️  No se ejecutó ningún statement de {sql_file.name}")
         total_inserted += inserted
     
     print(f"   ✅ Total: {total_inserted} statements de datos ejecutados")
