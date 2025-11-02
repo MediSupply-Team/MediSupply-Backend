@@ -1,12 +1,7 @@
-﻿terraform {
-  backend "s3" {
-    bucket         = "miso-tfstate-838693051133"
-    key            = "infra.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "miso-tf-locks"
-  }
-
+# ============================================================
+# TERRAFORM CONFIGURATION
+# ============================================================
+terraform {
   required_version = ">= 1.0"
 
   required_providers {
@@ -21,13 +16,53 @@
   }
 }
 
+# ============================================================
+# PROVIDER CONFIGURATION (Dinamico segun environment)
+# ============================================================
+locals {
+  is_local = var.environment == "local"
+}
+
 provider "aws" {
   region = var.aws_region
+
+  # Configuracion específica para LocalStack
+  access_key                  = local.is_local ? "test" : null
+  secret_key                  = local.is_local ? "test" : null
+  skip_credentials_validation = local.is_local
+  skip_metadata_api_check     = local.is_local
+  skip_requesting_account_id  = local.is_local
+  s3_use_path_style          = local.is_local
+
+  # Endpoints para LocalStack
+  dynamic "endpoints" {
+    for_each = local.is_local ? [1] : []
+    content {
+      apigateway     = "http://localhost:4566"
+      cloudwatch     = "http://localhost:4566"
+      dynamodb       = "http://localhost:4566"
+      ec2            = "http://localhost:4566"
+      ecr            = "http://localhost:4566"
+      ecs            = "http://localhost:4566"
+      elb            = "http://localhost:4566"
+      elbv2          = "http://localhost:4566"
+      iam            = "http://localhost:4566"
+      lambda         = "http://localhost:4566"
+      rds            = "http://localhost:4566"
+      s3             = "http://localhost:4566"
+      secretsmanager = "http://localhost:4566"
+      sns            = "http://localhost:4566"
+      sqs            = "http://localhost:4566"
+      ssm            = "http://localhost:4566"
+      sts            = "http://localhost:4566"
+    }
+  }
 
   default_tags {
     tags = {
       Project   = var.project
       Env       = var.env
+      Environment = var.environment
       ManagedBy = "Terraform"
     }
   }
@@ -37,7 +72,7 @@ provider "aws" {
 # SHARED INFRASTRUCTURE
 # ============================================================
 
-# VPC usando el mÃ³dulo oficial de AWS
+# VPC usando el modulo oficial de AWS
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "5.5.1"
@@ -58,11 +93,14 @@ module "vpc" {
   }
 }
 
-# Namespace privado para Service Connect / Cloud Map (mismo VPC)
+# Service Discovery - Solo en AWS (LocalStack no lo soporta bien)
 resource "aws_service_discovery_private_dns_namespace" "svc" {
+  count = local.is_local ? 0 : 1
+
   name        = "svc.local"
   description = "Service Connect namespace"
   vpc         = module.vpc.vpc_id
+  
   tags = {
     Project = var.project
     Env     = var.env
@@ -73,14 +111,38 @@ resource "aws_service_discovery_private_dns_namespace" "svc" {
 resource "aws_ecs_cluster" "orders" {
   name = "orders-cluster"
 
-  setting {
+  # Container Insights solo en AWS
+  dynamic "setting" {
+    for_each = local.is_local ? [] : [1]
+    content {
     name  = "containerInsights"
     value = "enabled"
+  }
   }
 
   tags = {
     Project = var.project
     Env     = var.env
+  }
+}
+
+# ============================================================
+# ECR REPOSITORY FOR ORDERS
+# ============================================================
+
+resource "aws_ecr_repository" "orders" {
+  name                 = "orders-service"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true 
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "orders"
   }
 }
 
@@ -99,33 +161,19 @@ resource "aws_security_group" "postgres_sg" {
   description = "Security group for Orders PostgreSQL RDS"
   vpc_id      = module.vpc.vpc_id
 
-  # Regla 1: Permitir desde Orders Service
+  # En LocalStack, permitir desde VPC completo
+  # En AWS, permitir solo desde security groups específicos
   ingress {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [module.orders.security_group_id]
-    description     = "Allow PostgreSQL from Orders ECS tasks"
+    cidr_blocks = local.is_local ? ["10.20.0.0/16"] : []
+    security_groups = local.is_local ? [] : [
+      module.orders.security_group_id,
+      module.rutas_service.security_group_id
+    ]
+    description = local.is_local ? "Allow from VPC (LocalStack)" : "Allow from services"
   }
-
-  # Regla 2: Permitir desde Rutas Service
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [module.rutas_service.security_group_id]
-    description     = "Allow PostgreSQL from Rutas ECS tasks"
-  }
-
-  # Regla 4 (OPCIONAL): Acceso de desarrollo
-  # Descomenta y agrega tu IP para acceder desde tu PC/DBeaver
-  # ingress {
-  #   from_port   = 5432
-  #   to_port     = 5432
-  #   protocol    = "tcp"
-  #   cidr_blocks = ["TU_IP_AQUI/32"]
-  #   description = "Development access from my PC"
-  # }
 
   egress {
     from_port   = 0
@@ -141,12 +189,29 @@ resource "aws_security_group" "postgres_sg" {
   }
 }
 
+# Subnet group PRIVADO (para AWS)
 resource "aws_db_subnet_group" "postgres_private" {
+  count = local.is_local ? 0 : 1
+
   name       = "${var.project}-${var.env}-orders-postgres-subnets-private"
   subnet_ids = module.vpc.private_subnets
 
   tags = {
     Name    = "${var.project}-${var.env}-orders-postgres-subnets-private"
+    Project = var.project
+    Env     = var.env
+  }
+}
+
+# Subnet group PÚBLICO (para LocalStack)
+resource "aws_db_subnet_group" "postgres_public" {
+  count = local.is_local ? 1 : 0
+
+  name       = "${var.project}-${var.env}-orders-postgres-subnets-public"
+  subnet_ids = module.vpc.public_subnets
+
+  tags = {
+    Name    = "${var.project}-${var.env}-orders-postgres-subnets-public"
     Project = var.project
     Env     = var.env
   }
@@ -183,19 +248,19 @@ resource "aws_db_parameter_group" "postgres" {
 # ============================================================
 
 resource "aws_iam_role" "rds_monitoring" {
+  count = local.is_local ? 0 : 1
+
   name = "${var.project}-${var.env}-rds-monitoring-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
+    Statement = [{
         Action = "sts:AssumeRole"
         Effect = "Allow"
         Principal = {
           Service = "monitoring.rds.amazonaws.com"
         }
-      }
-    ]
+    }]
   })
 
   tags = {
@@ -203,6 +268,13 @@ resource "aws_iam_role" "rds_monitoring" {
     Project = var.project
     Env     = var.env
   }
+}
+
+resource "aws_iam_role_policy_attachment" "rds_monitoring" {
+  count = local.is_local ? 0 : 1
+
+  role       = aws_iam_role.rds_monitoring[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
 # Execution role: pull de ECR, logs a CloudWatch, etc.
@@ -252,7 +324,7 @@ resource "aws_iam_role" "orders_task" {
 # Policy inline: lectura del secreto de DB especifico para EXECUTION ROLE
 resource "aws_iam_role_policy" "orders_exec_db_secret_read" {
   name = "${var.project}-${var.env}-orders-exec-db-secret-read"
-  role = aws_iam_role.orders_exec.id # â† Nota: orders_EXEC no orders_task
+  role = aws_iam_role.orders_exec.id
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -276,7 +348,7 @@ resource "aws_iam_role_policy" "orders_exec_db_secret_read" {
 # Política para ECS Exec (permite conectarse al container via AWS Systems Manager)
 resource "aws_iam_role_policy" "orders_task_ecs_exec" {
   name = "${var.project}-${var.env}-orders-task-ecs-exec"
-  role = aws_iam_role.orders_task.id # â Task role, NO execution role
+  role = aws_iam_role.orders_task.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -304,10 +376,9 @@ resource "aws_iam_role_policy" "orders_task_ecs_exec" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "rds_monitoring" {
-  role       = aws_iam_role.rds_monitoring.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
-}
+# ============================================================
+# RDS INSTANCE
+# ============================================================
 
 resource "aws_db_instance" "postgres" {
   identifier = "${var.project}-${var.env}-orders-postgres"
@@ -317,10 +388,10 @@ resource "aws_db_instance" "postgres" {
   engine_version = "15.14"
 
   # Instance
-  instance_class    = "db.t3.micro"
-  allocated_storage = 20
-  storage_type      = "gp3"
-  storage_encrypted = true
+  instance_class    = var.db_instance_class
+  allocated_storage = var.db_allocated_storage
+  storage_type      = var.db_storage_type
+  storage_encrypted = var.db_storage_encrypted
 
   # Database
   db_name  = "orders"
@@ -328,39 +399,40 @@ resource "aws_db_instance" "postgres" {
   password = random_password.db_password.result
   port     = 5432
 
-  # Network - CAMBIOS CLAVE AQUÃ
-  db_subnet_group_name   = aws_db_subnet_group.postgres_private.name # â† USA PRIVADAS
+  # Network - CONDICIONAL: público para LocalStack, privado para AWS
+  db_subnet_group_name = local.is_local ? aws_db_subnet_group.postgres_public[0].name : aws_db_subnet_group.postgres_private[0].name
   vpc_security_group_ids = [aws_security_group.postgres_sg.id]
-  publicly_accessible    = false # â† AHORA ES PRIVADO
+  publicly_accessible    = local.is_local ? true : false
 
   # Backup
-  backup_retention_period = 7
-  backup_window           = "03:00-04:00"
-  maintenance_window      = "mon:04:00-mon:05:00"
+  backup_retention_period = var.db_backup_retention_period
+  backup_window           = var.db_backup_window
+  maintenance_window      = var.db_maintenance_window
 
   # Snapshots
-  skip_final_snapshot       = true
+  #skip_final_snapshot       = var.db_skip_final_snapshot
+  skip_final_snapshot = true
   final_snapshot_identifier = "${var.project}-${var.env}-orders-postgres-final-snapshot"
 
-  # Monitoring
-  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
-  monitoring_interval             = 60
-  monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
+  # Monitoring - solo en AWS
+  enabled_cloudwatch_logs_exports = local.is_local ? [] : (
+    var.db_enable_cloudwatch_logs ? ["postgresql", "upgrade"] : []
+  )
+  
+  monitoring_interval = local.is_local ? 0 : var.db_monitoring_interval
+  monitoring_role_arn = local.is_local ? null : (
+    var.db_monitoring_interval > 0 ? aws_iam_role.rds_monitoring[0].arn : null
+  )
 
-  # Performance
-  performance_insights_enabled          = true
-  performance_insights_retention_period = 7
+  # Performance Insights - solo en AWS
+  performance_insights_enabled = local.is_local ? false : var.db_performance_insights_enabled
+  performance_insights_retention_period = local.is_local ? null : (
+    var.db_performance_insights_enabled ? 7 : null
+  )
 
-  # High Availability
-  multi_az = false # Cambiar a true en producciÃ³n
-
-  # Parameter group
+  multi_az              = var.db_multi_az
   parameter_group_name = aws_db_parameter_group.postgres.name
-
-  # Deletion protection
-  deletion_protection = false # Cambiar a true en producciÃ³n
-
-  # Apply changes immediately (solo para dev/test)
+  deletion_protection   = false
   apply_immediately = true
 
   tags = {
@@ -370,8 +442,13 @@ resource "aws_db_instance" "postgres" {
   }
 }
 
+# ============================================================
+# SECRETS MANAGER
+# ============================================================
+
 resource "aws_secretsmanager_secret" "db_url" {
   name = "medisupply/${var.env}/orders/DB_URL"
+  recovery_window_in_days = 0
 
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_URL"
@@ -383,10 +460,15 @@ resource "aws_secretsmanager_secret" "db_url" {
 resource "aws_secretsmanager_secret_version" "db_url" {
   secret_id     = aws_secretsmanager_secret.db_url.id
   secret_string = "postgresql+asyncpg://orders_user:${random_password.db_password.result}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/${aws_db_instance.postgres.db_name}"
+
+  lifecycle {
+     ignore_changes = [secret_string]
+  }
 }
 
 resource "aws_secretsmanager_secret" "db_password" {
   name = "medisupply/${var.env}/orders/DB_PASSWORD"
+  recovery_window_in_days = 0
 
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_PASSWORD"
@@ -398,6 +480,10 @@ resource "aws_secretsmanager_secret" "db_password" {
 resource "aws_secretsmanager_secret_version" "db_password" {
   secret_id     = aws_secretsmanager_secret.db_password.id
   secret_string = random_password.db_password.result
+
+  lifecycle {
+     ignore_changes = [secret_string]
+  }
 }
 
 # ============================================================
@@ -407,7 +493,7 @@ resource "aws_secretsmanager_secret_version" "db_password" {
 resource "aws_secretsmanager_secret" "rutas_db_url" {
   name                    = "${var.project}/${var.env}/rutas/DB_URL"
   description             = "Database connection URL for Rutas service"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 
   tags = {
     Project = var.project
@@ -418,10 +504,37 @@ resource "aws_secretsmanager_secret" "rutas_db_url" {
 
 resource "aws_secretsmanager_secret_version" "rutas_db_url_v" {
   secret_id = aws_secretsmanager_secret.rutas_db_url.id
-  # Usar el mismo usuario que orders
   secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/rutas?sslmode=require"
+
+  lifecycle {
+     ignore_changes = [secret_string]
+  }
 }
 
+# ============================================================
+# REPORTS DATABASE SECRETS
+# ============================================================
+
+resource "aws_secretsmanager_secret" "reports_db_url" {
+  name                    = "${var.project}/${var.env}/reports/DB_URL"
+  description             = "Database connection URL for reports service"
+  recovery_window_in_days = 0
+
+  #recovery_window_in_days = 0
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "reports"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "reports_db_url_v" {
+
+  secret_id = aws_secretsmanager_secret.reports_db_url.id
+  # Usar el mismo usuario que orders
+  secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/reports?sslmode=require"
+}
 # ============================================================
 # SERVICES MODULES
 # ============================================================
@@ -433,19 +546,20 @@ module "orders" {
   project    = var.project
   env        = var.env
   aws_region = var.aws_region
+  environment = var.environment  # ← AGREGADO
 
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
 
   # Imagen ECR completa (repo:tag o repo@sha256:digest) â€” evita :latest
-  ecr_image         = var.ecr_image
+  ecr_image         = "${aws_ecr_repository.orders.repository_url}:latest"
   app_port          = 3000
   db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Service Connect namespace (reemplaza lo que antes apuntaba a module.networking)
-  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
+  # Service Connect namespace - solo en AWS
+  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
 
   # ARNs requeridos que faltaban
   ecs_execution_role_arn = aws_iam_role.orders_exec.arn
@@ -459,6 +573,7 @@ module "consumer" {
   project    = var.project
   env        = var.env
   aws_region = var.aws_region
+  environment = var.environment  # ← AGREGADO
 
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
@@ -469,8 +584,9 @@ module "consumer" {
   # Cluster donde correrÃ¡ el consumer
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Service Connect namespace - ESTA ES LA LÃNEA NUEVA
-  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
+  # Service Connect namespace - solo en AWS
+  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
+  ecr_force_delete = true
 }
 
 # BFF Venta
@@ -480,6 +596,7 @@ module "bff_venta" {
   project    = var.project
   env        = var.env
   aws_region = var.aws_region
+  environment = var.environment  # ← AGREGADO
 
   vpc_id          = module.vpc.vpc_id
   public_subnets  = module.vpc.public_subnets
@@ -492,7 +609,8 @@ module "bff_venta" {
   bff_env = merge(
     var.bff_env,
     {
-      RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"
+      #RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"
+      RUTAS_SERVICE_URL = "http://${module.bff_venta.alb_dns_name}"
     }
   )
 
@@ -505,8 +623,8 @@ module "bff_venta" {
   # Catalogo service serÃ¡ accesible por el mismo ALB en /catalog
   catalogo_service_url = var.catalogo_service_url
 
-  # Service Connect namespace
-  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
+  # Service Connect namespace - solo en AWS
+  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
 }
 
 # Cliente Service
@@ -515,14 +633,15 @@ module "cliente_service" {
 
   project = var.project
   env     = var.env
+  environment = var.environment  # ← AGREGADO
 
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
 
   ecs_cluster_name = aws_ecs_cluster.orders.name
 
-  # Service Connect namespace for internal service discovery
-  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
+  # Service Connect namespace - solo en AWS
+  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
 
   # Container configuration
   container_port = 8000
@@ -543,6 +662,7 @@ module "bff_cliente" {
   project    = var.project
   env        = var.env
   aws_region = var.aws_region
+  environment = var.environment  # ← AGREGADO
 
   vpc_id          = module.vpc.vpc_id
   public_subnets  = module.vpc.public_subnets
@@ -565,10 +685,10 @@ module "bff_cliente" {
 
   # Servicios backend (usando Service Connect DNS)
   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
-  cliente_service_url  = "http://cliente:8000"  # Service Connect DNS
+  cliente_service_url  = local.is_local ? "http://cliente:8000" : "http://cliente:8000"
 
-  # Service Connect namespace
-  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
+  # Service Connect namespace - solo en AWS
+  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
 }
 
 # ============================================================
@@ -581,6 +701,7 @@ module "catalogo_service" {
 
   project = var.project
   env     = var.env
+  environment = var.environment  # ← AGREGADO
 
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
@@ -589,8 +710,8 @@ module "catalogo_service" {
   ecs_cluster_name = aws_ecs_cluster.orders.name
   alb_listener_arn = module.bff_venta.alb_listener_arn
 
-  # Service Connect namespace for internal service discovery
-  service_connect_namespace_name = aws_service_discovery_private_dns_namespace.svc.name
+  # Service Connect namespace - solo en AWS
+  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
 
   # Container configuration
   container_port = var.catalogo_container_port
@@ -644,6 +765,7 @@ module "rutas_service" {
   project    = var.project
   env        = var.env
   aws_region = var.aws_region
+  environment = var.environment  # ← AGREGADO
 
   service_name = "rutas"
 
@@ -657,8 +779,82 @@ module "rutas_service" {
   app_port      = 8000
   image_tag     = "latest"
   desired_count = 1
-  cpu           = "512"
-  memory        = "1024"
+  cpu           = "256"
+  memory        = "512"
 
   health_check_path = "/health"
+
+  shared_http_listener_arn = module.bff_venta.alb_listener_arn
+  shared_alb_sg_id         = module.bff_venta.alb_sg_id
+}
+
+# Reports Service
+module "report_service" {
+  source = "./modules/report_service"
+
+  project    = var.project
+  env        = var.env
+  aws_region = var.aws_region
+
+  service_name = "reports"
+
+  vpc_id          = module.vpc.vpc_id
+  public_subnets  = module.vpc.public_subnets
+  private_subnets = module.vpc.private_subnets
+
+  ecs_cluster_arn   = aws_ecs_cluster.orders.arn
+  db_url_secret_arn = aws_secretsmanager_secret.reports_db_url.arn
+
+  app_port      = 8000
+  image_tag     = "latest"
+  desired_count = 1
+  cpu           = "256"
+  memory        = "512"
+
+  health_check_path = "/health"
+
+  shared_http_listener_arn = module.bff_venta.alb_listener_arn
+  shared_alb_sg_id         = module.bff_venta.alb_sg_id
+}
+
+# =========================
+# Secret de DB para Reports (igual que rutas)
+# =========================
+resource "aws_secretsmanager_secret" "report_db_url" {
+  name        = "medisupply/dev/report/DB_URL"
+  description = "DB URL para reports (entorno dev)"
+  tags = {
+    Project = "medisupply"
+    Env     = "dev"
+    Service = "report"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "report_db_url_v" {
+  secret_id     = aws_secretsmanager_secret.report_db_url.id
+  secret_string = var.report_db_url
+}
+
+# =========================
+# Módulo reports_service (misma estructura de rutas_service)
+# =========================
+module "reports_service" {
+  source = "./modules/reports_service"
+
+  project         = "medisupply"
+  env             = "dev"
+
+  # Red / ECS
+  vpc_id          = module.vpc.vpc_id
+  public_subnets  = module.vpc.public_subnets
+  private_subnets = module.vpc.private_subnets
+  cluster_arn     = aws_ecs_cluster.orders.arn
+
+  # Imagen + Secret
+  report_ecr_image   = var.report_ecr_image
+  db_url_secret_name = aws_secretsmanager_secret.report_db_url.name
+
+  # Parámetros de ejecución
+  app_port      = 8000
+  desired_count = 1
 }

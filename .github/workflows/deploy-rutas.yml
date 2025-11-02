@@ -2,7 +2,7 @@ name: Deploy Rutas Service
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "nueva-cuenta" ]
     paths:
       - "ruta-service/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-rutas.yml"
@@ -37,7 +37,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
+          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR

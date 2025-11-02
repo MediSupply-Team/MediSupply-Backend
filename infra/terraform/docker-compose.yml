@@ -1,0 +1,11 @@
+services:
+  localstack:
+    image: localstack/localstack-pro
+    ports:
+      - "4566:4566"
+    environment:
+      - LOCALSTACK_AUTH_TOKEN=
+      - DEBUG=1
+      - SERVICES=s3,dynamodb,lambda,ec2,rds,ecs,ecr,iam,elb,elbv2,cloudwatch,secretsmanager,sqs,sns,cloudformation
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"

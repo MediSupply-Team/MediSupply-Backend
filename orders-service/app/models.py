@@ -38,6 +38,8 @@ class Order(Base):
     status = Column(orderstatus_enum, nullable=False, default=OrderStatus.NEW)
     created_by_role = Column(String, nullable=False)
     source = Column(String, nullable=False)
+    user_name = Column(String, nullable=True)
+    address = Column(JSON, nullable=True) 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
