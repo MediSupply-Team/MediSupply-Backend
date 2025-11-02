@@ -284,12 +284,29 @@ async def cargar_datos_iniciales(engine) -> bool:
         errors = 0
         
         for idx, statement in enumerate(statements, 1):
-            if not statement or statement.startswith('--'):
+            if not statement:
+                continue
+            
+            # Limpiar comentarios de línea pero mantener el SQL
+            lines = statement.split('\n')
+            cleaned_lines = []
+            for line in lines:
+                # Remover comentarios pero mantener la línea si tiene SQL
+                if '--' in line:
+                    sql_part = line.split('--')[0].strip()
+                    if sql_part:
+                        cleaned_lines.append(sql_part)
+                elif line.strip():
+                    cleaned_lines.append(line.strip())
+            
+            cleaned_statement = '\n'.join(cleaned_lines).strip()
+            
+            if not cleaned_statement:
                 continue
             
             try:
                 async with engine.begin() as conn:
-                    await conn.execute(text(statement))
+                    await conn.execute(text(cleaned_statement))
                 inserted += 1
             except Exception as e:
                 errors += 1
@@ -298,7 +315,7 @@ async def cargar_datos_iniciales(engine) -> bool:
                 if 'already exists' not in error_msg and 'duplicate' not in error_msg:
                     print(f"      ⚠️  Error en statement {idx}: {str(e)[:150]}")
                     # Imprimir primeras líneas del statement para debugging
-                    stmt_preview = statement[:200].replace('\n', ' ')
+                    stmt_preview = cleaned_statement[:200].replace('\n', ' ')
                     print(f"         Statement: {stmt_preview}...")
         
         if inserted > 0:
