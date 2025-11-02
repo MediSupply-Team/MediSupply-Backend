@@ -1,19 +1,15 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlmodel import Session, select
 from database import get_session, init_db
 from models import Visita, Hallazgo, EstadoVisita
 from datetime import datetime
 from typing import List, Optional
-import os
-import shutil
-from pathlib import Path
+import storage
 
-app = FastAPI(title="Visita Service", version="1.0.0")
+app = FastAPI(title="Visita Service", version="2.0.0")
 
-# Configurar carpeta de uploads
-UPLOAD_DIR = Path("./uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+# El almacenamiento se configura automáticamente en storage.py
 
 @app.on_event("startup")
 def on_startup():
@@ -79,18 +75,16 @@ async def crear_visita(
                         detail=f"Formato de foto no válido: {foto.filename}. Permitidos: jpg, jpeg, png, gif"
                     )
                 
-                # Guardar archivo
+                # Guardar archivo usando módulo storage
                 filename = f"visita_{visita.id}_{datetime.utcnow().timestamp()}.{extension}"
-                file_path = UPLOAD_DIR / filename
-                
-                with file_path.open("wb") as buffer:
-                    shutil.copyfileobj(foto.file, buffer)
+                file_content = await foto.read()
+                file_path = await storage.save_file(file_content, filename)
                 
                 # Crear hallazgo
                 hallazgo = Hallazgo(
                     visita_id=visita.id,
                     tipo="foto",
-                    contenido=str(file_path),
+                    contenido=file_path,
                     descripcion=f"Foto: {foto.filename}"
                 )
                 session.add(hallazgo)
@@ -104,9 +98,7 @@ async def crear_visita(
                 if extension not in ["mp4", "avi", "mov"]:
                     # Eliminar visita y archivos subidos si hay error
                     for h in hallazgos_creados:
-                        file_to_delete = Path(h.contenido)
-                        if file_to_delete.exists():
-                            file_to_delete.unlink()
+                        await storage.delete_file(h.contenido)
                     session.delete(visita)
                     session.commit()
                     raise HTTPException(
@@ -114,18 +106,16 @@ async def crear_visita(
                         detail=f"Formato de video no válido: {video.filename}. Permitidos: mp4, avi, mov"
                     )
                 
-                # Guardar archivo
+                # Guardar archivo usando módulo storage
                 filename = f"visita_{visita.id}_{datetime.utcnow().timestamp()}.{extension}"
-                file_path = UPLOAD_DIR / filename
-                
-                with file_path.open("wb") as buffer:
-                    shutil.copyfileobj(video.file, buffer)
+                file_content = await video.read()
+                file_path = await storage.save_file(file_content, filename)
                 
                 # Crear hallazgo
                 hallazgo = Hallazgo(
                     visita_id=visita.id,
                     tipo="video",
-                    contenido=str(file_path),
+                    contenido=file_path,
                     descripcion=f"Video: {video.filename}"
                 )
                 session.add(hallazgo)
@@ -321,16 +311,14 @@ async def agregar_hallazgo_archivo(
     
     # Guardar archivo
     filename = f"visita_{visita_id}_{datetime.utcnow().timestamp()}.{extension}"
-    file_path = UPLOAD_DIR / filename
-    
-    with file_path.open("wb") as buffer:
-        shutil.copyfileobj(archivo.file, buffer)
+    file_content = await archivo.read()
+    file_path = await storage.save_file(file_content, filename)
     
     # Crear hallazgo
     hallazgo = Hallazgo(
         visita_id=visita_id,
         tipo=tipo,
-        contenido=str(file_path),
+        contenido=file_path,
         descripcion=descripcion
     )
     session.add(hallazgo)
@@ -347,7 +335,7 @@ async def agregar_hallazgo_archivo(
     }
 
 @app.get("/api/hallazgos/{hallazgo_id}/archivo")
-def descargar_hallazgo_archivo(
+async def descargar_hallazgo_archivo(
     hallazgo_id: int,
     session: Session = Depends(get_session)
 ):
@@ -361,11 +349,19 @@ def descargar_hallazgo_archivo(
     if hallazgo.tipo not in ["foto", "video"]:
         raise HTTPException(status_code=400, detail="Este hallazgo no es un archivo")
     
-    file_path = Path(hallazgo.contenido)
-    if not file_path.exists():
+    if not await storage.file_exists(hallazgo.contenido):
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
     
-    return FileResponse(file_path)
+    file_content = await storage.get_file(hallazgo.contenido)
+    
+    # Determinar content-type basado en la extensión
+    content_type = "application/octet-stream"
+    if hallazgo.tipo == "foto":
+        content_type = "image/jpeg"
+    elif hallazgo.tipo == "video":
+        content_type = "video/mp4"
+    
+    return Response(content=file_content, media_type=content_type)
 
 @app.get("/api/visitas/{visita_id}/hallazgos")
 def listar_hallazgos(
@@ -394,7 +390,7 @@ def listar_hallazgos(
     ]
 
 @app.delete("/api/hallazgos/{hallazgo_id}")
-def eliminar_hallazgo(
+async def eliminar_hallazgo(
     hallazgo_id: int,
     session: Session = Depends(get_session)
 ):
@@ -407,9 +403,8 @@ def eliminar_hallazgo(
     
     # Eliminar archivo si existe
     if hallazgo.tipo in ["foto", "video"]:
-        file_path = Path(hallazgo.contenido)
-        if file_path.exists():
-            file_path.unlink()
+        if await storage.file_exists(hallazgo.contenido):
+            await storage.delete_file(hallazgo.contenido)
     
     session.delete(hallazgo)
     session.commit()
