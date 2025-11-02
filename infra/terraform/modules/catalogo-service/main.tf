@@ -10,6 +10,15 @@
 # - Security Groups
 # - CloudWatch Logs
 # - Secrets Manager
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
 
 locals {
   is_local = var.environment == "local"
@@ -18,6 +27,7 @@ locals {
 # ============================================================
 # ECR REPOSITORY
 # ============================================================
+
 
 resource "aws_ecr_repository" "catalogo" {
   name         = "${var.project}-${var.env}-catalogo-service"
