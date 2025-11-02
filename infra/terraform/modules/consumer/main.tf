@@ -11,6 +11,7 @@ resource "aws_ecr_repository" "worker" {
   image_scanning_configuration { scan_on_push = true }
   encryption_configuration { encryption_type = "AES256" }
   tags = { Project = var.project, Env = var.env }
+  force_delete = var.ecr_force_delete
 }
 
 # SQS + DLQ

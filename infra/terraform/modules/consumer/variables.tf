@@ -59,3 +59,9 @@ variable "environment" {
     error_message = "Environment must be 'local' or 'aws'."
   }
 }
+
+variable "ecr_force_delete" {
+  type    = bool
+  default = false
+  description = "If true, allows deleting the ECR repository even when it still contains images."
+}

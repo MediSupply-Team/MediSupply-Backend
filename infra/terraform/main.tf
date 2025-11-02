@@ -410,7 +410,8 @@ resource "aws_db_instance" "postgres" {
   maintenance_window      = var.db_maintenance_window
 
   # Snapshots
-  skip_final_snapshot       = var.db_skip_final_snapshot
+  #skip_final_snapshot       = var.db_skip_final_snapshot
+  skip_final_snapshot = true
   final_snapshot_identifier = "${var.project}-${var.env}-orders-postgres-final-snapshot"
 
   # Monitoring - solo en AWS
@@ -447,7 +448,7 @@ resource "aws_db_instance" "postgres" {
 
 resource "aws_secretsmanager_secret" "db_url" {
   name = "medisupply/${var.env}/orders/DB_URL"
-  recovery_window_in_days = local.is_local ? 0 : 7
+  recovery_window_in_days = 0
 
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_URL"
@@ -467,7 +468,7 @@ resource "aws_secretsmanager_secret_version" "db_url" {
 
 resource "aws_secretsmanager_secret" "db_password" {
   name = "medisupply/${var.env}/orders/DB_PASSWORD"
-  recovery_window_in_days = local.is_local ? 0 : 7
+  recovery_window_in_days = 0
 
   tags = {
     Name    = "medisupply/${var.env}/orders/DB_PASSWORD"
@@ -585,6 +586,7 @@ module "consumer" {
 
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
+  ecr_force_delete = true
 }
 
 # BFF Venta

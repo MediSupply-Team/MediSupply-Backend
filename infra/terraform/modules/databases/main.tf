@@ -126,7 +126,7 @@ resource "aws_db_instance" "postgres" {
 resource "aws_secretsmanager_secret" "db_url" {
   name                    = "orders/DB_URL"
   description             = "DB URL for Orders"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
   tags                    = { Project = var.project, Env = var.env }
 }
 
@@ -138,7 +138,7 @@ resource "aws_secretsmanager_secret_version" "db_url_v" {
 resource "aws_secretsmanager_secret" "db_password" {
   name                    = "orders/DB_PASSWORD"
   description             = "RDS master password"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
   tags                    = { Project = var.project, Env = var.env }
 }
 
@@ -161,7 +161,7 @@ resource "random_password" "rutas_db_password" {
 resource "aws_secretsmanager_secret" "rutas_db_url" {
   name                    = "rutas/DB_URL"
   description             = "DB URL for Rutas service"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
   tags                    = { Project = var.project, Env = var.env, Service = "rutas" }
 }
 
@@ -174,7 +174,7 @@ resource "aws_secretsmanager_secret_version" "rutas_db_url_v" {
 resource "aws_secretsmanager_secret" "rutas_db_password" {
   name                    = "rutas/DB_PASSWORD"
   description             = "Password for rutas DB user"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
   tags                    = { Project = var.project, Env = var.env, Service = "rutas" }
 }
 
