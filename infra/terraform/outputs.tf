@@ -254,3 +254,26 @@ output "reports_service_name" {
   description = "Nombre del servicio de reports en ECS"
   value       = module.report_service.service_name
 }
+
+# ============================================================
+# VISITA SERVICE OUTPUTS
+# ============================================================
+output "visita_service_name" {
+  description = "Nombre del servicio de visita en ECS"
+  value       = module.visita_service.service_name
+}
+
+output "visita_ecr_repository_url" {
+  description = "URL del repositorio ECR para visita-service"
+  value       = module.visita_service.ecr_repository_url
+}
+
+output "visita_s3_bucket_name" {
+  description = "Nombre del bucket S3 para uploads de visitas"
+  value       = module.visita_service.s3_bucket_name
+}
+
+output "visita_service_url" {
+  description = "URL del servicio de visitas (via BFF Cliente ALB)"
+  value       = "http://${module.bff_cliente.alb_dns_name}/api/visitas"
+}
