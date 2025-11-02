@@ -26,17 +26,9 @@ CREATE INDEX idx_inv_lookup ON inventario(producto_id, pais, bodega_id, lote);
 CREATE INDEX idx_inv_vence  ON inventario(vence);
 
 -- Constraint único para prevenir inventarios duplicados en la misma bodega/lote
--- IF NOT EXISTS no existe en ALTER TABLE, así que usamos DO block
-DO $$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'uk_inventario_location_lote'
-    ) THEN
-        ALTER TABLE inventario ADD CONSTRAINT uk_inventario_location_lote 
-          UNIQUE (producto_id, pais, bodega_id, lote);
-    END IF;
-END $$;
+-- Si ya existe, el código capturará el error "already exists" y lo ignorará
+ALTER TABLE inventario ADD CONSTRAINT uk_inventario_location_lote 
+  UNIQUE (producto_id, pais, bodega_id, lote);
 
 CREATE TABLE consulta_catalogo_log (
   id BIGSERIAL PRIMARY KEY,

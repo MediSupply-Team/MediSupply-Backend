@@ -3,40 +3,40 @@
 -- ===================================================================
 
 -- Insertar productos de muestra (25 productos para probar paginación)
-INSERT INTO producto (id, codigo, nombre, categoria_id, presentacion, precio_unitario, requisitos_almacenamiento, activo) VALUES
+INSERT INTO producto (id, codigo, nombre, categoria_id, presentacion, precio_unitario, requisitos_almacenamiento, activo, stock_minimo, stock_critico, requiere_lote, requiere_vencimiento) VALUES
 -- Antibióticos
-('PROD001', 'AMX500', 'Amoxicilina 500mg', 'ANTIBIOTICS', 'Cápsula', 1250.00, 'Temperatura ambiente, lugar seco', TRUE),
-('PROD002', 'CIP250', 'Ciprofloxacina 250mg', 'ANTIBIOTICS', 'Tableta', 850.00, 'Proteger de la luz', TRUE),
-('PROD003', 'AZI500', 'Azitromicina 500mg', 'ANTIBIOTICS', 'Tableta recubierta', 2100.00, 'Temperatura ambiente', TRUE),
-('PROD004', 'CLX500', 'Cloxacilina 500mg', 'ANTIBIOTICS', 'Cápsula', 980.00, 'Lugar seco, temperatura ambiente', TRUE),
-('PROD005', 'CFX100', 'Cefalexina 100mg', 'ANTIBIOTICS', 'Suspensión', 1450.00, 'Refrigerar después de reconstituir', TRUE),
+('PROD001', 'AMX500', 'Amoxicilina 500mg', 'ANTIBIOTICS', 'Cápsula', 1250.00, 'Temperatura ambiente, lugar seco', TRUE, 100, 50, TRUE, TRUE),
+('PROD002', 'CIP250', 'Ciprofloxacina 250mg', 'ANTIBIOTICS', 'Tableta', 850.00, 'Proteger de la luz', TRUE, 100, 50, TRUE, TRUE),
+('PROD003', 'AZI500', 'Azitromicina 500mg', 'ANTIBIOTICS', 'Tableta recubierta', 2100.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
+('PROD004', 'CLX500', 'Cloxacilina 500mg', 'ANTIBIOTICS', 'Cápsula', 980.00, 'Lugar seco, temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
+('PROD005', 'CFX100', 'Cefalexina 100mg', 'ANTIBIOTICS', 'Suspensión', 1450.00, 'Refrigerar después de reconstituir', TRUE, 100, 50, TRUE, TRUE),
 
 -- Analgésicos
-('PROD006', 'IBU400', 'Ibuprofeno 400mg', 'ANALGESICS', 'Tableta', 320.00, 'Temperatura ambiente', TRUE),
-('PROD007', 'ACE500', 'Acetaminofén 500mg', 'ANALGESICS', 'Tableta', 180.00, 'Lugar seco', TRUE),
-('PROD008', 'ASP100', 'Aspirina 100mg', 'ANALGESICS', 'Tableta', 290.00, 'Proteger de la humedad', TRUE),
-('PROD009', 'DIC50', 'Diclofenaco 50mg', 'ANALGESICS', 'Tableta recubierta', 450.00, 'Temperatura ambiente', TRUE),
-('PROD010', 'NAP250', 'Naproxeno 250mg', 'ANALGESICS', 'Tableta', 380.00, 'Lugar seco', TRUE),
+('PROD006', 'IBU400', 'Ibuprofeno 400mg', 'ANALGESICS', 'Tableta', 320.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
+('PROD007', 'ACE500', 'Acetaminofén 500mg', 'ANALGESICS', 'Tableta', 180.00, 'Lugar seco', TRUE, 100, 50, TRUE, TRUE),
+('PROD008', 'ASP100', 'Aspirina 100mg', 'ANALGESICS', 'Tableta', 290.00, 'Proteger de la humedad', TRUE, 100, 50, TRUE, TRUE),
+('PROD009', 'DIC50', 'Diclofenaco 50mg', 'ANALGESICS', 'Tableta recubierta', 450.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
+('PROD010', 'NAP250', 'Naproxeno 250mg', 'ANALGESICS', 'Tableta', 380.00, 'Lugar seco', TRUE, 100, 50, TRUE, TRUE),
 
 -- Cardiovasculares
-('PROD011', 'ENL10', 'Enalapril 10mg', 'CARDIOVASCULAR', 'Tableta', 520.00, 'Temperatura ambiente', TRUE),
-('PROD012', 'AML5', 'Amlodipino 5mg', 'CARDIOVASCULAR', 'Tableta', 420.00, 'Proteger de la luz', TRUE),
-('PROD013', 'ATE50', 'Atenolol 50mg', 'CARDIOVASCULAR', 'Tableta', 350.00, 'Temperatura ambiente', TRUE),
-('PROD014', 'LSN10', 'Losartán 10mg', 'CARDIOVASCULAR', 'Tableta recubierta', 680.00, 'Lugar seco', TRUE),
-('PROD015', 'MET500', 'Metformina 500mg', 'CARDIOVASCULAR', 'Tableta', 280.00, 'Temperatura ambiente', TRUE),
+('PROD011', 'ENL10', 'Enalapril 10mg', 'CARDIOVASCULAR', 'Tableta', 520.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
+('PROD012', 'AML5', 'Amlodipino 5mg', 'CARDIOVASCULAR', 'Tableta', 420.00, 'Proteger de la luz', TRUE, 100, 50, TRUE, TRUE),
+('PROD013', 'ATE50', 'Atenolol 50mg', 'CARDIOVASCULAR', 'Tableta', 350.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
+('PROD014', 'LSN10', 'Losartán 10mg', 'CARDIOVASCULAR', 'Tableta recubierta', 680.00, 'Lugar seco', TRUE, 100, 50, TRUE, TRUE),
+('PROD015', 'MET500', 'Metformina 500mg', 'CARDIOVASCULAR', 'Tableta', 280.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
 
 -- Respiratorios
-('PROD016', 'SAL100', 'Salbutamol 100mcg', 'RESPIRATORY', 'Inhalador', 1850.00, 'No exceder 30°C', TRUE),
-('PROD017', 'LOR10', 'Loratadina 10mg', 'RESPIRATORY', 'Tableta', 320.00, 'Lugar seco', TRUE),
-('PROD018', 'CET10', 'Cetirizina 10mg', 'RESPIRATORY', 'Tableta', 380.00, 'Temperatura ambiente', TRUE),
-('PROD019', 'FEX120', 'Fexofenadina 120mg', 'RESPIRATORY', 'Tableta', 450.00, 'Proteger de la humedad', TRUE),
-('PROD020', 'BUD200', 'Budesonida 200mcg', 'RESPIRATORY', 'Inhalador', 2100.00, 'Refrigerar', TRUE),
+('PROD016', 'SAL100', 'Salbutamol 100mcg', 'RESPIRATORY', 'Inhalador', 1850.00, 'No exceder 30°C', TRUE, 100, 50, TRUE, TRUE),
+('PROD017', 'LOR10', 'Loratadina 10mg', 'RESPIRATORY', 'Tableta', 320.00, 'Lugar seco', TRUE, 100, 50, TRUE, TRUE),
+('PROD018', 'CET10', 'Cetirizina 10mg', 'RESPIRATORY', 'Tableta', 380.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
+('PROD019', 'FEX120', 'Fexofenadina 120mg', 'RESPIRATORY', 'Tableta', 450.00, 'Proteger de la humedad', TRUE, 100, 50, TRUE, TRUE),
+('PROD020', 'BUD200', 'Budesonida 200mcg', 'RESPIRATORY', 'Inhalador', 2100.00, 'Refrigerar', TRUE, 100, 50, TRUE, TRUE),
 
 -- Gastrointestinales
-('PROD021', 'OME20', 'Omeprazol 20mg', 'GASTROINTESTINAL', 'Cápsula', 480.00, 'Proteger de la humedad', TRUE),
-('PROD022', 'RAN150', 'Ranitidina 150mg', 'GASTROINTESTINAL', 'Tableta', 320.00, 'Temperatura ambiente', TRUE),
-('PROD023', 'DOM10', 'Domperidona 10mg', 'GASTROINTESTINAL', 'Tableta', 290.00, 'Lugar seco', TRUE),
-('PROD024', 'LOP2', 'Loperamida 2mg', 'GASTROINTESTINAL', 'Cápsula', 380.00, 'Temperatura ambiente', TRUE),
+('PROD021', 'OME20', 'Omeprazol 20mg', 'GASTROINTESTINAL', 'Cápsula', 480.00, 'Proteger de la humedad', TRUE, 100, 50, TRUE, TRUE),
+('PROD022', 'RAN150', 'Ranitidina 150mg', 'GASTROINTESTINAL', 'Tableta', 320.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
+('PROD023', 'DOM10', 'Domperidona 10mg', 'GASTROINTESTINAL', 'Tableta', 290.00, 'Lugar seco', TRUE, 100, 50, TRUE, TRUE),
+('PROD024', 'LOP2', 'Loperamida 2mg', 'GASTROINTESTINAL', 'Cápsula', 380.00, 'Temperatura ambiente', TRUE, 100, 50, TRUE, TRUE),
 ('PROD025', 'SMT40', 'Simeticona 40mg', 'GASTROINTESTINAL', 'Tableta masticable', 250.00, 'Lugar seco', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
