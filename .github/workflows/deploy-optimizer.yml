@@ -15,10 +15,10 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: medisupply-dev-route-optimizer
+  ECR_REPOSITORY: medisupply-dev-optimizador-rutas
   ECS_CLUSTER: orders-cluster
-  ECS_SERVICE: medisupply-dev-route-optimizer-svc
-  CONTAINER_NAME: route-optimizer
+  ECS_SERVICE: medisupply-dev-optimizador-rutas-svc
+  CONTAINER_NAME: optimizador-rutas
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
@@ -64,7 +64,7 @@ jobs:
       - name: Download current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition medisupply-dev-route-optimizer \
+            --task-definition medisupply-dev-optimizador-rutas \
             --query 'taskDefinition' > task-definition.json
 
       - name: Fill new image in task definition
