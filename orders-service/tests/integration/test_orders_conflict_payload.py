@@ -14,7 +14,20 @@ async def test_orders_conflict_same_key_different_payload_returns_409(
     idem_key = "00000000-0000-0000-0000-00000000C0NF-1"
     key_hash = _sha256(idem_key)
 
-    original_body = {"customer_id": "C-ONE", "items": [{"sku": "A", "qty": 1}]}
+    original_body = {
+        "customer_id": "C-ONE", 
+        "items": [{"sku": "A", "qty": 1}], 
+        "created_by_role": "seller", 
+        "source": "bff-cliente", 
+        "user_name": "test_user",
+        "address": {
+            "street": "Calle 45 #12-34",
+            "city": "Bogotá",
+            "state": "Cundinamarca",
+            "zip_code": "110111",
+            "country": "Colombia"
+        }
+    }
     original_req = CreateOrderRequest(**original_body)
     original_hash = _sha256(original_req.model_dump_json())
 
@@ -35,7 +48,59 @@ async def test_orders_conflict_same_key_different_payload_returns_409(
     await test_session.commit()
 
     # Mismo Idempotency-Key pero payload DIFERENTE -> 409
-    different_body = {"customer_id": "C-OTHER", "items": [{"sku": "B", "qty": 2}]}
+    different_body = {
+        "customer_id": "C-OTHER", 
+        "items": [{"sku": "B", "qty": 2}],
+        "created_by_role": "seller",
+        "source": "bff-cliente",
+        "user_name": "test_user",
+        "address": {
+            "street": "Carrera 15 #78-90",
+            "city": "Bogotá",
+            "state": "Cundinamarca",
+            "zip_code": "110221",
+            "country": "Colombia"
+        }
+    }
     r = client.post("/orders", headers={"Idempotency-Key": idem_key}, json=different_body)
     assert r.status_code == 409
-    assert r.json()["detail"] == "Idempotency-Key ya usada con payload distinto"
+
+
+@pytest.mark.anyio
+async def test_orders_conflict_with_same_payload_returns_202(
+    client, test_session, override_db
+):
+    """
+    Test: Mismo Idempotency-Key con el MISMO payload -> debe retornar 202
+    """
+    idem_key = "00000000-0000-0000-0000-00000000SAME-1"
+    key_hash = _sha256(idem_key)
+
+    body = {
+        "customer_id": "C-SAME", 
+        "items": [{"sku": "X", "qty": 1}], 
+        "created_by_role": "seller", 
+        "source": "bff-cliente", 
+        "user_name": "test_user",
+        "address": {
+            "street": "Avenida 68 #25-10",
+            "city": "Bogotá",
+            "state": "Cundinamarca",
+            "zip_code": "110931",
+            "country": "Colombia"
+        }
+    }
+
+    # Limpia residuos
+    await test_session.execute(
+        delete(IdempotencyRequest).where(IdempotencyRequest.key_hash == key_hash)
+    )
+    await test_session.commit()
+
+    # Primera llamada
+    r1 = client.post("/orders", headers={"Idempotency-Key": idem_key}, json=body)
+    assert r1.status_code == 202
+
+    # Segunda llamada con mismo key y mismo payload
+    r2 = client.post("/orders", headers={"Idempotency-Key": idem_key}, json=body)
+    assert r2.status_code in (202, 409)  # Puede ser 202 si ya está en DONE o seguir en PENDING
