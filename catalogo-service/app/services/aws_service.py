@@ -161,10 +161,11 @@ class AWSService:
         }
         
         try:
-            response = self.sqs.send_message(
-                QueueUrl=queue_url,
-                MessageBody=json.dumps(message_body),
-                MessageAttributes={
+            # Parámetros base
+            send_params = {
+                'QueueUrl': queue_url,
+                'MessageBody': json.dumps(message_body),
+                'MessageAttributes': {
                     'task_id': {
                         'DataType': 'String',
                         'StringValue': task_id
@@ -174,7 +175,15 @@ class AWSService:
                         'StringValue': proveedor_id
                     }
                 }
-            )
+            }
+            
+            # Si es cola FIFO (termina en .fifo), agregar MessageGroupId y MessageDeduplicationId
+            if queue_url.endswith('.fifo'):
+                send_params['MessageGroupId'] = proveedor_id  # Agrupar por proveedor
+                send_params['MessageDeduplicationId'] = task_id  # Usar task_id como dedup
+                logger.debug(f"Cola FIFO detectada - MessageGroupId: {proveedor_id}, DeduplicationId: {task_id}")
+            
+            response = self.sqs.send_message(**send_params)
             
             logger.info(f"✅ Mensaje enviado a SQS - Task: {task_id}, MessageId: {response['MessageId']}")
             return response
