@@ -30,7 +30,8 @@ ENV ENV=dev \
     PORT=8003
 EXPOSE 8003
 USER appuser
-CMD ["bash", "-c", "python seed.py && uvicorn main:app --host 0.0.0.0 --port 8003 --reload"]
+# Aumentar límite de tamaño de body a 100MB para uploads de fotos/videos
+CMD ["bash", "-c", "python seed.py && uvicorn main:app --host 0.0.0.0 --port 8003 --reload --limit-max-requests 1000 --timeout-keep-alive 120 --limit-concurrency 100"]
 
 # -------- Producción --------
 FROM base AS prod
@@ -44,4 +45,5 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:8003/health || exit 1
 
-CMD ["bash", "-c", "python seed.py && uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers ${WORKERS}"]
+# Aumentar límite de tamaño de body a 100MB para uploads de fotos/videos
+CMD ["bash", "-c", "python seed.py && uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers ${WORKERS} --limit-max-requests 1000 --timeout-keep-alive 120 --limit-concurrency 100"]
