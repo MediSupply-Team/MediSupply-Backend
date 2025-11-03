@@ -633,24 +633,20 @@ module "bff_venta" {
   project    = var.project
   env        = var.env
   aws_region = var.aws_region
-  environment = var.environment  # ← AGREGADO
+  environment = var.environment
 
   vpc_id          = module.vpc.vpc_id
   public_subnets  = module.vpc.public_subnets
   private_subnets = module.vpc.private_subnets
 
-  bff_name      = var.bff_name
-  bff_app_port  = var.bff_app_port
-  bff_repo_name = var.bff_repo_name
+  bff_name      = "bff-venta"
+  bff_app_port  = 8000
+  bff_repo_name = "${var.project}-${var.env}-bff-venta"
 
-  bff_env = merge(
-    var.bff_env,
-    {
-      RUTAS_SERVICE_URL     = "http://${module.bff_venta.alb_dns_name}"
-      OPTIMIZER_SERVICE_URL = "http://${module.bff_venta.alb_dns_name}"
-      ORDERS_SERVICE_URL    = "http://${module.bff_venta.alb_dns_name}"
-    }
-  )
+  bff_env = {
+    FLASK_ENV = var.env
+    LOG_LEVEL = "DEBUG"
+  }
 
   # SQS (consumido por bff_venta)
   sqs_url = module.consumer.sqs_queue_url
@@ -658,9 +654,13 @@ module "bff_venta" {
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Catalogo service serÃ¡ accesible por el mismo ALB en /catalog
-  catalogo_service_url = var.catalogo_service_url
-
+  # Todos los servicios usan el mismo ALB
+  # El ALB tiene reglas de path-based routing configuradas
+  catalogo_service_url  = "http://${module.bff_venta.alb_dns_name}/catalog"
+  optimizer_service_url = "http://${module.bff_venta.alb_dns_name}"
+  rutas_service_url     = "http://${module.bff_venta.alb_dns_name}"
+  orders_service_url = var.orders_service_url != "" ? var.orders_service_url : ""
+  
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
 }
@@ -946,7 +946,7 @@ module "optimizador_rutas" {
   osrm_url         = var.osrm_url
   ruta_service_url = "http://${module.bff_venta.alb_dns_name}"
 
-  app_port      = 8004
+  app_port      = 8000
   image_tag     = var.optimizador_rutas_image_tag
   desired_count = var.env == "prod" ? 2 : 1
   cpu           = var.env == "prod" ? "512" : "256"
