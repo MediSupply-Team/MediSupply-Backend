@@ -230,6 +230,11 @@ class BulkUploadWorker:
                             nuevo_producto.requiere_vencimiento = True
                         
                         session.add(nuevo_producto)
+                        
+                        # Hacer flush del producto para que se inserte en BD antes del inventario
+                        # Esto evita Foreign Key violations
+                        await session.flush()
+                        
                         productos_creados.append(producto_id)
                         exitosos += 1
                         logger.info(f"      ✓ Fila {fila_num}: Producto {producto_id} creado")

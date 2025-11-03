@@ -242,3 +242,9 @@ variable "service_connect_namespace_name" {
   description = "Service Connect namespace for internal service discovery"
   type        = string
 }
+
+variable "redis_url" {
+  description = "Redis connection URL for async task tracking"
+  type        = string
+  default     = "redis://redis:6379/1"
+}

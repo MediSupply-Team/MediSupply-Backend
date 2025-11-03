@@ -27,9 +27,23 @@ else
 fi
 
 echo ""
-echo "🚀 Iniciando aplicación..."
+echo "🚀 Iniciando aplicación y worker SQS..."
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
+
+# Iniciar el worker SQS en background
+echo "🔄 Iniciando SQS Consumer Worker..."
+python3 -m app.worker.sqs_consumer &
+WORKER_PID=$!
+echo "✅ Worker SQS iniciado (PID: $WORKER_PID)"
+
+# Función para cleanup al salir
+cleanup() {
+    echo "🛑 Deteniendo worker SQS..."
+    kill $WORKER_PID 2>/dev/null
+    wait $WORKER_PID 2>/dev/null
+}
+trap cleanup EXIT INT TERM
 
 # Ejecutar el comando original (uvicorn)
 exec "$@"

@@ -20,14 +20,15 @@ class AWSService:
         self.endpoint_url = os.getenv("AWS_ENDPOINT_URL")  # None en producción, http://localstack:4566 en dev
         self.region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         self.s3_bucket = os.getenv("S3_BUCKET_NAME", "medisupply-bulk-uploads")
-        self.sqs_queue_name = os.getenv("SQS_QUEUE_NAME", "medisupply-bulk-upload-queue")
+        # Usar URL de cola directamente (configurada por Terraform)
+        self._sqs_queue_url = os.getenv("SQS_QUEUE_URL")
+        self.sqs_queue_name = os.getenv("SQS_QUEUE_NAME", "medisupply-bulk-upload-queue")  # Fallback para LocalStack
         
         # Clientes AWS
         self._s3_client = None
         self._sqs_client = None
-        self._sqs_queue_url = None
         
-        logger.info(f"AWS Service initialized - Endpoint: {self.endpoint_url or 'AWS Real'}")
+        logger.info(f"AWS Service initialized - Endpoint: {self.endpoint_url or 'AWS Real'}, SQS Queue: {self._sqs_queue_url}")
     
     @property
     def s3(self):
@@ -62,26 +63,30 @@ class AWSService:
         return self._sqs_client
     
     def get_queue_url(self) -> str:
-        """Obtiene la URL de la cola SQS, crea la cola si no existe"""
+        """Obtiene la URL de la cola SQS, crea la cola si no existe (solo LocalStack)"""
         if self._sqs_queue_url is None:
             try:
-                # Intentar obtener URL de cola existente
+                # Intentar obtener URL de cola existente por nombre
                 response = self.sqs.get_queue_url(QueueName=self.sqs_queue_name)
                 self._sqs_queue_url = response['QueueUrl']
                 logger.info(f"✅ Cola SQS encontrada: {self._sqs_queue_url}")
             except self.sqs.exceptions.QueueDoesNotExist:
-                # Crear cola si no existe
-                response = self.sqs.create_queue(
-                    QueueName=self.sqs_queue_name,
-                    Attributes={
-                        'DelaySeconds': '0',
-                        'MessageRetentionPeriod': '86400',  # 1 día
-                        'VisibilityTimeout': '300',  # 5 minutos para procesar
-                        'ReceiveMessageWaitTimeSeconds': '20'  # Long polling
-                    }
-                )
-                self._sqs_queue_url = response['QueueUrl']
-                logger.info(f"✅ Cola SQS creada: {self._sqs_queue_url}")
+                # Crear cola solo en LocalStack (en AWS Terraform la crea)
+                if self.endpoint_url:
+                    response = self.sqs.create_queue(
+                        QueueName=self.sqs_queue_name,
+                        Attributes={
+                            'DelaySeconds': '0',
+                            'MessageRetentionPeriod': '86400',  # 1 día
+                            'VisibilityTimeout': '300',  # 5 minutos para procesar
+                            'ReceiveMessageWaitTimeSeconds': '20'  # Long polling
+                        }
+                    )
+                    self._sqs_queue_url = response['QueueUrl']
+                    logger.info(f"✅ Cola SQS creada (LocalStack): {self._sqs_queue_url}")
+                else:
+                    logger.error(f"❌ Cola SQS no encontrada y SQS_QUEUE_URL no configurado")
+                    raise Exception("SQS_QUEUE_URL environment variable not set")
         
         return self._sqs_queue_url
     
@@ -156,10 +161,11 @@ class AWSService:
         }
         
         try:
-            response = self.sqs.send_message(
-                QueueUrl=queue_url,
-                MessageBody=json.dumps(message_body),
-                MessageAttributes={
+            # Parámetros base
+            send_params = {
+                'QueueUrl': queue_url,
+                'MessageBody': json.dumps(message_body),
+                'MessageAttributes': {
                     'task_id': {
                         'DataType': 'String',
                         'StringValue': task_id
@@ -169,7 +175,15 @@ class AWSService:
                         'StringValue': proveedor_id
                     }
                 }
-            )
+            }
+            
+            # Si es cola FIFO (termina en .fifo), agregar MessageGroupId y MessageDeduplicationId
+            if queue_url.endswith('.fifo'):
+                send_params['MessageGroupId'] = proveedor_id  # Agrupar por proveedor
+                send_params['MessageDeduplicationId'] = task_id  # Usar task_id como dedup
+                logger.debug(f"Cola FIFO detectada - MessageGroupId: {proveedor_id}, DeduplicationId: {task_id}")
+            
+            response = self.sqs.send_message(**send_params)
             
             logger.info(f"✅ Mensaje enviado a SQS - Task: {task_id}, MessageId: {response['MessageId']}")
             return response

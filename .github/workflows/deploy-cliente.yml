@@ -3,7 +3,7 @@ name: Deploy Cliente Service
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "fix-carga-masiva" ]
     paths:
       - "cliente-service/**"
       - ".github/workflows/deploy-cliente.yml"
@@ -18,7 +18,7 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: medisupply-dev-cliente-service
   ECS_CLUSTER: orders-cluster
-  ECS_SERVICE: medisupply-dev-cliente-service
+  ECS_SERVICE: medisupply-dev-cliente-service-svc
   CONTAINER_NAME: cliente-service
 
 jobs:
