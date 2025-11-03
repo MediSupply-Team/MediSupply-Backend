@@ -2,7 +2,7 @@ name: Deploy reports Service
 
 on:
   push:
-    branches: [ "main", "develop", "nueva-cuenta" ]
+    branches: [ "main", "develop", "feature/HU013-·-Generar-informe-y-exportar" ]
     paths:
       - "report-service/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-reports.yml"

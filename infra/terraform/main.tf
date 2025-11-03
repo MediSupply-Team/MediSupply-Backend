@@ -844,6 +844,12 @@ module "report_service" {
 
   shared_http_listener_arn = module.bff_venta.alb_listener_arn
   shared_alb_sg_id         = module.bff_venta.alb_sg_id
+  
+  # S3 bucket para exportar reportes (usa el mismo bucket de visita)
+  s3_bucket_arn  = module.visita_service.s3_bucket_arn
+  s3_bucket_name = module.visita_service.s3_bucket_name
+  
+  depends_on = [module.visita_service]
 }
 
 # Visita Service
