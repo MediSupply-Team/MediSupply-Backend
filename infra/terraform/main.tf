@@ -720,9 +720,9 @@ module "bff_cliente" {
   sqs_url = module.consumer.sqs_queue_url
   sqs_arn = module.consumer.sqs_queue_arn
 
-  # Servicios backend (usando Service Connect DNS)
+  # Servicios backend (usando ALBs internos)
   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
-  cliente_service_url  = local.is_local ? "http://cliente:8000" : "http://cliente:8000"
+  cliente_service_url  = local.is_local ? "http://cliente:8000" : "http://${module.cliente_service.alb_dns_name}"
 
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
