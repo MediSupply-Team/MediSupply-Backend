@@ -3,15 +3,23 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 import requests
 from typing import Dict, Any
-import time
 
-bp = Blueprint("routes", __name__)
+bp = Blueprint("route_optimizer", __name__)
 
 # Thread pool para operaciones async
 executor = ThreadPoolExecutor(max_workers=10)
 
-# URL del microservicio (configurar en variables de entorno)
-ROUTE_OPTIMIZER_URL = "http://route-optimizer-service:8000"  # o desde env
+
+def get_optimizer_service_url():
+    """
+    Obtener la URL del servicio optimizador desde configuración
+    Similar a get_rutas_service_url() en rutas.py
+    """
+    url = current_app.config.get("OPTIMIZER_SERVICE_URL")
+    if not url:
+        current_app.logger.error("OPTIMIZER_SERVICE_URL no está configurada")
+        return None
+    return url.rstrip('/')
 
 
 @bp.post("/api/v1/routes/optimize")
@@ -20,13 +28,15 @@ def optimize_routes():
     Solicita optimización de rutas al microservicio Route Optimizer
     ---
     tags:
-      - Routes
+      - Route Optimizer
     parameters:
       - in: body
         name: body
         required: true
         schema:
           type: object
+          required:
+            - date
           properties:
             date:
               type: string
@@ -38,6 +48,15 @@ def optimize_routes():
             max_duration_hours:
               type: integer
               example: 8
+            warehouse_location:
+              type: object
+              properties:
+                lat:
+                  type: number
+                lng:
+                  type: number
+                address:
+                  type: string
     responses:
       202:
         description: Route optimization request accepted
@@ -51,7 +70,13 @@ def optimize_routes():
               example: "processing"
       400:
         description: Validation error
+      503:
+        description: Service unavailable
     """
+    optimizer_url = get_optimizer_service_url()
+    if not optimizer_url:
+        return jsonify(error="Servicio optimizador no disponible"), 503
+    
     data = request.get_json(silent=True) or {}
     
     # Validación básica
@@ -75,6 +100,7 @@ def optimize_routes():
     # Llamar al microservicio de forma asíncrona
     future = executor.submit(
         call_route_optimizer_async,
+        optimizer_url,
         optimization_request,
         request_id
     )
@@ -93,7 +119,7 @@ def assign_driver_to_route(route_id: str):
     Asigna un conductor a una ruta optimizada
     ---
     tags:
-      - Routes
+      - Route Optimizer
     parameters:
       - in: path
         name: route_id
@@ -124,7 +150,13 @@ def assign_driver_to_route(route_id: str):
         description: Validation error
       404:
         description: Route not found
+      503:
+        description: Service unavailable
     """
+    optimizer_url = get_optimizer_service_url()
+    if not optimizer_url:
+        return jsonify(error="Servicio optimizador no disponible"), 503
+    
     data = request.get_json(silent=True) or {}
     
     required_fields = ["driver_id", "driver_name", "vehicle_plate"]
@@ -135,6 +167,7 @@ def assign_driver_to_route(route_id: str):
     # Llamar al microservicio de forma asíncrona
     future = executor.submit(
         assign_driver_async,
+        optimizer_url,
         route_id,
         data
     )
@@ -152,7 +185,7 @@ def get_routes():
     Obtiene lista de rutas
     ---
     tags:
-      - Routes
+      - Route Optimizer
     parameters:
       - in: query
         name: status
@@ -168,7 +201,13 @@ def get_routes():
     responses:
       200:
         description: List of routes
+      503:
+        description: Service unavailable
     """
+    optimizer_url = get_optimizer_service_url()
+    if not optimizer_url:
+        return jsonify(error="Servicio optimizador no disponible"), 503
+    
     params = {}
     if request.args.get("status"):
         params["status"] = request.args.get("status")
@@ -179,7 +218,7 @@ def get_routes():
     
     try:
         response = requests.get(
-            f"{ROUTE_OPTIMIZER_URL}/routes",
+            f"{optimizer_url}/routes",
             params=params,
             timeout=10
         )
@@ -187,7 +226,7 @@ def get_routes():
         return jsonify(response.json()), response.status_code
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"Error calling route optimizer: {e}")
-        return jsonify(error="Error connecting to route optimizer service"), 503
+        return jsonify(error="Error conectando con optimizador"), 503
 
 
 @bp.get("/api/v1/routes/<route_id>")
@@ -196,7 +235,7 @@ def get_route_detail(route_id: str):
     Obtiene detalle de una ruta específica
     ---
     tags:
-      - Routes
+      - Route Optimizer
     parameters:
       - in: path
         name: route_id
@@ -207,10 +246,16 @@ def get_route_detail(route_id: str):
         description: Route details
       404:
         description: Route not found
+      503:
+        description: Service unavailable
     """
+    optimizer_url = get_optimizer_service_url()
+    if not optimizer_url:
+        return jsonify(error="Servicio optimizador no disponible"), 503
+    
     try:
         response = requests.get(
-            f"{ROUTE_OPTIMIZER_URL}/routes/{route_id}",
+            f"{optimizer_url}/routes/{route_id}",
             timeout=10
         )
         response.raise_for_status()
@@ -219,10 +264,10 @@ def get_route_detail(route_id: str):
         if e.response.status_code == 404:
             return jsonify(error="Route not found"), 404
         current_app.logger.error(f"Error calling route optimizer: {e}")
-        return jsonify(error="Error fetching route"), 503
+        return jsonify(error="Error obteniendo ruta"), 503
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"Error calling route optimizer: {e}")
-        return jsonify(error="Error connecting to route optimizer service"), 503
+        return jsonify(error="Error conectando con optimizador"), 503
 
 
 @bp.patch("/api/v1/routes/<route_id>/status")
@@ -231,7 +276,7 @@ def update_route_status(route_id: str):
     Actualiza el estado de una ruta
     ---
     tags:
-      - Routes
+      - Route Optimizer
     parameters:
       - in: path
         name: route_id
@@ -255,7 +300,13 @@ def update_route_status(route_id: str):
         description: Invalid status
       404:
         description: Route not found
+      503:
+        description: Service unavailable
     """
+    optimizer_url = get_optimizer_service_url()
+    if not optimizer_url:
+        return jsonify(error="Servicio optimizador no disponible"), 503
+    
     data = request.get_json(silent=True) or {}
     
     if not data.get("status"):
@@ -263,7 +314,7 @@ def update_route_status(route_id: str):
     
     try:
         response = requests.patch(
-            f"{ROUTE_OPTIMIZER_URL}/routes/{route_id}/status",
+            f"{optimizer_url}/routes/{route_id}/status",
             json=data,
             timeout=10
         )
@@ -273,24 +324,28 @@ def update_route_status(route_id: str):
         if e.response.status_code == 404:
             return jsonify(error="Route not found"), 404
         current_app.logger.error(f"Error calling route optimizer: {e}")
-        return jsonify(error="Error updating route"), 503
+        return jsonify(error="Error actualizando ruta"), 503
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"Error calling route optimizer: {e}")
-        return jsonify(error="Error connecting to route optimizer service"), 503
+        return jsonify(error="Error conectando con optimizador"), 503
 
 
 # ============================================
 # FUNCIONES ASYNC (background)
 # ============================================
 
-def call_route_optimizer_async(optimization_request: Dict[str, Any], request_id: str):
+def call_route_optimizer_async(
+    optimizer_url: str,
+    optimization_request: Dict[str, Any],
+    request_id: str
+):
     """
     Llama al microservicio Route Optimizer de forma asíncrona
     Similar a send_sqs_message_async en orders.py
     """
     try:
         response = requests.post(
-            f"{ROUTE_OPTIMIZER_URL}/routes/optimize",
+            f"{optimizer_url}/routes/optimize",
             json=optimization_request,
             timeout=30
         )
@@ -303,18 +358,24 @@ def call_route_optimizer_async(optimization_request: Dict[str, Any], request_id:
         return response.json()
         
     except requests.exceptions.Timeout:
-        current_app.logger.error(f"Timeout calling route optimizer. Request ID: {request_id}")
+        current_app.logger.error(
+            f"Timeout calling route optimizer. Request ID: {request_id}"
+        )
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"Error calling route optimizer: {e}")
 
 
-def assign_driver_async(route_id: str, driver_data: Dict[str, Any]):
+def assign_driver_async(
+    optimizer_url: str,
+    route_id: str,
+    driver_data: Dict[str, Any]
+):
     """
     Asigna conductor de forma asíncrona
     """
     try:
         response = requests.post(
-            f"{ROUTE_OPTIMIZER_URL}/routes/{route_id}/assign-driver",
+            f"{optimizer_url}/routes/{route_id}/assign-driver",
             json=driver_data,
             timeout=10
         )
@@ -327,3 +388,68 @@ def assign_driver_async(route_id: str, driver_data: Dict[str, Any]):
         
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"Error assigning driver: {e}")
+
+
+@bp.get("/api/v1/routes/health")
+def optimizer_health_check():
+    """
+    Health check del servicio optimizador
+    ---
+    tags:
+      - Route Optimizer
+    responses:
+      200:
+        description: Servicio conectado
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+            optimizer_service:
+              type: string
+            optimizer_url:
+              type: string
+      503:
+        description: Servicio no disponible
+    """
+    optimizer_url = get_optimizer_service_url()
+    
+    if not optimizer_url:
+        return jsonify(
+            status="unhealthy",
+            reason="OPTIMIZER_SERVICE_URL no configurada"
+        ), 503
+    
+    try:
+        response = requests.get(
+            f"{optimizer_url}/health",
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            return jsonify(
+                status="healthy",
+                optimizer_service="connected",
+                optimizer_url=optimizer_url
+            ), 200
+        else:
+            return jsonify(
+                status="degraded",
+                optimizer_service="error",
+                status_code=response.status_code,
+                optimizer_url=optimizer_url
+            ), 503
+            
+    except requests.exceptions.Timeout:
+        return jsonify(
+            status="unhealthy",
+            optimizer_service="timeout",
+            optimizer_url=optimizer_url
+        ), 503
+    except Exception as e:
+        return jsonify(
+            status="unhealthy",
+            optimizer_service="disconnected",
+            error=str(e),
+            optimizer_url=optimizer_url
+        ), 503
