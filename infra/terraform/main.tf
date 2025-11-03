@@ -952,5 +952,5 @@ module "optimizador_rutas" {
   cpu           = var.env == "prod" ? "512" : "256"
   memory        = var.env == "prod" ? "1024" : "512"
 
-  health_check_path = "/health"
+  health_check_path = "/optimizer/health"
 }
