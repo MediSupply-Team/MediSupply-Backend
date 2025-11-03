@@ -1,10 +1,11 @@
 name: "02 - Verify PR -> develop (Orders Service)"
 
 on:
-  pull_request:
-    branches: [ develop ]
-    paths:
-      - 'orders-service/**'
+  workflow_dispatch:  # Solo manual
+  # pull_request:
+  #   branches: [ develop ]
+  #   paths:
+  #     - 'orders-service/**'
 
 permissions:
   contents: read
