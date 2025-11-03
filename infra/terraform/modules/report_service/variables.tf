@@ -95,3 +95,13 @@ variable "shared_alb_sg_id" {
   type        = string
   description = "Security Group ID del ALB compartido (BFF Venta)"
 }
+
+variable "s3_bucket_arn" {
+  description = "ARN del bucket S3 para subir reportes"
+  type        = string
+}
+
+variable "s3_bucket_name" {
+  description = "Nombre del bucket S3 para subir reportes"
+  type        = string
+}
