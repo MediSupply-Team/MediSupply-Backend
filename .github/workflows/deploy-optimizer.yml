@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main", "develop" ]
     paths:
-      - "route-optimizer-service/**"  # Ajusta según tu nombre real
+      - "optimizador-rutas-service/**"
       - ".github/workflows/deploy-optimizer.yml"
   workflow_dispatch:
     inputs:
@@ -16,7 +16,7 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: medisupply-dev-route-optimizer
-  ECS_CLUSTER: orders-cluster  # Mismo cluster compartido
+  ECS_CLUSTER: orders-cluster
   ECS_SERVICE: medisupply-dev-route-optimizer-svc
   CONTAINER_NAME: route-optimizer
   IMAGE_TAG: ${{ github.sha }}
@@ -49,7 +49,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
-        working-directory: ./route-optimizer-service  # Ajusta según tu nombre real
+        working-directory: ./optimizador-rutas-service
         run: |
           IMAGE_URI=${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}
           docker build -t "${IMAGE_URI}" .
