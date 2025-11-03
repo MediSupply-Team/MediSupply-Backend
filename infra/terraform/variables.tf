@@ -26,6 +26,17 @@ variable "aws_region" {
   type        = string
 }
 
+variable "log_level" {
+  description = "Application log level"
+  type        = string
+  default     = "INFO"
+  
+  validation {
+    condition     = contains(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], var.log_level)
+    error_message = "Log level must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL"
+  }
+}
+
 # ============================================================
 # MAIN DATABASE (Orders & Rutas)
 # ============================================================
@@ -83,7 +94,6 @@ variable "db_monitoring_interval" {
   default     = 60
 }
 
-# Variables adicionales de DB que vi en los errores
 variable "db_storage_type" {
   description = "Storage type (gp2, gp3, io1)"
   type        = string
@@ -170,13 +180,36 @@ variable "bff_env" {
 }
 
 # ============================================================
+# SERVICE URLs - BFF VENTA BACKEND SERVICES
+# ============================================================
+
+variable "optimizer_service_url" {
+  description = "URL del servicio optimizador de rutas (vacío = usa ALB automático con self-reference)"
+  type        = string
+  default     = ""
+}
+
+variable "rutas_service_url" {
+  description = "URL del servicio de rutas (vacío = usa ALB automático con self-reference)"
+  type        = string
+  default     = ""
+}
+
+variable "catalogo_service_url" {
+  description = "URL del catalogo service para los BFFs (vacío = usa ALB automático con /catalog path)"
+  type        = string
+  default     = ""
+}
+
+variable "orders_service_url" {
+  description = "URL del servicio de órdenes (vacío = usa Service Connect http.svc.local:8000)"
+  type        = string
+  default     = ""
+}
+
+# ============================================================
 # CATALOGO SERVICE
 # ============================================================
-variable "catalogo_service_url" {
-  description = "URL del catalogo service para los BFFs"
-  type        = string
-  default     = "placeholder-will-be-updated-after-deploy"
-}
 
 variable "catalogo_container_port" {
   description = "Catalogo service container port"
@@ -227,6 +260,38 @@ variable "bff_catalogo_image_tag" {
   description = "Image tag for BFF catalogo"
   type        = string
   default     = "latest"
+}
+
+# ============================================================
+# OPTIMIZADOR-RUTAS-SERVICE VARIABLES
+# ============================================================
+
+variable "osrm_url" {
+  description = "URL del servidor OSRM para cálculo de rutas"
+  type        = string
+  default     = "http://osrm-medisupply.duckdns.org:5000"
+}
+
+variable "optimizador_rutas_image_tag" {
+  description = "Docker image tag para optimizador-rutas-service"
+  type        = string
+  default     = "latest"
+}
+
+# ============================================================
+# REDIS (ELASTICACHE) VARIABLES
+# ============================================================
+
+variable "redis_engine_version" {
+  description = "Redis engine version"
+  type        = string
+  default     = "7.0"
+}
+
+variable "redis_node_type" {
+  description = "Redis node type (instance class)"
+  type        = string
+  default     = "cache.t3.micro"
 }
 
 # ============================================================
@@ -296,36 +361,4 @@ variable "db_url_secret_arn" {
   description = "ARN of DB_URL secret in Secrets Manager"
   type        = string
   default     = ""
-}
-
-# ============================================================
-# OPTIMIZADOR-RUTAS-SERVICE VARIABLES
-# ============================================================
-
-variable "osrm_url" {
-  description = "URL del servidor OSRM"
-  type        = string
-  default     = "http://osrm-medisupply.duckdns.org:5000"
-}
-
-variable "optimizador_rutas_image_tag" {
-  description = "Docker image tag para optimizador-rutas-service"
-  type        = string
-  default     = "latest"
-}
-
-# ============================================================
-# REDIS (ELASTICACHE) VARIABLES
-# ============================================================
-
-variable "redis_engine_version" {
-  description = "Redis engine version"
-  type        = string
-  default     = "7.0"
-}
-
-variable "redis_node_type" {
-  description = "Redis node type (instance class)"
-  type        = string
-  default     = "cache.t3.micro"
 }
