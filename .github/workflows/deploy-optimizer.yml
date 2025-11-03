@@ -2,7 +2,7 @@ name: Deploy Route Optimizer Service
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "develop" ]
     paths:
       - "route-optimizer-service/**"  # Ajusta según tu nombre real
       - ".github/workflows/deploy-optimizer.yml"
