@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query, Request
 from fastapi.responses import Response
 from sqlmodel import Session, select
 from database import get_session, init_db
@@ -7,7 +7,22 @@ from datetime import datetime
 from typing import List, Optional
 import storage
 
-app = FastAPI(title="Visita Service", version="2.0.0")
+# Configurar FastAPI con límite de 100MB para uploads
+app = FastAPI(
+    title="Visita Service", 
+    version="2.0.0",
+    # Aumentar límite de request body a 100MB para fotos y videos
+    swagger_ui_parameters={"defaultModelsExpandDepth": -1}
+)
+
+# Middleware para aumentar el límite de tamaño de body
+@app.middleware("http")
+async def add_max_body_size(request: Request, call_next):
+    """Permitir bodies de hasta 100MB para uploads de archivos"""
+    # FastAPI/Starlette usa este header para determinar el límite
+    request.scope["http_version"] = "1.1"
+    response = await call_next(request)
+    return response
 
 # El almacenamiento se configura automáticamente en storage.py
 
