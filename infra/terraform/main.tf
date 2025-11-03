@@ -564,6 +564,14 @@ resource "aws_secretsmanager_secret_version" "visita_db_url_v" {
   }
 }
 
+data "aws_secretsmanager_secret" "mapbox_token" {
+  name = "/${var.project}/${var.env}/mapbox-token"
+}
+
+data "aws_secretsmanager_secret_version" "mapbox_token" {
+  secret_id = data.aws_secretsmanager_secret.mapbox_token.id
+}
+
 # ============================================================
 # SERVICES MODULES
 # ============================================================
@@ -884,4 +892,42 @@ module "visita_service" {
 
   # S3 bucket para uploads (fotos/videos)
   s3_bucket_name = "${var.project}-${var.env}-visita-uploads"
+}
+
+# ============================================================
+# OPTIMIZADOR-RUTAS-SERVICE
+# ============================================================
+
+module "optimizador_rutas" {
+  source = "./modules/optimizador_rutas"
+
+  project     = var.project
+  env         = var.env
+  environment = var.environment
+  aws_region  = var.aws_region
+
+  service_name = "optimizador-rutas"
+
+  vpc_id          = module.vpc.vpc_id
+  public_subnets  = module.vpc.public_subnets
+  private_subnets = module.vpc.private_subnets
+
+  ecs_cluster_arn = aws_ecs_cluster.orders.arn
+
+  # Secret ARN - read from AWS, never deleted by Terraform
+  mapbox_token_secret_arn = data.aws_secretsmanager_secret.mapbox_token.arn
+
+  shared_http_listener_arn = module.bff_venta.alb_listener_arn
+  shared_alb_sg_id         = module.bff_venta.alb_sg_id
+
+  osrm_url         = var.osrm_url
+  ruta_service_url = "http://${module.bff_venta.alb_dns_name}"
+
+  app_port      = 8004
+  image_tag     = var.optimizador_rutas_image_tag
+  desired_count = var.env == "prod" ? 2 : 1
+  cpu           = var.env == "prod" ? "512" : "256"
+  memory        = var.env == "prod" ? "1024" : "512"
+
+  health_check_path = "/health"
 }

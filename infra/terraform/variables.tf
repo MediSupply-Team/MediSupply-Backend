@@ -297,3 +297,19 @@ variable "db_url_secret_arn" {
   type        = string
   default     = ""
 }
+
+# ============================================================
+# OPTIMIZADOR-RUTAS-SERVICE VARIABLES
+# ============================================================
+
+variable "osrm_url" {
+  description = "URL del servidor OSRM"
+  type        = string
+  default     = "http://osrm-medisupply.duckdns.org:5000"
+}
+
+variable "optimizador_rutas_image_tag" {
+  description = "Docker image tag para optimizador-rutas-service"
+  type        = string
+  default     = "latest"
+}
