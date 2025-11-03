@@ -22,3 +22,9 @@ class Config:
 
      # Rutas Service Configuration
     RUTAS_SERVICE_URL = os.getenv("RUTAS_SERVICE_URL")
+
+    #Optimizador de Rutas Service Configuration
+    ROUTE_OPTIMIZER_URL = os.getenv("ROUTE_OPTIMIZER_URL", "http://route-optimizer-service:8000")
+
+    #Optimizador de Rutas Service Configuration
+    ORDERS_URL = os.getenv("ORDERS_URL", "http://orders-service:8000")
