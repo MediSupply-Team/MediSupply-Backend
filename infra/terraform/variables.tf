@@ -313,3 +313,19 @@ variable "optimizador_rutas_image_tag" {
   type        = string
   default     = "latest"
 }
+
+# ============================================================
+# REDIS (ELASTICACHE) VARIABLES
+# ============================================================
+
+variable "redis_engine_version" {
+  description = "Redis engine version"
+  type        = string
+  default     = "7.0"
+}
+
+variable "redis_node_type" {
+  description = "Redis node type (instance class)"
+  type        = string
+  default     = "cache.t3.micro"
+}

@@ -733,6 +733,25 @@ module "bff_cliente" {
 # MICROSERVICES MODULES
 # ============================================================
 
+# Redis (ElastiCache) - Para tracking de tareas asíncronas
+module "redis" {
+  source = "./modules/redis"
+  
+  count = local.is_local ? 0 : 1  # Solo en AWS, no en LocalStack
+  
+  project = var.project
+  env     = var.env
+  
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnets
+  
+  # Permitir acceso desde subnets privadas (donde están los ECS tasks)
+  allowed_security_groups = []  # Se configurará después con reglas adicionales
+  
+  redis_engine_version = var.redis_engine_version
+  redis_node_type      = var.redis_node_type
+}
+
 # Catalogo Service
 module "catalogo_service" {
   source = "./modules/catalogo-service"
@@ -761,6 +780,9 @@ module "catalogo_service" {
   db_instance_class        = var.catalogo_db_instance_class
   db_allocated_storage     = var.catalogo_db_allocated_storage
   db_backup_retention_days = var.catalogo_db_backup_retention_days
+
+  # Redis configuration
+  redis_url = local.is_local ? "redis://redis:6379/1" : module.redis[0].redis_url
 
   # Additional tags
   additional_tags = var.additional_tags

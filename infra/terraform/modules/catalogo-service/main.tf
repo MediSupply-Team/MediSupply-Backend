@@ -515,6 +515,10 @@ resource "aws_ecs_task_definition" "catalogo" {
           value = data.aws_s3_bucket.shared_uploads.id
         },
         {
+          name  = "REDIS_URL"
+          value = var.redis_url
+        },
+        {
           name  = "DB_HOST"
           value = aws_db_instance.catalogo_postgres.address
         },
