@@ -646,8 +646,9 @@ module "bff_venta" {
   bff_env = merge(
     var.bff_env,
     {
-      #RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"
-      RUTAS_SERVICE_URL = "http://${module.bff_venta.alb_dns_name}"
+      RUTAS_SERVICE_URL     = "http://${module.bff_venta.alb_dns_name}"
+      OPTIMIZER_SERVICE_URL = "http://${module.bff_venta.alb_dns_name}"
+      ORDERS_SERVICE_URL    = "http://${module.bff_venta.alb_dns_name}"
     }
   )
 
