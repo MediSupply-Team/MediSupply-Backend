@@ -1,10 +1,11 @@
 name: "02 - Verify PR -> develop (Catalogo Service)"
 
 on:
-  pull_request:
-    branches: [ develop ]
-    paths:
-      - 'catalogo-service/**'
+  workflow_dispatch:  # Solo manual
+  # pull_request:
+  #   branches: [ develop ]
+  #   paths:
+  #     - 'catalogo-service/**'
 
 permissions:
   contents: read
