@@ -1,10 +1,11 @@
 name: "02 - Verify PR -> develop (Cliente Service)"
 
 on:
-  pull_request:
-    branches: [ develop ]
-    paths:
-      - 'cliente-service/**'
+  workflow_dispatch:  # Solo manual
+  # pull_request:
+  #   branches: [ develop ]
+  #   paths:
+  #     - 'cliente-service/**'
 
 permissions:
   contents: read

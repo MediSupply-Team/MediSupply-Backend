@@ -8,18 +8,18 @@
 name: 🛍️ Catalogo Service - CI/CD
 
 on:
-  push:
-    branches: [main]
-    paths: 
-      - 'catalogo-service/**'
-      - 'infra/terraform/modules/catalogo-service/**'
-      - '.github/workflows/catalogo-service-cicd.yml'
-  
-  pull_request:
-    branches: [main]
-    paths:
-      - 'catalogo-service/**'
-      - 'infra/terraform/modules/catalogo-service/**'
+  # push:
+  #   branches: [main]
+  #   paths: 
+  #     - 'catalogo-service/**'
+  #     - 'infra/terraform/modules/catalogo-service/**'
+  #     - '.github/workflows/catalogo-service-cicd.yml'
+  # 
+  # pull_request:
+  #   branches: [main]
+  #   paths:
+  #     - 'catalogo-service/**'
+  #     - 'infra/terraform/modules/catalogo-service/**'
   
   workflow_dispatch:
     inputs:
