@@ -117,9 +117,3 @@ output "ecs_execution_role_arn" {
   description = "ARN del rol IAM para ejecución ECS"
   value       = aws_iam_role.catalogo_ecs_execution_role.arn
 }
-
-# Security Groups
-output "ecs_security_group_id" {
-  description = "ID del security group de ECS para permitir acceso a Redis"
-  value       = aws_security_group.catalogo_ecs.id
-}
