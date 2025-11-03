@@ -6,23 +6,46 @@ from models import Visita, Hallazgo, EstadoVisita
 from datetime import datetime
 from typing import List, Optional
 import storage
+import os
 
-# Configurar FastAPI con límite de 100MB para uploads
+# Configurar FastAPI sin límites de body size
 app = FastAPI(
     title="Visita Service", 
     version="2.0.0",
-    # Aumentar límite de request body a 100MB para fotos y videos
     swagger_ui_parameters={"defaultModelsExpandDepth": -1}
 )
 
-# Middleware para aumentar el límite de tamaño de body
+# Configurar límite máximo de upload
+MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB en bytes
+
+# Middleware para logging y validación de tamaño
 @app.middleware("http")
-async def add_max_body_size(request: Request, call_next):
-    """Permitir bodies de hasta 100MB para uploads de archivos"""
-    # FastAPI/Starlette usa este header para determinar el límite
-    request.scope["http_version"] = "1.1"
-    response = await call_next(request)
-    return response
+async def log_and_validate_request(request: Request, call_next):
+    """Log requests y validar tamaño de body"""
+    # Log del request
+    print(f"📥 {request.method} {request.url.path} - Client: {request.client.host if request.client else 'unknown'}")
+    
+    # Si es POST con archivos, verificar content-length
+    if request.method == "POST" and "/api/visitas" in request.url.path:
+        content_length = request.headers.get("content-length")
+        if content_length:
+            size_mb = int(content_length) / (1024 * 1024)
+            print(f"📦 Content-Length: {size_mb:.2f} MB")
+            
+            if int(content_length) > MAX_UPLOAD_SIZE:
+                return Response(
+                    content=f"File too large. Maximum size: {MAX_UPLOAD_SIZE / (1024*1024)}MB",
+                    status_code=413,
+                    headers={"X-Error": "CustomSizeLimit"}
+                )
+    
+    try:
+        response = await call_next(request)
+        print(f"📤 Response: {response.status_code}")
+        return response
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        raise
 
 # El almacenamiento se configura automáticamente en storage.py
 
