@@ -1,17 +1,12 @@
 from flask import Blueprint, request, jsonify, current_app
 import requests
-import uuid
-from concurrent.futures import ThreadPoolExecutor
 
 bp = Blueprint("route_optimizer", __name__)
-
-# Thread pool para operaciones pesadas
-executor = ThreadPoolExecutor(max_workers=10)
 
 
 def get_optimizer_service_url():
     """
-    Obtener la URL del servicio optimizador desde configuración
+    Obtener la URL del servicio optimizador FastAPI desde configuración
     """
     url = current_app.config.get("OPTIMIZER_SERVICE_URL")
     if not url:
@@ -20,133 +15,216 @@ def get_optimizer_service_url():
     return url.rstrip('/')
 
 
+# ============================================
+# ENDPOINTS QUE SÍ EXISTEN EN TU FASTAPI
+# ============================================
+
 @bp.post("/api/v1/routes/optimize")
-def optimize_routes():
+def optimizar_pedidos():
     """
-    Proxy asíncrono a Route Optimizer - optimización de rutas
-    Devuelve 202 inmediatamente y procesa en background
+    Proxy a FastAPI optimizer - optimizar pedidos completo
     ---
     tags:
       - Route Optimizer
+    summary: Optimizar ruta de entregas con pedidos
+    description: |
+      Endpoint completo para optimizar pedidos desde el frontend.
+      
+      Recibe configuración de ruta (bodega, camión, horarios) y lista de pedidos.
+      Devuelve secuencia optimizada con horarios, resumen y geometría.
     parameters:
       - in: body
         name: body
         required: true
-        description: Parámetros de optimización (según microservicio)
-    responses:
-      202:
-        description: Request accepted, processing in background
         schema:
           type: object
+          required:
+            - configuracion
+            - pedidos
           properties:
-            request_id:
-              type: string
-            status:
-              type: string
-      400:
-        description: Validation error
-      503:
-        description: Service unavailable
-    """
-    optimizer_url = get_optimizer_service_url()
-    if not optimizer_url:
-        return jsonify(error="Servicio optimizador no disponible"), 503
-    
-    data = request.get_json(silent=True)
-    
-    if data is None:
-        return jsonify(error="Body JSON requerido"), 400
-    
-    # Generar request_id para tracking
-    request_id = str(uuid.uuid4())
-    
-    # Enviar en background
-    executor.submit(
-        call_optimizer_async,
-        optimizer_url,
-        data,
-        request_id
-    )
-    
-    # Respuesta inmediata
-    return jsonify(
-        request_id=request_id,
-        status="processing",
-        message="Route optimization in progress"
-    ), 202
-
-
-@bp.post("/api/v1/routes/<route_id>/assign-driver")
-def assign_driver_to_route(route_id: str):
-    """
-    Proxy síncrono - asignar conductor
-    ---
-    tags:
-      - Route Optimizer
-    parameters:
-      - in: path
-        name: route_id
-        type: string
-        required: true
-      - in: body
-        name: body
-        required: true
+            configuracion:
+              type: object
+              properties:
+                bodega_origen:
+                  type: string
+                hora_inicio:
+                  type: string
+                camion_capacidad_kg:
+                  type: number
+                camion_capacidad_m3:
+                  type: number
+            pedidos:
+              type: array
+              items:
+                type: object
+            costo_km:
+              type: number
+            costo_hora:
+              type: number
     responses:
       200:
-        description: Driver assigned successfully
-      404:
-        description: Route not found
-      503:
-        description: Service unavailable
+        description: Ruta optimizada exitosamente
+      400:
+        description: Error de validación
+      500:
+        description: Error interno
     """
     optimizer_url = get_optimizer_service_url()
     if not optimizer_url:
         return jsonify(error="Servicio optimizador no disponible"), 503
     
     data = request.get_json(silent=True)
-    
     if data is None:
         return jsonify(error="Body JSON requerido"), 400
     
     try:
         response = requests.post(
-            f"{optimizer_url}/routes/{route_id}/assign-driver",
+            f"{optimizer_url}/api/v1/optimize/pedidos",
             json=data,
-            timeout=10
+            timeout=60
         )
         response.raise_for_status()
         return jsonify(response.json()), response.status_code
         
     except requests.exceptions.HTTPError as e:
         if e.response is not None:
-            if e.response.status_code == 404:
-                return jsonify(error="Route not found"), 404
             try:
                 return jsonify(e.response.json()), e.response.status_code
             except:
                 return jsonify(error=e.response.text), e.response.status_code
-        return jsonify(error="Error asignando conductor"), 500
-        
+        return jsonify(error="Error en optimización"), 500
+    except requests.exceptions.Timeout:
+        return jsonify(error="Timeout en optimización"), 504
     except requests.exceptions.RequestException as e:
-        current_app.logger.error(f"Error calling route optimizer: {e}")
+        current_app.logger.error(f"Error: {e}")
         return jsonify(error="Error conectando con optimizador"), 503
 
 
-@bp.get("/api/v1/routes")
-def get_routes():
+@bp.post("/api/v1/optimize/route")
+def optimizar_ruta():
     """
-    Proxy síncrono - lista de rutas
+    Proxy a FastAPI optimizer - optimizar ruta simple
     ---
     tags:
       - Route Optimizer
+    summary: Optimizar ruta de entregas
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - bodega
+            - paradas
+          properties:
+            bodega:
+              type: object
+            paradas:
+              type: array
+            retorna_bodega:
+              type: boolean
+    """
+    optimizer_url = get_optimizer_service_url()
+    if not optimizer_url:
+        return jsonify(error="Servicio optimizador no disponible"), 503
+    
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify(error="Body JSON requerido"), 400
+    
+    try:
+        response = requests.post(
+            f"{optimizer_url}/api/v1/optimize/route",
+            json=data,
+            timeout=30
+        )
+        response.raise_for_status()
+        return jsonify(response.json()), response.status_code
+        
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None:
+            try:
+                return jsonify(e.response.json()), e.response.status_code
+            except:
+                return jsonify(error=e.response.text), e.response.status_code
+        return jsonify(error="Error optimizando ruta"), 500
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error conectando con optimizador"), 503
+
+
+@bp.post("/api/v1/optimize/from-service")
+def optimizar_desde_servicio():
+    """
+    Proxy a FastAPI optimizer - obtener visitas de ruta-service y optimizar
+    ---
+    tags:
+      - Route Optimizer
+    summary: Optimizar desde servicio de rutas
+    parameters:
+      - in: query
+        name: fecha
+        type: string
+        required: true
+        description: Fecha en formato YYYY-MM-DD
+      - in: query
+        name: vendedor_id
+        type: integer
+        required: true
+        description: ID del vendedor
     """
     optimizer_url = get_optimizer_service_url()
     if not optimizer_url:
         return jsonify(error="Servicio optimizador no disponible"), 503
     
     try:
-        response = requests.get(
-            f"{optimizer_url}/routes",
+        response = requests.post(
+            f"{optimizer_url}/api/v1/optimize/from-service",
+            params=request.args,
+            timeout=30
+        )
+        response.raise_for_status()
+        return jsonify(response.json()), response.status_code
+        
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None:
+            try:
+                return jsonify(e.response.json()), e.response.status_code
+            except:
+                return jsonify(error=e.response.text), e.response.status_code
+        return jsonify(error="Error optimizando desde servicio"), 500
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error conectando con optimizador"), 503
+
+
+@bp.post("/api/v1/geocode")
+def geocodificar():
+    """
+    Proxy a FastAPI optimizer - geocodificar dirección
+    ---
+    tags:
+      - Route Optimizer
+    summary: Convertir dirección a coordenadas
+    parameters:
+      - in: query
+        name: direccion
+        type: string
+        required: true
+        description: Dirección a geocodificar
+      - in: query
+        name: ciudad
+        type: string
+        description: Ciudad (default Bogotá)
+    """
+    optimizer_url = get_optimizer_service_url()
+    if not optimizer_url:
+        return jsonify(error="Servicio optimizador no disponible"), 503
+    
+    try:
+        response = requests.post(
+            f"{optimizer_url}/api/v1/geocode",
             params=request.args,
             timeout=10
         )
@@ -159,69 +237,95 @@ def get_routes():
                 return jsonify(e.response.json()), e.response.status_code
             except:
                 return jsonify(error=e.response.text), e.response.status_code
-        return jsonify(error="Error obteniendo rutas"), 500
-        
+        return jsonify(error="Error geocodificando"), 500
     except requests.exceptions.RequestException as e:
-        current_app.logger.error(f"Error calling route optimizer: {e}")
+        current_app.logger.error(f"Error: {e}")
         return jsonify(error="Error conectando con optimizador"), 503
 
 
-@bp.get("/api/v1/routes/<route_id>")
-def get_route_detail(route_id: str):
+@bp.post("/api/v1/geocode/batch")
+def geocodificar_batch():
     """
-    Proxy síncrono - detalle de ruta
+    Proxy a FastAPI optimizer - geocodificar múltiples direcciones
     ---
     tags:
       - Route Optimizer
-    """
-    optimizer_url = get_optimizer_service_url()
-    if not optimizer_url:
-        return jsonify(error="Servicio optimizador no disponible"), 503
-    
-    try:
-        response = requests.get(
-            f"{optimizer_url}/routes/{route_id}",
-            timeout=10
-        )
-        response.raise_for_status()
-        return jsonify(response.json()), response.status_code
-        
-    except requests.exceptions.HTTPError as e:
-        if e.response is not None:
-            if e.response.status_code == 404:
-                return jsonify(error="Route not found"), 404
-            try:
-                return jsonify(e.response.json()), e.response.status_code
-            except:
-                return jsonify(error=e.response.text), e.response.status_code
-        return jsonify(error="Error obteniendo ruta"), 500
-        
-    except requests.exceptions.RequestException as e:
-        current_app.logger.error(f"Error calling route optimizer: {e}")
-        return jsonify(error="Error conectando con optimizador"), 503
-
-
-@bp.patch("/api/v1/routes/<route_id>/status")
-def update_route_status(route_id: str):
-    """
-    Proxy síncrono - actualizar estado
-    ---
-    tags:
-      - Route Optimizer
+    summary: Geocodificar batch de direcciones
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            direcciones:
+              type: array
+              items:
+                type: string
     """
     optimizer_url = get_optimizer_service_url()
     if not optimizer_url:
         return jsonify(error="Servicio optimizador no disponible"), 503
     
     data = request.get_json(silent=True)
-    
     if data is None:
         return jsonify(error="Body JSON requerido"), 400
     
     try:
-        response = requests.patch(
-            f"{optimizer_url}/routes/{route_id}/status",
+        response = requests.post(
+            f"{optimizer_url}/api/v1/geocode/batch",
             json=data,
+            timeout=15
+        )
+        response.raise_for_status()
+        return jsonify(response.json()), response.status_code
+        
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None:
+            try:
+                return jsonify(e.response.json()), e.response.status_code
+            except:
+                return jsonify(error=e.response.text), e.response.status_code
+        return jsonify(error="Error geocodificando batch"), 500
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error conectando con optimizador"), 503
+
+
+@bp.post("/api/v1/route/calculate")
+def calcular_ruta():
+    """
+    Proxy a FastAPI optimizer - calcular ruta entre dos puntos
+    ---
+    tags:
+      - Route Optimizer
+    summary: Calcular ruta entre origen y destino
+    parameters:
+      - in: query
+        name: origen_lat
+        type: number
+        required: true
+      - in: query
+        name: origen_lon
+        type: number
+        required: true
+      - in: query
+        name: destino_lat
+        type: number
+        required: true
+      - in: query
+        name: destino_lon
+        type: number
+        required: true
+    """
+    optimizer_url = get_optimizer_service_url()
+    if not optimizer_url:
+        return jsonify(error="Servicio optimizador no disponible"), 503
+    
+    try:
+        response = requests.post(
+            f"{optimizer_url}/api/v1/route/calculate",
+            params=request.args,
             timeout=10
         )
         response.raise_for_status()
@@ -229,61 +333,75 @@ def update_route_status(route_id: str):
         
     except requests.exceptions.HTTPError as e:
         if e.response is not None:
-            if e.response.status_code == 404:
-                return jsonify(error="Route not found"), 404
             try:
                 return jsonify(e.response.json()), e.response.status_code
             except:
                 return jsonify(error=e.response.text), e.response.status_code
-        return jsonify(error="Error actualizando ruta"), 500
-        
+        return jsonify(error="Error calculando ruta"), 500
     except requests.exceptions.RequestException as e:
-        current_app.logger.error(f"Error calling route optimizer: {e}")
+        current_app.logger.error(f"Error: {e}")
         return jsonify(error="Error conectando con optimizador"), 503
 
 
-# ============================================
-# FUNCIÓN ASYNC (solo para /optimize)
-# ============================================
-
-def call_optimizer_async(
-    optimizer_url: str,
-    data: dict,
-    request_id: str
-):
+@bp.post("/api/v1/route/matrix")
+def calcular_matriz():
     """
-    Llama al microservicio en background
-    No devuelve nada al cliente (ya recibió 202)
-    """
-    try:
-        response = requests.post(
-            f"{optimizer_url}/routes/optimize",
-            json=data,
-            timeout=60  # Timeout largo para optimización
-        )
-        response.raise_for_status()
-        
-        current_app.logger.info(
-            f"Route optimization successful. Request ID: {request_id}"
-        )
-        
-    except requests.exceptions.Timeout:
-        current_app.logger.error(
-            f"Timeout calling route optimizer. Request ID: {request_id}"
-        )
-    except requests.exceptions.RequestException as e:
-        current_app.logger.error(
-            f"Error calling route optimizer. Request ID: {request_id}, Error: {e}"
-        )
-
-
-@bp.get("/api/v1/routes/health")
-def optimizer_health_check():
-    """
-    Health check del servicio optimizador
+    Proxy a FastAPI optimizer - calcular matriz de distancias
     ---
     tags:
       - Route Optimizer
+    summary: Calcular matriz de distancias entre múltiples puntos
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: array
+          items:
+            type: object
+    """
+    optimizer_url = get_optimizer_service_url()
+    if not optimizer_url:
+        return jsonify(error="Servicio optimizador no disponible"), 503
+    
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify(error="Body JSON requerido"), 400
+    
+    try:
+        response = requests.post(
+            f"{optimizer_url}/api/v1/route/matrix",
+            json=data,
+            timeout=15
+        )
+        response.raise_for_status()
+        return jsonify(response.json()), response.status_code
+        
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None:
+            try:
+                return jsonify(e.response.json()), e.response.status_code
+            except:
+                return jsonify(error=e.response.text), e.response.status_code
+        return jsonify(error="Error calculando matriz"), 500
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error conectando con optimizador"), 503
+
+
+@bp.get("/api/v1/optimize/health")
+def optimizer_health_check():
+    """
+    Health check del servicio optimizador FastAPI
+    ---
+    tags:
+      - Route Optimizer
+    summary: Verificar estado del servicio
+    responses:
+      200:
+        description: Servicio saludable
+      503:
+        description: Servicio no disponible
     """
     optimizer_url = get_optimizer_service_url()
     
@@ -294,8 +412,9 @@ def optimizer_health_check():
         ), 503
     
     try:
+        # FastAPI tiene /docs por defecto
         response = requests.get(
-            f"{optimizer_url}/health",
+            f"{optimizer_url}/docs",
             timeout=5
         )
         
@@ -308,21 +427,16 @@ def optimizer_health_check():
         else:
             return jsonify(
                 status="degraded",
-                optimizer_service="error",
-                status_code=response.status_code,
-                optimizer_url=optimizer_url
+                status_code=response.status_code
             ), 503
             
     except requests.exceptions.Timeout:
         return jsonify(
             status="unhealthy",
-            optimizer_service="timeout",
-            optimizer_url=optimizer_url
+            optimizer_service="timeout"
         ), 503
     except Exception as e:
         return jsonify(
             status="unhealthy",
-            optimizer_service="disconnected",
-            error=str(e),
-            optimizer_url=optimizer_url
+            error=str(e)
         ), 503
