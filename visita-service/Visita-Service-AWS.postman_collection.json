@@ -1,0 +1,569 @@
+{
+	"info": {
+		"_postman_id": "visita-service-aws-2025",
+		"name": "Visita Service - AWS",
+		"description": "Colección completa para probar el servicio de visitas en AWS",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/health",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"health"
+					]
+				},
+				"description": "Verifica que el servicio esté funcionando"
+			},
+			"response": []
+		},
+		{
+			"name": "Listar Todas las Visitas",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas"
+					]
+				},
+				"description": "Lista todas las visitas sin filtros"
+			},
+			"response": []
+		},
+		{
+			"name": "Listar Visitas por Vendedor",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas?vendedor_id=1",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas"
+					],
+					"query": [
+						{
+							"key": "vendedor_id",
+							"value": "1",
+							"description": "ID del vendedor"
+						}
+					]
+				},
+				"description": "Filtra visitas por vendedor_id"
+			},
+			"response": []
+		},
+		{
+			"name": "Listar Visitas por Cliente",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas?cliente_id=10",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas"
+					],
+					"query": [
+						{
+							"key": "cliente_id",
+							"value": "10",
+							"description": "ID del cliente"
+						}
+					]
+				},
+				"description": "Filtra visitas por cliente_id"
+			},
+			"response": []
+		},
+		{
+			"name": "Listar Visitas por Estado",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas?estado=exitosa",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas"
+					],
+					"query": [
+						{
+							"key": "estado",
+							"value": "exitosa",
+							"description": "Estados: exitosa, pendiente, cancelada"
+						}
+					]
+				},
+				"description": "Filtra visitas por estado (exitosa, pendiente, cancelada)"
+			},
+			"response": []
+		},
+		{
+			"name": "Obtener Visita por ID",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas/1",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas",
+						"1"
+					]
+				},
+				"description": "Obtiene el detalle completo de una visita específica con sus hallazgos"
+			},
+			"response": []
+		},
+		{
+			"name": "Crear Visita Simple (sin archivos)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "vendedor_id",
+							"value": "1",
+							"description": "ID del vendedor (requerido)",
+							"type": "text"
+						},
+						{
+							"key": "cliente_id",
+							"value": "100",
+							"description": "ID del cliente (requerido)",
+							"type": "text"
+						},
+						{
+							"key": "nombre_contacto",
+							"value": "Dr. Pedro González",
+							"description": "Nombre del contacto en el cliente (requerido)",
+							"type": "text"
+						},
+						{
+							"key": "observaciones",
+							"value": "Cliente interesado en equipo de ultrasonido. Requiere cotización para 2 equipos.",
+							"description": "Observaciones generales de la visita (opcional)",
+							"type": "text"
+						},
+						{
+							"key": "estado",
+							"value": "pendiente",
+							"description": "Estado: pendiente, exitosa, cancelada (opcional, default: pendiente)",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas"
+					]
+				},
+				"description": "Crea una nueva visita sin archivos adjuntos"
+			},
+			"response": []
+		},
+		{
+			"name": "Crear Visita con Fotos y Videos",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "vendedor_id",
+							"value": "1",
+							"description": "ID del vendedor (requerido)",
+							"type": "text"
+						},
+						{
+							"key": "cliente_id",
+							"value": "200",
+							"description": "ID del cliente (requerido)",
+							"type": "text"
+						},
+						{
+							"key": "nombre_contacto",
+							"value": "Dra. María López",
+							"description": "Nombre del contacto (requerido)",
+							"type": "text"
+						},
+						{
+							"key": "observaciones",
+							"value": "Cliente requiere mantenimiento de equipo de rayos X. Se adjuntan fotos del equipo actual y video del problema.",
+							"description": "Observaciones (opcional)",
+							"type": "text"
+						},
+						{
+							"key": "estado",
+							"value": "exitosa",
+							"description": "Estado de la visita (opcional)",
+							"type": "text"
+						},
+						{
+							"key": "fotos",
+							"description": "Selecciona una imagen .jpg, .jpeg, .png o .gif",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "fotos",
+							"description": "Puedes agregar múltiples fotos con el mismo key",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "videos",
+							"description": "Selecciona un video .mp4, .avi o .mov",
+							"type": "file",
+							"src": []
+						}
+					]
+				},
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas"
+					]
+				},
+				"description": "Crea una visita completa con fotos y videos que se guardan en S3"
+			},
+			"response": []
+		},
+		{
+			"name": "Listar Hallazgos de una Visita",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas/1/hallazgos",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas",
+						"1",
+						"hallazgos"
+					]
+				},
+				"description": "Lista todos los hallazgos (textos, fotos, videos) de una visita"
+			},
+			"response": []
+		},
+		{
+			"name": "Agregar Hallazgo de Texto",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "contenido",
+							"value": "El equipo de ultrasonido presenta fallas en el transductor. Se requiere reemplazo urgente.",
+							"description": "Contenido del hallazgo (requerido)",
+							"type": "text"
+						},
+						{
+							"key": "descripcion",
+							"value": "Hallazgo técnico crítico",
+							"description": "Descripción del hallazgo (opcional)",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas/1/hallazgos/texto",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas",
+						"1",
+						"hallazgos",
+						"texto"
+					]
+				},
+				"description": "Agrega un hallazgo de tipo texto a una visita existente"
+			},
+			"response": []
+		},
+		{
+			"name": "Agregar Hallazgo - Foto",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "archivo",
+							"description": "Selecciona una imagen .jpg, .jpeg, .png o .gif",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "tipo",
+							"value": "foto",
+							"description": "Tipo de archivo (requerido): foto o video",
+							"type": "text"
+						},
+						{
+							"key": "descripcion",
+							"value": "Foto del equipo dañado",
+							"description": "Descripción del archivo (opcional)",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas/1/hallazgos/archivo",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas",
+						"1",
+						"hallazgos",
+						"archivo"
+					]
+				},
+				"description": "Sube una foto a una visita existente. El archivo se guarda en S3."
+			},
+			"response": []
+		},
+		{
+			"name": "Agregar Hallazgo - Video",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "archivo",
+							"description": "Selecciona un video .mp4, .avi o .mov",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "tipo",
+							"value": "video",
+							"description": "Tipo de archivo (requerido): foto o video",
+							"type": "text"
+						},
+						{
+							"key": "descripcion",
+							"value": "Video del procedimiento de diagnóstico",
+							"description": "Descripción del archivo (opcional)",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas/1/hallazgos/archivo",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas",
+						"1",
+						"hallazgos",
+						"archivo"
+					]
+				},
+				"description": "Sube un video a una visita existente. El archivo se guarda en S3."
+			},
+			"response": []
+		},
+		{
+			"name": "Actualizar Estado de Visita",
+			"request": {
+				"method": "PATCH",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "estado",
+							"value": "exitosa",
+							"description": "Nuevo estado: pendiente, exitosa o cancelada (requerido)",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/visitas/1/estado",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"visitas",
+						"1",
+						"estado"
+					]
+				},
+				"description": "Actualiza el estado de una visita existente"
+			},
+			"response": []
+		},
+		{
+			"name": "Descargar Archivo de Hallazgo",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/hallazgos/5/archivo",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"hallazgos",
+						"5",
+						"archivo"
+					]
+				},
+				"description": "Descarga una foto o video de un hallazgo. Cambia el ID del hallazgo según necesites."
+			},
+			"response": []
+		},
+		{
+			"name": "Eliminar Hallazgo",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "http://medisupply-dev-bff-cliente-alb-187432883.us-east-1.elb.amazonaws.com/api/hallazgos/5",
+					"protocol": "http",
+					"host": [
+						"medisupply-dev-bff-cliente-alb-187432883",
+						"us-east-1",
+						"elb",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"api",
+						"hallazgos",
+						"5"
+					]
+				},
+				"description": "Elimina un hallazgo (texto, foto o video). Si es un archivo, también se elimina de S3."
+			},
+			"response": []
+		}
+	]
+}

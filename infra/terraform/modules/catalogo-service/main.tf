@@ -164,6 +164,17 @@ resource "aws_db_instance" "catalogo_postgres" {
 }
 
 # ============================================================
+# S3 BUCKET - COMPARTIDO CON VISITA-SERVICE
+# ============================================================
+# Usamos el bucket existente: medisupply-dev-visita-uploads
+# Los archivos de carga masiva se guardarán con prefijo: bulk-uploads/
+# Las fotos de visitas usan prefijo: visitas/
+
+data "aws_s3_bucket" "shared_uploads" {
+  bucket = var.s3_bucket_name
+}
+
+# ============================================================
 # SQS FIFO QUEUE
 # ============================================================
 
@@ -292,24 +303,24 @@ resource "aws_iam_role" "catalogo_ecs_execution_role" {
     Project = var.project
     Env     = var.env
   }
-  }
+}
 
-  # Permiso para acceder al secreto de la base de datos en Secrets Manager
-  resource "aws_iam_role_policy" "catalogo_ecs_execution_secrets_policy" {
-    name   = "catalogo-ecs-execution-secrets-policy"
-    role   = aws_iam_role.catalogo_ecs_execution_role.id
-    policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [
-        {
-          Effect = "Allow"
-          Action = [
-            "secretsmanager:GetSecretValue"
-          ]
-          Resource = aws_secretsmanager_secret.catalogo_db_credentials.arn
-        }
-      ]
-    })
+# Permiso para acceder al secreto de la base de datos en Secrets Manager
+resource "aws_iam_role_policy" "catalogo_ecs_execution_secrets_policy" {
+  name = "catalogo-ecs-execution-secrets-policy"
+  role = aws_iam_role.catalogo_ecs_execution_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = aws_secretsmanager_secret.catalogo_db_credentials.arn
+      }
+    ]
+  })
 }
 
 resource "aws_iam_role_policy_attachment" "catalogo_ecs_execution_role_policy" {
@@ -341,7 +352,7 @@ resource "aws_iam_role" "catalogo_ecs_task_role" {
   }
 }
 
-# Policy para acceso a SQS y Secrets Manager
+# Policy para acceso a SQS, S3 y Secrets Manager
 resource "aws_iam_role_policy" "catalogo_task_policy" {
   name = "${var.project}-${var.env}-catalogo-task-policy"
   role = aws_iam_role.catalogo_ecs_task_role.id
@@ -360,6 +371,19 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
         Resource = [
           aws_sqs_queue.catalogo_events.arn,
           aws_sqs_queue.catalogo_dlq.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          data.aws_s3_bucket.shared_uploads.arn,
+          "${data.aws_s3_bucket.shared_uploads.arn}/*"
         ]
       },
       {
@@ -401,7 +425,7 @@ resource "aws_iam_role_policy" "catalogo_ecs_exec_policy" {
 
 resource "aws_secretsmanager_secret" "catalogo_db_credentials" {
   #name = "${var.project}-${var.env}-catalogo-db-credentials-v2" # Cambiar nombre
-  name = "${var.project}-${var.env}-catalogo-db-credentials-v2-cuentasergio" # Cambiar nombre
+  name                    = "${var.project}-${var.env}-catalogo-db-credentials-v2-cuentasergio" # Cambiar nombre
   recovery_window_in_days = 0
 
   tags = {
@@ -461,7 +485,7 @@ resource "aws_ecs_task_definition" "catalogo" {
         {
           containerPort = var.container_port
           protocol      = "tcp"
-          name          = "catalogo-http"  # Unique port name for Service Connect
+          name          = "catalogo-http" # Unique port name for Service Connect
         }
       ]
 
@@ -485,6 +509,14 @@ resource "aws_ecs_task_definition" "catalogo" {
         {
           name  = "SQS_REGION"
           value = "us-east-1"
+        },
+        {
+          name  = "S3_BUCKET_NAME"
+          value = data.aws_s3_bucket.shared_uploads.id
+        },
+        {
+          name  = "REDIS_URL"
+          value = var.redis_url
         },
         {
           name  = "DB_HOST"
@@ -607,8 +639,8 @@ resource "aws_ecs_service" "catalogo" {
   task_definition = aws_ecs_task_definition.catalogo.arn
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
-  
-  enable_execute_command = true  # Permite acceso directo al contenedor para debugging
+
+  enable_execute_command = true # Permite acceso directo al contenedor para debugging
 
   network_configuration {
     subnets         = var.private_subnets
@@ -625,7 +657,7 @@ resource "aws_ecs_service" "catalogo" {
         dns_name = "catalogo"
         port     = var.container_port
       }
-      port_name = "catalogo-http"  # Must match the portMapping name
+      port_name = "catalogo-http" # Must match the portMapping name
     }
   }
 

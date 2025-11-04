@@ -31,6 +31,12 @@ variable "environment" {
   }
 }
 
+variable "s3_bucket_name" {
+  description = "Nombre del bucket S3 compartido para uploads (visitas y bulk-uploads)"
+  type        = string
+  default     = "medisupply-dev-visita-uploads"
+}
+
 # ============================================================
 # NUEVAS VARIABLES PARA MANEJO DE RECURSOS EXISTENTES
 # ============================================================
@@ -235,4 +241,10 @@ variable "additional_tags" {
 variable "service_connect_namespace_name" {
   description = "Service Connect namespace for internal service discovery"
   type        = string
+}
+
+variable "redis_url" {
+  description = "Redis connection URL for async task tracking"
+  type        = string
+  default     = "redis://redis:6379/1"
 }

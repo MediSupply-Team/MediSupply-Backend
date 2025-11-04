@@ -35,6 +35,17 @@ output "db_port" {
   value       = aws_db_instance.catalogo_postgres.port
 }
 
+# S3 Bucket (compartido con visita-service)
+output "s3_bucket_name" {
+  description = "Nombre del bucket S3 compartido para uploads"
+  value       = data.aws_s3_bucket.shared_uploads.id
+}
+
+output "s3_bucket_arn" {
+  description = "ARN del bucket S3 compartido para uploads"
+  value       = data.aws_s3_bucket.shared_uploads.arn
+}
+
 # SQS Queue
 output "sqs_queue_url" {
   description = "URL de la cola SQS FIFO para catalogo-service"

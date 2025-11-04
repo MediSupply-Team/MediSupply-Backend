@@ -171,7 +171,8 @@ resource "aws_security_group" "postgres_sg" {
     security_groups = local.is_local ? [] : [
       module.orders.security_group_id,
       module.rutas_service.security_group_id,
-      module.report_service.security_group_id
+      module.report_service.security_group_id,
+      module.visita_service.security_group_id
     ]
     description = local.is_local ? "Allow from VPC (LocalStack)" : "Allow from services"
   }
@@ -536,6 +537,41 @@ resource "aws_secretsmanager_secret_version" "reports_db_url_v" {
   # Usar el mismo usuario que orders
   secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/reports?sslmode=require"
 }
+
+# ============================================================
+# VISITA DATABASE SECRETS
+# ============================================================
+
+resource "aws_secretsmanager_secret" "visita_db_url" {
+  name                    = "${var.project}/${var.env}/visita/DB_URL"
+  description             = "Database connection URL for Visita service"
+  recovery_window_in_days = 0
+
+  tags = {
+    Project = var.project
+    Env     = var.env
+    Service = "visita"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "visita_db_url_v" {
+  secret_id = aws_secretsmanager_secret.visita_db_url.id
+  # Usar el mismo usuario y base de datos que orders (compartida)
+  secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/visitas?sslmode=require"
+  
+  lifecycle {
+     ignore_changes = [secret_string]
+  }
+}
+
+data "aws_secretsmanager_secret" "mapbox_token" {
+  name = "/${var.project}/${var.env}/mapbox-token"
+}
+
+data "aws_secretsmanager_secret_version" "mapbox_token" {
+  secret_id = data.aws_secretsmanager_secret.mapbox_token.id
+}
+
 # ============================================================
 # SERVICES MODULES
 # ============================================================
@@ -597,23 +633,20 @@ module "bff_venta" {
   project    = var.project
   env        = var.env
   aws_region = var.aws_region
-  environment = var.environment  # ← AGREGADO
+  environment = var.environment
 
   vpc_id          = module.vpc.vpc_id
   public_subnets  = module.vpc.public_subnets
   private_subnets = module.vpc.private_subnets
 
-  bff_name      = var.bff_name
-  bff_app_port  = var.bff_app_port
-  bff_repo_name = var.bff_repo_name
+  bff_name      = "bff-venta"
+  bff_app_port  = 8000
+  bff_repo_name = "${var.project}-${var.env}-bff-venta"
 
-  bff_env = merge(
-    var.bff_env,
-    {
-      #RUTAS_SERVICE_URL = "http://${module.rutas_service.alb_dns_name}"
-      RUTAS_SERVICE_URL = "http://${module.bff_venta.alb_dns_name}"
-    }
-  )
+  bff_env = {
+    FLASK_ENV = var.env
+    LOG_LEVEL = "DEBUG"
+  }
 
   # SQS (consumido por bff_venta)
   sqs_url = module.consumer.sqs_queue_url
@@ -621,9 +654,13 @@ module "bff_venta" {
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Catalogo service serÃ¡ accesible por el mismo ALB en /catalog
-  catalogo_service_url = var.catalogo_service_url
-
+  # Todos los servicios usan el mismo ALB
+  # El ALB tiene reglas de path-based routing configuradas
+  catalogo_service_url  = "http://${module.bff_venta.alb_dns_name}/catalog"
+  optimizer_service_url = "http://${module.bff_venta.alb_dns_name}"
+  rutas_service_url     = "http://${module.bff_venta.alb_dns_name}"
+  orders_service_url = var.orders_service_url != "" ? var.orders_service_url : ""
+  
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
 }
@@ -684,9 +721,9 @@ module "bff_cliente" {
   sqs_url = module.consumer.sqs_queue_url
   sqs_arn = module.consumer.sqs_queue_arn
 
-  # Servicios backend (usando Service Connect DNS)
+  # Servicios backend (usando ALBs internos)
   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
-  cliente_service_url  = local.is_local ? "http://cliente:8000" : "http://cliente:8000"
+  cliente_service_url  = local.is_local ? "http://cliente:8000" : "http://${module.cliente_service.alb_dns_name}"
 
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
@@ -695,6 +732,25 @@ module "bff_cliente" {
 # ============================================================
 # MICROSERVICES MODULES
 # ============================================================
+
+# Redis (ElastiCache) - Para tracking de tareas asíncronas
+module "redis" {
+  source = "./modules/redis"
+  
+  count = local.is_local ? 0 : 1  # Solo en AWS, no en LocalStack
+  
+  project = var.project
+  env     = var.env
+  
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnets
+  
+  # Permitir acceso desde subnets privadas (donde están los ECS tasks)
+  allowed_security_groups = []  # Se configurará después con reglas adicionales
+  
+  redis_engine_version = var.redis_engine_version
+  redis_node_type      = var.redis_node_type
+}
 
 # Catalogo Service
 module "catalogo_service" {
@@ -724,6 +780,9 @@ module "catalogo_service" {
   db_instance_class        = var.catalogo_db_instance_class
   db_allocated_storage     = var.catalogo_db_allocated_storage
   db_backup_retention_days = var.catalogo_db_backup_retention_days
+
+  # Redis configuration
+  redis_url = local.is_local ? "redis://redis:6379/1" : module.redis[0].redis_url
 
   # Additional tags
   additional_tags = var.additional_tags
@@ -816,4 +875,82 @@ module "report_service" {
 
   shared_http_listener_arn = module.bff_venta.alb_listener_arn
   shared_alb_sg_id         = module.bff_venta.alb_sg_id
+  
+  # S3 bucket para exportar reportes (usa el mismo bucket de visita)
+  s3_bucket_arn  = module.visita_service.s3_bucket_arn
+  s3_bucket_name = module.visita_service.s3_bucket_name
+  
+  depends_on = [module.visita_service]
+}
+
+# Visita Service
+module "visita_service" {
+  source = "./modules/visita_service"
+
+  project     = var.project
+  env         = var.env
+  environment = var.environment
+  aws_region  = var.aws_region
+
+  service_name = "visita"
+
+  vpc_id          = module.vpc.vpc_id
+  public_subnets  = module.vpc.public_subnets
+  private_subnets = module.vpc.private_subnets
+
+  ecs_cluster_arn   = aws_ecs_cluster.orders.arn
+  db_url_secret_arn = aws_secretsmanager_secret.visita_db_url.arn
+
+  app_port      = 8003
+  image_tag     = "latest"
+  desired_count = 1
+  cpu           = "256"
+  memory        = "512"
+
+  health_check_path = "/health"
+
+  # Usar ALB de BFF Cliente
+  shared_http_listener_arn = module.bff_cliente.alb_listener_arn
+  shared_alb_sg_id         = module.bff_cliente.alb_sg_id
+
+  # S3 bucket para uploads (fotos/videos)
+  s3_bucket_name = "${var.project}-${var.env}-visita-uploads"
+}
+
+# ============================================================
+# OPTIMIZADOR-RUTAS-SERVICE
+# ============================================================
+
+module "optimizador_rutas" {
+  source = "./modules/optimizador_rutas"
+
+  project     = var.project
+  env         = var.env
+  environment = var.environment
+  aws_region  = var.aws_region
+
+  service_name = "optimizador-rutas"
+
+  vpc_id          = module.vpc.vpc_id
+  public_subnets  = module.vpc.public_subnets
+  private_subnets = module.vpc.private_subnets
+
+  ecs_cluster_arn = aws_ecs_cluster.orders.arn
+
+  # Secret ARN - read from AWS, never deleted by Terraform
+  mapbox_token_secret_arn = data.aws_secretsmanager_secret.mapbox_token.arn
+
+  shared_http_listener_arn = module.bff_venta.alb_listener_arn
+  shared_alb_sg_id         = module.bff_venta.alb_sg_id
+
+  osrm_url         = var.osrm_url
+  ruta_service_url = "http://${module.bff_venta.alb_dns_name}"
+
+  app_port      = 8000
+  image_tag     = var.optimizador_rutas_image_tag
+  desired_count = var.env == "prod" ? 2 : 1
+  cpu           = var.env == "prod" ? "512" : "256"
+  memory        = var.env == "prod" ? "1024" : "512"
+
+  health_check_path = "/optimizer/health"
 }

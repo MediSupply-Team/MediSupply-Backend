@@ -8,7 +8,7 @@ from app.models.catalogo_model import Producto
 import time
 import logging
 
-router = APIRouter(prefix="/catalog", tags=["catalog"])
+router = APIRouter(tags=["catalog"])
 logger = logging.getLogger(__name__)
 
 @router.get("/items", response_model=SearchResponse)

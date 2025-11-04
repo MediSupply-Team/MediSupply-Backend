@@ -17,7 +17,7 @@ import io
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
-from app.models.catalogo_model import Producto
+from app.models.catalogo_model import Producto, Inventario
 from app.services.aws_service import aws_service
 from app.services.task_service import task_service, TaskStatus
 
@@ -230,9 +230,32 @@ class BulkUploadWorker:
                             nuevo_producto.requiere_vencimiento = True
                         
                         session.add(nuevo_producto)
+                        
+                        # Hacer flush del producto para que se inserte en BD antes del inventario
+                        # Esto evita Foreign Key violations
+                        await session.flush()
+                        
                         productos_creados.append(producto_id)
                         exitosos += 1
                         logger.info(f"      ✓ Fila {fila_num}: Producto {producto_id} creado")
+                        
+                        # Crear inventario inicial automáticamente (stock 0 en bodega principal)
+                        # Esto asegura que el producto aparezca en consultas de inventario
+                        try:
+                            from datetime import datetime as dt, timedelta
+                            inventario_inicial = Inventario(
+                                producto_id=producto_id,
+                                pais="CO",  # País por defecto
+                                bodega_id="PRINCIPAL",  # Bodega por defecto
+                                lote=f"LOTE_INICIAL_{dt.now().strftime('%Y%m%d')}",
+                                cantidad=0,  # Stock inicial en 0
+                                vence=(dt.now() + timedelta(days=365)).date(),  # Vence en 1 año
+                                condiciones="Inventario inicial - requiere ingreso"
+                            )
+                            session.add(inventario_inicial)
+                            logger.info(f"         + Inventario inicial creado (stock: 0)")
+                        except Exception as inv_error:
+                            logger.warning(f"         ⚠️  No se pudo crear inventario inicial para {producto_id}: {inv_error}")
                         
                     except Exception as e:
                         errores.append({

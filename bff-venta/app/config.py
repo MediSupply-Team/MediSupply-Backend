@@ -15,10 +15,32 @@ class Config:
     # Flask
     JSON_SORT_KEYS = False
     
-    # Catalogo Service Configuration
-    CATALOGO_SERVICE_URL = os.getenv("CATALOGO_SERVICE_URL", 
-        "http://catalogo-service-placeholder.us-east-1.elb.amazonaws.com")
-    HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "30"))
-
-     # Rutas Service Configuration
+    # ============================================================
+    # SERVICE URLS
+    # ============================================================
+    # Estos valores vienen de Terraform (variables de entorno del contenedor)
+    
+    # Catálogo Service
+    CATALOGO_SERVICE_URL = os.getenv(
+        "CATALOGO_SERVICE_URL", 
+        "http://catalogo-service-placeholder.us-east-1.elb.amazonaws.com"
+    )
+    
+    # Rutas Service
     RUTAS_SERVICE_URL = os.getenv("RUTAS_SERVICE_URL")
+    
+    # Optimizador de Rutas Service
+    # IMPORTANTE: Debe coincidir con el nombre en Terraform
+    OPTIMIZER_SERVICE_URL = os.getenv(
+        "OPTIMIZER_SERVICE_URL",
+        "http://route-optimizer-service:8000"  # Fallback para desarrollo local
+    )
+    
+    # Orders Service
+    ORDERS_SERVICE_URL = os.getenv(
+        "ORDERS_SERVICE_URL",
+        "http://orders-service:8000"  # Fallback para desarrollo local
+    )
+    
+    # Timeouts
+    HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "30"))

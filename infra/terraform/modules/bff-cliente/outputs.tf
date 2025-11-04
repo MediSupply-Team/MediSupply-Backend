@@ -22,3 +22,8 @@ output "alb_url" {
   description = "ALB URL"
   value       = "http://${aws_lb.alb.dns_name}"
 }
+
+output "alb_sg_id" {
+  description = "ALB Security Group ID"
+  value       = aws_security_group.alb_sg.id
+}
