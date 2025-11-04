@@ -33,17 +33,17 @@ output "ecs_cluster_arn" {
 # DATABASE OUTPUTS (recursos directos en main.tf)
 # ============================================================
 output "db_endpoint" {
-  description = "RDS PostgreSQL endpoint"
-  value       = aws_db_instance.postgres.endpoint
+  description = "RDS endpoint"
+  value       = "${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}"
 }
 
 output "db_address" {
-  description = "RDS PostgreSQL address"
+  description = "RDS address"
   value       = aws_db_instance.postgres.address
 }
 
 output "db_port" {
-  description = "RDS PostgreSQL port"
+  description = "RDS port"
   value       = aws_db_instance.postgres.port
 }
 
@@ -54,28 +54,28 @@ output "db_name" {
 
 output "db_username" {
   description = "Database username"
-  value       = aws_db_instance.postgres.username
+  value       = "orders_user"
   sensitive   = true
 }
 
 output "db_instance_id" {
   description = "RDS instance ID"
-  value       = aws_db_instance.postgres.id
+  value       = aws_db_instance.postgres.resource_id
+}
+
+output "postgres_security_group_id" {
+  description = "Security group ID for PostgreSQL"
+  value       = aws_security_group.postgres_sg.id
 }
 
 output "db_url_secret_arn" {
-  description = "Database URL secret ARN"
+  description = "ARN of the DB_URL secret"
   value       = aws_secretsmanager_secret.db_url.arn
 }
 
 output "db_password_secret_arn" {
-  description = "Database password secret ARN"
+  description = "ARN of the DB_PASSWORD secret"
   value       = aws_secretsmanager_secret.db_password.arn
-}
-
-output "postgres_security_group_id" {
-  description = "PostgreSQL security group ID"
-  value       = aws_security_group.postgres_sg.id
 }
 
 # ============================================================
@@ -123,6 +123,62 @@ output "bff_ecr_repo_url" {
 }
 
 # ============================================================
+# BFF CLIENTE OUTPUTS
+# ============================================================
+output "bff_cliente_alb_dns" {
+  description = "BFF Cliente ALB DNS name"
+  value       = module.bff_cliente.alb_dns_name
+}
+
+output "bff_cliente_alb_url" {
+  description = "BFF Cliente URL"
+  value       = "http://${module.bff_cliente.alb_dns_name}"
+}
+
+output "bff_cliente_ecr_repo_url" {
+  description = "BFF Cliente ECR repo URL"
+  value       = module.bff_cliente.ecr_repo_url
+}
+
+output "bff_cliente_service_name" {
+  description = "BFF Cliente ECS service name"
+  value       = module.bff_cliente.service_name
+}
+
+# ============================================================
+# CLIENTE SERVICE OUTPUTS
+# ============================================================
+output "cliente_service_alb_dns" {
+  description = "Cliente service ALB DNS name"
+  value       = module.cliente_service.alb_dns_name
+}
+
+output "cliente_service_alb_url" {
+  description = "Cliente service URL"
+  value       = module.cliente_service.alb_url
+}
+
+output "cliente_service_ecr_repo_url" {
+  description = "Cliente service ECR repo URL"
+  value       = module.cliente_service.ecr_repository_url
+}
+
+output "cliente_service_name" {
+  description = "Cliente service ECS service name"
+  value       = module.cliente_service.service_name
+}
+
+output "cliente_service_log_group" {
+  description = "Cliente service CloudWatch log group"
+  value       = module.cliente_service.cloudwatch_log_group_name
+}
+
+output "cliente_db_credentials_secret_arn" {
+  description = "Cliente service database credentials secret ARN"
+  value       = module.cliente_service.db_credentials_secret_arn
+}
+
+# ============================================================
 # CATALOGO SERVICE OUTPUTS
 # ============================================================
 output "catalogo_ecr_repository_url" {
@@ -166,7 +222,8 @@ output "catalogo_service_url" {
 output "quick_reference" {
   description = "Quick reference commands"
   value = {
-    bff_url              = "http://${module.bff_venta.alb_dns_name}"
+    bff_venta_url        = "http://${module.bff_venta.alb_dns_name}"
+    bff_cliente_url      = "http://${module.bff_cliente.alb_dns_name}"
     catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
     catalogo_ecr         = module.catalogo_service.ecr_repository_url
     catalogo_queue       = module.catalogo_service.sqs_queue_url
@@ -178,17 +235,45 @@ output "quick_reference" {
 }
 
 # Rutas Service outputs
-output "rutas_alb_dns" {
-  description = "DNS del ALB de Rutas"
-  value       = module.rutas_service.alb_dns_name
-}
+# output "rutas_alb_dns" {
+#   description = "DNS del ALB de Rutas"
+#   value       = module.rutas_service.alb_dns_name
+# }
 
-output "rutas_alb_url" {
-  description = "URL completa del servicio de Rutas"
-  value       = "http://${module.rutas_service.alb_dns_name}"
-}
+# output "rutas_alb_url" {
+#   description = "URL completa del servicio de Rutas"
+#   value       = "http://${module.rutas_service.alb_dns_name}"
+# }
 
 output "rutas_service_name" {
   description = "Nombre del servicio de Rutas en ECS"
   value       = module.rutas_service.service_name
+}
+
+output "reports_service_name" {
+  description = "Nombre del servicio de reports en ECS"
+  value       = module.report_service.service_name
+}
+
+# ============================================================
+# VISITA SERVICE OUTPUTS
+# ============================================================
+output "visita_service_name" {
+  description = "Nombre del servicio de visita en ECS"
+  value       = module.visita_service.service_name
+}
+
+output "visita_ecr_repository_url" {
+  description = "URL del repositorio ECR para visita-service"
+  value       = module.visita_service.ecr_repository_url
+}
+
+output "visita_s3_bucket_name" {
+  description = "Nombre del bucket S3 para uploads de visitas"
+  value       = module.visita_service.s3_bucket_name
+}
+
+output "visita_service_url" {
+  description = "URL del servicio de visitas (via BFF Cliente ALB)"
+  value       = "http://${module.bff_cliente.alb_dns_name}/api/visitas"
 }

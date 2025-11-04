@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  visita-service:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "8003:8003"
+    volumes:
+      - .:/app
+      - ./uploads:/app/uploads
+    environment:
+      - DATABASE_URL=sqlite:///./visitas.db
+      - PORT=8003
+      - ENV=dev
+    command: uvicorn main:app --host 0.0.0.0 --port 8003 --reload

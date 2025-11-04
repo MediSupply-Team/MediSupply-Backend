@@ -10,10 +10,24 @@
 # - Security Groups
 # - CloudWatch Logs
 # - Secrets Manager
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
+locals {
+  is_local = var.environment == "local"
+}
 
 # ============================================================
 # ECR REPOSITORY
 # ============================================================
+
 
 resource "aws_ecr_repository" "catalogo" {
   name         = "${var.project}-${var.env}-catalogo-service"
@@ -150,6 +164,17 @@ resource "aws_db_instance" "catalogo_postgres" {
 }
 
 # ============================================================
+# S3 BUCKET - COMPARTIDO CON VISITA-SERVICE
+# ============================================================
+# Usamos el bucket existente: medisupply-dev-visita-uploads
+# Los archivos de carga masiva se guardarán con prefijo: bulk-uploads/
+# Las fotos de visitas usan prefijo: visitas/
+
+data "aws_s3_bucket" "shared_uploads" {
+  bucket = var.s3_bucket_name
+}
+
+# ============================================================
 # SQS FIFO QUEUE
 # ============================================================
 
@@ -280,6 +305,24 @@ resource "aws_iam_role" "catalogo_ecs_execution_role" {
   }
 }
 
+# Permiso para acceder al secreto de la base de datos en Secrets Manager
+resource "aws_iam_role_policy" "catalogo_ecs_execution_secrets_policy" {
+  name = "catalogo-ecs-execution-secrets-policy"
+  role = aws_iam_role.catalogo_ecs_execution_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = aws_secretsmanager_secret.catalogo_db_credentials.arn
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy_attachment" "catalogo_ecs_execution_role_policy" {
   role       = aws_iam_role.catalogo_ecs_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
@@ -309,7 +352,7 @@ resource "aws_iam_role" "catalogo_ecs_task_role" {
   }
 }
 
-# Policy para acceso a SQS y Secrets Manager
+# Policy para acceso a SQS, S3 y Secrets Manager
 resource "aws_iam_role_policy" "catalogo_task_policy" {
   name = "${var.project}-${var.env}-catalogo-task-policy"
   role = aws_iam_role.catalogo_ecs_task_role.id
@@ -333,9 +376,44 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
       {
         Effect = "Allow"
         Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          data.aws_s3_bucket.shared_uploads.arn,
+          "${data.aws_s3_bucket.shared_uploads.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "secretsmanager:GetSecretValue"
         ]
         Resource = aws_secretsmanager_secret.catalogo_db_credentials.arn
+      }
+    ]
+  })
+}
+
+# Policy para ECS Execute Command (debugging y acceso directo)
+resource "aws_iam_role_policy" "catalogo_ecs_exec_policy" {
+  name = "${var.project}-${var.env}-catalogo-ecs-exec-policy"
+  role = aws_iam_role.catalogo_ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -346,7 +424,9 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
 # ============================================================
 
 resource "aws_secretsmanager_secret" "catalogo_db_credentials" {
-  name = "${var.project}-${var.env}-catalogo-db-credentials-v2" # Cambiar nombre
+  #name = "${var.project}-${var.env}-catalogo-db-credentials-v2" # Cambiar nombre
+  name                    = "${var.project}-${var.env}-catalogo-db-credentials-v2-cuentasergio" # Cambiar nombre
+  recovery_window_in_days = 0
 
   tags = {
     Service = "catalogo-service"
@@ -363,7 +443,7 @@ resource "aws_secretsmanager_secret_version" "catalogo_db_credentials" {
     endpoint     = aws_db_instance.catalogo_postgres.endpoint
     port         = aws_db_instance.catalogo_postgres.port
     dbname       = aws_db_instance.catalogo_postgres.db_name
-    database_url = "postgresql://${aws_db_instance.catalogo_postgres.username}:${urlencode(random_password.catalogo_db_password.result)}@${aws_db_instance.catalogo_postgres.endpoint}:${aws_db_instance.catalogo_postgres.port}/${aws_db_instance.catalogo_postgres.db_name}"
+    database_url = "postgresql+asyncpg://${aws_db_instance.catalogo_postgres.username}:${urlencode(random_password.catalogo_db_password.result)}@${aws_db_instance.catalogo_postgres.address}:${aws_db_instance.catalogo_postgres.port}/${aws_db_instance.catalogo_postgres.db_name}"
   })
 }
 
@@ -372,6 +452,7 @@ resource "aws_secretsmanager_secret_version" "catalogo_db_credentials" {
 # ============================================================
 
 resource "aws_cloudwatch_log_group" "catalogo" {
+  count             = local.is_local ? 0 : 1
   name              = "/ecs/${var.project}-${var.env}-catalogo-service"
   retention_in_days = 30
 
@@ -404,6 +485,7 @@ resource "aws_ecs_task_definition" "catalogo" {
         {
           containerPort = var.container_port
           protocol      = "tcp"
+          name          = "catalogo-http" # Unique port name for Service Connect
         }
       ]
 
@@ -427,6 +509,14 @@ resource "aws_ecs_task_definition" "catalogo" {
         {
           name  = "SQS_REGION"
           value = "us-east-1"
+        },
+        {
+          name  = "S3_BUCKET_NAME"
+          value = data.aws_s3_bucket.shared_uploads.id
+        },
+        {
+          name  = "REDIS_URL"
+          value = var.redis_url
         },
         {
           name  = "DB_HOST"
@@ -457,10 +547,10 @@ resource "aws_ecs_task_definition" "catalogo" {
         }
       ]
 
-      logConfiguration = {
+      logConfiguration = local.is_local ? null : {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.catalogo.name
+          awslogs-group         = aws_cloudwatch_log_group.catalogo[0].name
           awslogs-region        = "us-east-1"
           awslogs-stream-prefix = "ecs"
         }
@@ -550,9 +640,25 @@ resource "aws_ecs_service" "catalogo" {
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
+  enable_execute_command = true # Permite acceso directo al contenedor para debugging
+
   network_configuration {
     subnets         = var.private_subnets
     security_groups = [aws_security_group.catalogo_ecs_sg.id]
+  }
+
+  # Service Connect: exposes catalogo-service for internal service discovery
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name
+
+    service {
+      client_alias {
+        dns_name = "catalogo"
+        port     = var.container_port
+      }
+      port_name = "catalogo-http" # Must match the portMapping name
+    }
   }
 
   load_balancer {

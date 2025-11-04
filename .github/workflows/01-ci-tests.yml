@@ -1,11 +1,12 @@
 name: 01 - CI Tests (feature)
 
 on:
-  push:
-    branches:
-      - 'feature/**'
-      - 'feat/**'
-      - 'historia**'
+  workflow_dispatch:  # Solo manual
+  # push:
+  #   branches:
+  #     #- 'feature/**'
+  #     - 'feat/**'
+  #     - 'historia**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

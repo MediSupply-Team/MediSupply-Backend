@@ -265,19 +265,22 @@ class ClienteRepository:
         productos_stats = result.all()
         
         productos_preferidos = []
-        for stats in productos_stats:
+        for idx, stats in enumerate(productos_stats):
             # Calcular meses desde última compra
             meses_desde_ultima = (date.today() - stats.ultima_compra).days // 30
             
             productos_preferidos.append({
+                "id": f"{cliente_id}_PREF_{idx+1}",  # ID único para el producto preferido
+                "cliente_id": cliente_id,  # ID del cliente
                 "producto_id": stats.producto_id,
                 "producto_nombre": stats.producto_nombre,
                 "categoria_producto": stats.categoria_producto,
                 "frecuencia_compra": stats.frecuencia_compra,
                 "cantidad_total": stats.cantidad_total,
                 "cantidad_promedio": float(stats.cantidad_promedio or 0),
-                "ultima_compra": stats.ultima_compra.isoformat(),
-                "meses_desde_ultima_compra": meses_desde_ultima
+                "ultima_compra": stats.ultima_compra,
+                "meses_desde_ultima_compra": meses_desde_ultima,
+                "updated_at": None  # Campo opcional
             })
         
         return productos_preferidos
@@ -328,8 +331,8 @@ class ClienteRepository:
             "promedio_orden": str(promedio_orden),
             "frecuencia_compra_mensual": round(frecuencia_mensual, 2),
             "tasa_devolucion": round(tasa_devolucion, 1),
-            "cliente_desde": primera_compra.isoformat(),
-            "ultima_compra": ultima_compra.isoformat()
+            "cliente_desde": primera_compra,
+            "ultima_compra": ultima_compra
         }
     
     async def registrar_consulta(

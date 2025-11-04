@@ -22,6 +22,21 @@ variable "env" {
   }
 }
 
+variable "environment" {
+  description = "Deployment environment (local for LocalStack, aws for real AWS)"
+  type        = string
+  validation {
+    condition     = contains(["local", "aws"], var.environment)
+    error_message = "Environment must be either 'local' or 'aws'."
+  }
+}
+
+variable "s3_bucket_name" {
+  description = "Nombre del bucket S3 compartido para uploads (visitas y bulk-uploads)"
+  type        = string
+  default     = "medisupply-dev-visita-uploads"
+}
+
 # ============================================================
 # NUEVAS VARIABLES PARA MANEJO DE RECURSOS EXISTENTES
 # ============================================================
@@ -221,4 +236,15 @@ variable "additional_tags" {
   description = "Tags adicionales para aplicar a los recursos"
   type        = map(string)
   default     = {}
+}
+
+variable "service_connect_namespace_name" {
+  description = "Service Connect namespace for internal service discovery"
+  type        = string
+}
+
+variable "redis_url" {
+  description = "Redis connection URL for async task tracking"
+  type        = string
+  default     = "redis://redis:6379/1"
 }

@@ -1,67 +1,89 @@
-name: Deploy BFF Venta to ECS
+name: Deploy BFF Venta Service
 
 on:
   push:
-    branches:
-      - develop
+    branches: ["main", "develop", "nueva-cuenta" ]
     paths:
-      - 'bff-venta/**'
-      - '.github/workflows/deploy-bff-venta.yml'
+      - "bff-venta/**"  # ✅ CORRECTO - tu nombre original
+      - ".github/workflows/deploy-bff-venta.yml"
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: true
+        default: "develop"
 
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: medisupply-dev-bff-venta
   ECS_CLUSTER: orders-cluster
   ECS_SERVICE: medisupply-dev-bff-venta-svc
-  TASK_DEFINITION_NAME: medisupply-dev-bff-venta
   CONTAINER_NAME: bff-venta
-  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-  deploy:
-    name: Deploy BFF Venta
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
 
     steps:
-      - name: Checkout code
+      - name: Checkout (rama indicada o contexto del push)
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
+          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build, tag, and push image
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
+        working-directory: ./bff-venta
         run: |
-          set -e
-          cd bff-venta
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          
+          echo "🔨 Building Docker image..."
+          docker build -t "${IMAGE_URI}" .
+          
+          echo "📤 Pushing image with SHA tag..."
+          docker push "${IMAGE_URI}"
+          
+          echo "🏷️  Tagging and pushing as latest..."
+          docker tag "${IMAGE_URI}" "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          docker push "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          
+          echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "✅ Image built and pushed: ${IMAGE_URI}"
 
-      - name: Download task definition
+      - name: Download current task definition
         run: |
+          echo "📥 Downloading current task definition..."
           aws ecs describe-task-definition \
-            --task-definition ${{ env.TASK_DEFINITION_NAME }} \
-            --region ${{ env.AWS_REGION }} \
-            --query taskDefinition > task-definition.json
+            --task-definition ${{ env.ECR_REPOSITORY }} \
+            --query 'taskDefinition' > task-definition.json
+          
+          # Verify download succeeded
+          if [ ! -s task-definition.json ]; then
+            echo "❌ Error: task-definition.json is empty or missing"
+            exit 1
+          fi
+          
+          echo "✅ Task definition downloaded successfully"
+          echo "📝 Container names in task definition:"
+          jq -r '.containerDefinitions[].name' task-definition.json
+          echo "🔍 Looking for container: ${{ env.CONTAINER_NAME }}"
 
-      - name: Fill in the new image ID in the Amazon ECS task definition
+      - name: Fill new image in task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -69,43 +91,23 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.build-image.outputs.image }}
 
-      - name: Deploy Amazon ECS task definition (with timeout)
+      - name: Deploy task definition to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
-          wait-for-minutes: 15
 
-      # Diagnóstico post-deploy SIEMPRE (incluso si el paso anterior falla)
-      - name: ECS rollout status
-        if: always()
+      - name: Post-deploy status
         run: |
           aws ecs describe-services \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --services "${{ env.ECS_SERVICE }}" \
-            --region "${{ env.AWS_REGION }}" \
-            --query 'services[0].{
-              status:status,
-              desired:desiredCount,
-              running:runningCount,
-              deployments:deployments[].{
-                id:id,
-                status:status,
-                rolloutState:rolloutState,
-                reason:rolloutStateReason,
-                taskDef:taskDefinition
-              }
-            }' \
-            --output json
-
-      - name: ECS service events (últimos 20)
-        if: always()
-        run: |
+            --query "services[0].{status:status,desired:desiredCount,running:runningCount,taskDef:taskDefinition}" \
+            --output table
           aws ecs describe-services \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --services "${{ env.ECS_SERVICE }}" \
-            --region "${{ env.AWS_REGION }}" \
-            --query "services[0].events[0:20].[createdAt,message]" \
+            --query "services[0].events[0:10].[createdAt,message]" \
             --output table

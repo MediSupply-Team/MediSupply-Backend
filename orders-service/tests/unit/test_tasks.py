@@ -42,14 +42,20 @@ async def test_tasks_event_present_but_order_missing_returns_early(
     got = await test_session.get(OutboxEvent, event_uuid)
     assert got.published_at is None
 
-# 3) TEST ASYNC -> happy path: marca Order CREATED + Idempotency DONE + published_at
+# 3) TEST ASYNC -> happy path: marca Order NEW + Idempotency DONE + published_at
 @pytest.mark.anyio
 async def test_tasks_happy_flow_updates_order_and_idempotency(
     test_engine, test_session, monkeypatch
 ):
     _patch_sessionlocal_to_test_engine(test_engine, monkeypatch)
 
-    order = Order(customer_id="C-TASK", items=[{"sku": "X1", "qty": 1}])
+    order = Order(
+        customer_id="C-TASK", 
+        items=[{"sku": "X1", "qty": 1}],
+        created_by_role="seller",
+        source="bff-cliente",
+        user_name="test_user"
+    )
     test_session.add(order)
     await test_session.flush()
 
@@ -80,7 +86,7 @@ async def test_tasks_happy_flow_updates_order_and_idempotency(
     await test_session.refresh(e)
     await test_session.refresh(i)
 
-    assert o.status == OrderStatus.CREATED
+    assert o.status == OrderStatus.NEW
     assert e.published_at is not None
     assert i.status == IdemStatus.DONE
     assert i.status_code == 201

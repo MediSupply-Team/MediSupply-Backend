@@ -1,0 +1,168 @@
+
+name: Deploy Cliente Service
+
+on:
+  push:
+    branches: [ "main", "develop", "fix-carga-masiva" ]
+    paths:
+      - "cliente-service/**"
+      - ".github/workflows/deploy-cliente.yml"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: true
+        default: "develop"
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: medisupply-dev-cliente-service
+  ECS_CLUSTER: orders-cluster
+  ECS_SERVICE: medisupply-dev-cliente-service-svc
+  CONTAINER_NAME: cliente-service
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout (rama indicada o contexto del push)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        working-directory: ./cliente-service
+        run: |
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          
+          echo "🔨 Building Docker image..."
+          docker build -t "${IMAGE_URI}" .
+          
+          echo "📤 Pushing image with SHA tag..."
+          docker push "${IMAGE_URI}"
+          
+          echo "🏷️  Tagging and pushing as latest..."
+          docker tag "${IMAGE_URI}" "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          docker push "${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          
+          echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "✅ Image built and pushed: ${IMAGE_URI}"
+
+      - name: Download current task definition
+        run: |
+          echo "📥 Downloading current task definition..."
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.ECR_REPOSITORY }} \
+            --query 'taskDefinition' > task-definition.json
+          
+          # Verify download succeeded
+          if [ ! -s task-definition.json ]; then
+            echo "❌ Error: task-definition.json is empty or missing"
+            exit 1
+          fi
+          
+          echo "✅ Task definition downloaded successfully"
+          echo "📝 Container names in task definition:"
+          jq -r '.containerDefinitions[].name' task-definition.json
+          echo "🔍 Looking for container: ${{ env.CONTAINER_NAME }}"
+
+      - name: Fill new image in task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy task definition to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Post-deploy status
+        if: always()
+        run: |
+          echo "📊 Service Status:"
+          aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --query "services[0].{status:status,desired:desiredCount,running:runningCount,taskDef:taskDefinition}" \
+            --output table
+          
+          echo ""
+          echo "📋 Recent Events:"
+          aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --query "services[0].events[0:10].[createdAt,message]" \
+            --output table
+          
+          echo ""
+          echo "🔍 Task Status:"
+          aws ecs list-tasks \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --service-name "${{ env.ECS_SERVICE }}" \
+            --output table
+
+      - name: Check service health
+        run: |
+          echo "⏳ Waiting 30 seconds for service to be ready..."
+          sleep 30
+          
+          # Get BFF Cliente ALB DNS
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names "medisupply-dev-bff-cliente-alb" \
+            --query "LoadBalancers[0].DNSName" \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -z "$ALB_DNS" ]; then
+            echo "⚠️ Could not retrieve ALB DNS automatically"
+            echo "ℹ️ Service deployed, but health check skipped"
+            exit 0
+          fi
+          
+          echo "🧪 Testing health endpoint..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${ALB_DNS}/health" || echo "000")
+          
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Endpoint responded successfully (HTTP $HTTP_STATUS)"
+          else
+            echo "⚠️ Endpoint failed with HTTP $HTTP_STATUS"
+            echo "📝 Showing recent logs:"
+            aws logs tail "/ecs/medisupply-dev-cliente-service" --since 5m --format short || true
+          fi
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "========================================"
+          echo "📦 DEPLOYMENT SUMMARY"
+          echo "========================================"
+          echo "🔗 Service: ${{ env.ECS_SERVICE }}"
+          echo "🖼️  Image: ${{ steps.build-image.outputs.image }}"
+          echo "🏷️  Cluster: ${{ env.ECS_CLUSTER }}"
+          echo "========================================"
+          echo "📊 To view logs:"
+          echo "aws logs tail /ecs/medisupply-dev-cliente-service --follow"
+

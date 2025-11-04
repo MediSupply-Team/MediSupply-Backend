@@ -260,18 +260,76 @@ class ClienteService:
                 pass
             # await self.repository.registrar_consulta(...)
             
-            # Construir respuesta usando model_validate
+            # Construir respuesta ClienteBasicoResponse
             print(f"🔍 SERVICE DEBUG: Creando ClienteBasicoResponse para histórico...")
-            cliente_response = ClienteBasicoResponse.model_validate(historico_data['cliente'])
+            cliente_obj = historico_data['cliente']
             
-            return HistoricoCompletoResponse(
-                cliente=cliente_response,
-                historico_compras=historico_data['historico_compras'],
-                productos_preferidos=historico_data['productos_preferidos'],
-                devoluciones=historico_data['devoluciones'],
-                estadisticas=historico_data['estadisticas'],
-                metadatos=metadatos
-            )
+            try:
+                # Intentar con model_validate primero (requiere from_attributes=True)
+                cliente_response = ClienteBasicoResponse.model_validate(cliente_obj)
+                print(f"🔍 SERVICE DEBUG: model_validate exitoso")
+            except Exception as e:
+                print(f"🔍 SERVICE DEBUG: model_validate falló: {e}, usando constructor directo")
+                # Fallback: construir manualmente desde el objeto ORM
+                cliente_response = ClienteBasicoResponse(
+                    id=cliente_obj.id,
+                    nit=cliente_obj.nit,
+                    nombre=cliente_obj.nombre,
+                    codigo_unico=cliente_obj.codigo_unico,
+                    email=cliente_obj.email,
+                    telefono=cliente_obj.telefono,
+                    direccion=cliente_obj.direccion,
+                    ciudad=cliente_obj.ciudad,
+                    pais=cliente_obj.pais,
+                    activo=cliente_obj.activo,
+                    created_at=cliente_obj.created_at,
+                    updated_at=cliente_obj.updated_at
+                )
+            
+            # Convertir listas de objetos ORM a schemas de Pydantic
+            print(f"🔍 SERVICE DEBUG: Convirtiendo historico_compras...")
+            from app.schemas import CompraHistoricoItem, DevolucionItem
+            
+            compras_response = []
+            for compra in historico_data['historico_compras']:
+                try:
+                    compras_response.append(CompraHistoricoItem.model_validate(compra))
+                except Exception as e:
+                    print(f"⚠️ Error convirtiendo compra {compra.id}: {e}")
+            
+            print(f"🔍 SERVICE DEBUG: Convirtiendo devoluciones...")
+            devoluciones_response = []
+            for devolucion in historico_data['devoluciones']:
+                try:
+                    devoluciones_response.append(DevolucionItem.model_validate(devolucion))
+                except Exception as e:
+                    print(f"⚠️ Error convirtiendo devolución {devolucion.id}: {e}")
+            
+            print(f"🔍 SERVICE DEBUG: Construyendo HistoricoCompletoResponse...")
+            print(f"🔍 SERVICE DEBUG: - cliente_response type: {type(cliente_response)}")
+            print(f"🔍 SERVICE DEBUG: - compras_response length: {len(compras_response)}, type: {type(compras_response)}")
+            print(f"🔍 SERVICE DEBUG: - productos_preferidos length: {len(historico_data['productos_preferidos'])}, type: {type(historico_data['productos_preferidos'])}")
+            print(f"🔍 SERVICE DEBUG: - devoluciones_response length: {len(devoluciones_response)}, type: {type(devoluciones_response)}")
+            print(f"🔍 SERVICE DEBUG: - estadisticas type: {type(historico_data['estadisticas'])}")
+            print(f"🔍 SERVICE DEBUG: - metadatos type: {type(metadatos)}")
+            
+            try:
+                response = HistoricoCompletoResponse(
+                    cliente=cliente_response,
+                    historico_compras=compras_response,
+                    productos_preferidos=historico_data['productos_preferidos'],  # Ya es lista de dicts
+                    devoluciones=devoluciones_response,
+                    estadisticas=historico_data['estadisticas'],
+                    metadatos=metadatos
+                )
+                print(f"✅ SERVICE DEBUG: HistoricoCompletoResponse creado exitosamente")
+                return response
+            except Exception as build_error:
+                print(f"❌ SERVICE DEBUG: Error construyendo HistoricoCompletoResponse: {build_error}")
+                print(f"❌ SERVICE DEBUG: Error type: {type(build_error).__name__}")
+                import traceback
+                print(f"❌ SERVICE DEBUG: Traceback: {traceback.format_exc()}")
+                raise
             
         except HTTPException:
             # Re-raise HTTP exceptions
