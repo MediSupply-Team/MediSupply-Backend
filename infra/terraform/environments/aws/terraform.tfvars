@@ -15,9 +15,9 @@ db_max_allocated_storage         = 100
 db_publicly_accessible           = true
 db_multi_az                      = false
 db_backup_retention_period       = 7
-db_enable_cloudwatch_logs        = true
-db_performance_insights_enabled  = true
-db_monitoring_interval           = 60
+db_enable_cloudwatch_logs        = false
+db_performance_insights_enabled  = false
+db_monitoring_interval           = 0
 
 # ============================================================
 # ORDERS SERVICE
