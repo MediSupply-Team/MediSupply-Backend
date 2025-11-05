@@ -91,6 +91,22 @@ output "orders_log_group" {
   value       = module.orders.log_group_name
 }
 
+output "orders_alb_dns" {
+  description = "DNS name del ALB interno de Orders"
+  value       = module.orders.alb_dns_name
+}
+
+output "orders_alb_url" {
+  description = "URL completa del ALB de Orders (para BFF-Venta)"
+  value       = "http://${module.orders.alb_dns_name}"
+}
+
+output "orders_target_group_arn" {
+  description = "ARN del Target Group de Orders"
+  value       = module.orders.target_group_arn
+}
+
+
 # ============================================================
 # CONSUMER OUTPUTS
 # ============================================================

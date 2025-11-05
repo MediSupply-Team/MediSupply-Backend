@@ -39,12 +39,6 @@ variable "ecs_task_role_arn" {
   type        = string
 }
 
-# Namespace de Service Connect (p.ej., injectado desde networking)
-variable "service_connect_namespace_name" {
-  description = "Nombre del namespace de Service Connect (p.ej. svc.local)"
-  type        = string
-}
-
 variable "environment" {
   description = "Environment type: local (LocalStack) or aws (AWS)"
   type        = string
