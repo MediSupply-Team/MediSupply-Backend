@@ -1,4 +1,4 @@
-name: "📊 IC - Coverage & SonarCloud Analysis"
+name: "📊 IC"
 
 # Se ejecuta en cada push a main
 on:
