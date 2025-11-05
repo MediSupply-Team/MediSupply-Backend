@@ -1,9 +1,9 @@
-name: "CI - Coverage Report"
+name: "📊 IC - Coverage & SonarCloud Analysis"
 
 # Se ejecuta en cada push a main
 on:
   push:
-    branches: [develop, tests-service]
+    branches: [develop, tests-services]
     paths:
       - 'orders-service/**'
       - 'catalogo-service/**'
