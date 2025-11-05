@@ -3,7 +3,7 @@ name: "CI - Coverage Report"
 # Se ejecuta en cada push a main
 on:
   push:
-    branches: [develop]
+    branches: [develop, tests-service]
     paths:
       - 'orders-service/**'
       - 'catalogo-service/**'
