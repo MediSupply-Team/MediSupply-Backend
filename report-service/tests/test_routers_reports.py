@@ -70,7 +70,7 @@ def test_export_sales_performance_invalid_format(mock_get_sales):
         )
     assert "Formato no soportado" in str(exc.value)
 
-@patch('services.report_service.get_sales_performance', side_effect=Exception("fail"))
+@patch('routers.reports.get_sales_performance', side_effect=Exception("fail"))
 def test_export_sales_performance_error(mock_get_sales):
     session = MagicMock()
     with pytest.raises(Exception) as exc:
