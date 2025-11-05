@@ -332,3 +332,81 @@ def orders_health_check():
             status="unhealthy",
             error=str(e)
         ), 503
+
+@bp.post("/api/v1/orders/seed-data")
+def seed_orders_data():
+    """
+    Cargar datos de prueba en Orders Service
+    ---
+    tags:
+      - Orders
+    summary: Cargar datos de prueba
+    responses:
+      201:
+        description: Datos cargados exitosamente
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+            count:
+              type: integer
+      503:
+        description: Servicio no disponible
+    """
+    orders_url = get_orders_service_url()
+    if not orders_url:
+        return jsonify(error="Servicio de ordenes no disponible"), 503
+    
+    try:
+        response = requests.post(
+            f"{orders_url}/seed-data",
+            timeout=10
+        )
+        response.raise_for_status()
+        return jsonify(response.json()), response.status_code
+        
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error cargando datos de prueba"), 503
+
+
+@bp.delete("/api/v1/orders/clear-all")
+def clear_all_orders():
+    """
+    Borrar TODOS los registros de Orders Service
+    ---
+    tags:
+      - Orders
+    summary: Limpiar base de datos
+    description: CUIDADO - Borra todos los registros
+    responses:
+      200:
+        description: Datos eliminados
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+            tables_cleared:
+              type: array
+              items:
+                type: string
+      503:
+        description: Servicio no disponible
+    """
+    orders_url = get_orders_service_url()
+    if not orders_url:
+        return jsonify(error="Servicio de ordenes no disponible"), 503
+    
+    try:
+        response = requests.delete(
+            f"{orders_url}/clear-all",
+            timeout=10
+        )
+        response.raise_for_status()
+        return jsonify(response.json()), response.status_code
+        
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error limpiando datos"), 503

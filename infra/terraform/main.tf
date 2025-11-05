@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # TERRAFORM CONFIGURATION
 # ============================================================
 terraform {
@@ -21,6 +21,7 @@ terraform {
 # ============================================================
 locals {
   is_local = var.environment == "local"
+  mapbox_token_dummy_arn = "arn:aws:secretsmanager:us-east-1:000000000000:secret:dummy-mapbox-token"
 }
 
 provider "aws" {
@@ -564,13 +565,13 @@ resource "aws_secretsmanager_secret_version" "visita_db_url_v" {
   }
 }
 
-data "aws_secretsmanager_secret" "mapbox_token" {
-  name = "/${var.project}/${var.env}/mapbox-token"
-}
+#data "aws_secretsmanager_secret" "mapbox_token" {
+#  name = "/${var.project}/${var.env}/mapbox-token"
+#}
 
-data "aws_secretsmanager_secret_version" "mapbox_token" {
-  secret_id = data.aws_secretsmanager_secret.mapbox_token.id
-}
+#data "aws_secretsmanager_secret_version" "mapbox_token" {
+#  secret_id = data.aws_secretsmanager_secret.mapbox_token.id
+#}
 
 # ============================================================
 # SERVICES MODULES
@@ -594,9 +595,6 @@ module "orders" {
   db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
-
-  # Service Connect namespace - solo en AWS
-  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
 
   # ARNs requeridos que faltaban
   ecs_execution_role_arn = aws_iam_role.orders_exec.arn
@@ -659,7 +657,7 @@ module "bff_venta" {
   catalogo_service_url  = "http://${module.bff_venta.alb_dns_name}/catalog"
   optimizer_service_url = "http://${module.bff_venta.alb_dns_name}"
   rutas_service_url     = "http://${module.bff_venta.alb_dns_name}"
-  orders_service_url = var.orders_service_url != "" ? var.orders_service_url : ""
+  orders_service_url = "http://${module.orders.alb_dns_name}"
   
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
@@ -938,7 +936,8 @@ module "optimizador_rutas" {
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
   # Secret ARN - read from AWS, never deleted by Terraform
-  mapbox_token_secret_arn = data.aws_secretsmanager_secret.mapbox_token.arn
+  #mapbox_token_secret_arn = data.aws_secretsmanager_secret.mapbox_token.arn
+  mapbox_token_secret_arn = local.mapbox_token_dummy_arn
 
   shared_http_listener_arn = module.bff_venta.alb_listener_arn
   shared_alb_sg_id         = module.bff_venta.alb_sg_id
