@@ -68,11 +68,16 @@ jobs:
           cd "${{ matrix.service }}"
           export PYTHONPATH="${PYTHONPATH}:$(pwd)"
           
-          # Ejecutar pytest con coverage
+          # Detectar el módulo principal para coverage
+          COV_MODULE="app"
+          if [ -f main.py ]; then
+            COV_MODULE="main"
+          fi
+          
+          # Ejecutar pytest con coverage y forzar generación de coverage.xml
           if [ "${{ matrix.service }}" = "catalogo-service" ]; then
-            # Excluir tests problemáticos si es necesario
             pytest -v \
-              --cov=app \
+              --cov="$COV_MODULE" \
               --cov-branch \
               --cov-report=term-missing \
               --cov-report=xml:coverage.xml \
@@ -82,7 +87,7 @@ jobs:
               || true
           else
             pytest -v \
-              --cov=app \
+              --cov="$COV_MODULE" \
               --cov-branch \
               --cov-report=term-missing \
               --cov-report=xml:coverage.xml \
