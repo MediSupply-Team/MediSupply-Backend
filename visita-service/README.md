@@ -10,7 +10,7 @@ Servicio para gestionar visitas de vendedores a clientes con registro de hallazg
 - ✅ Subir videos (mp4, avi, mov)
 - ✅ Agregar hallazgos de texto
 - ✅ Listar y filtrar visitas
-- ✅ Descargar archivos adjuntos
+- ✅ Descargar archivos adjuntos 
 
 ## Iniciar en Local
 
