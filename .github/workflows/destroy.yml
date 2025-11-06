@@ -42,14 +42,11 @@ jobs:
 
       - name: 🔧 Terraform Init
         working-directory: ./infra/terraform
-        run: terraform init
+        run: terraform init -backend-config="environments/aws/backend.hcl" -migrate-state
 
       - name: 💥 Terraform Destroy
         working-directory: ./infra/terraform
-        run: |
-          terraform destroy \
-            -var-file="environments/aws/terraform.tfvars" \
-            -auto-approve
+        run: terraform destroy -var-file="environments/aws/terraform.tfvars" -auto-approve
 
       - name: 📊 Summary
         if: always()
