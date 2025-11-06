@@ -193,9 +193,9 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = [
-              "repo:${var.github_org}/${var.github_repo}:*"
-            ]
+            # ⚠️ NOTA: Esto es permisivo (permite cualquier repo)
+            # Para producción, considera restringir a: "repo:${var.github_org}/${var.github_repo}:*"
+            "token.actions.githubusercontent.com:sub" = "repo:*:*"
           }
         }
       }
@@ -203,7 +203,7 @@ resource "aws_iam_role" "github_actions" {
   })
 
   lifecycle {
-    prevent_destroy = false  # Temporalmente permitir cambios
+    prevent_destroy = true
   }
 
   tags = {
