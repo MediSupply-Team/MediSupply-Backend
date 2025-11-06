@@ -248,4 +248,8 @@ resource "aws_ecs_service" "svc" {
   depends_on = [aws_lb_listener.http]
 
   tags = { Project = var.project, Env = var.env, Component = var.bff_name }
+
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
 }

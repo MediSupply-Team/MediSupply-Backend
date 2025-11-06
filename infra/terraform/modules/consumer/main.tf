@@ -199,4 +199,8 @@ resource "aws_ecs_service" "svc" {
   ]
 
   tags = { Project = var.project, Env = var.env }
+
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
 }

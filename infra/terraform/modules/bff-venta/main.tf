@@ -383,4 +383,8 @@ resource "aws_ecs_service" "svc" {
     Env       = var.env
     Component = var.bff_name
   }
+
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
 }

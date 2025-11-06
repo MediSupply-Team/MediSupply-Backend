@@ -678,4 +678,8 @@ resource "aws_ecs_service" "catalogo" {
     Project = var.project
     Env     = var.env
   }
+
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
 }

@@ -497,4 +497,8 @@ resource "aws_ecs_service" "cliente" {
     Env     = var.env
     Service = "cliente-service"
   }
+
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
 }
