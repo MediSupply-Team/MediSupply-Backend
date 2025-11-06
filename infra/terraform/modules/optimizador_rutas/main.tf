@@ -277,6 +277,8 @@ resource "aws_ecs_service" "this" {
 
   enable_execute_command = true
 
+  health_check_grace_period_seconds = 120
+
   network_configuration {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.svc.id]
