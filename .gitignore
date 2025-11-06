@@ -47,3 +47,4 @@ override.tf.json
 !terraform.tfvars.example
 .env
 .DS_Store
+.coverage
