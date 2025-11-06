@@ -44,6 +44,8 @@ resource "aws_iam_role" "github_actions" {
     Project = var.project
     Env     = var.env
   }
+  lifecycle { prevent_destroy = true }
+  max_session_duration = 43200  # 12 horas
 }
 
 # Políticas
@@ -118,17 +120,20 @@ resource "aws_iam_policy" "github_actions_terraform_state" {
           "dynamodb:GetItem",
           "dynamodb:PutItem",
           "dynamodb:DeleteItem",
+          "dynamodb:UpdateItem",
           "dynamodb:DescribeTable"
         ]
         Resource = "arn:aws:dynamodb:us-east-1:217466752988:table/miso-tf-locks"
       }
     ]
   })
+  lifecycle { prevent_destroy = true }
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_terraform_state" {
   role       = aws_iam_role.github_actions.name
   policy_arn = aws_iam_policy.github_actions_terraform_state.arn
+  lifecycle { prevent_destroy = true }
 }
 
 # Política para que Terraform pueda gestionar toda la infraestructura
@@ -159,13 +164,75 @@ resource "aws_iam_policy" "github_actions_terraform_full" {
       }
     ]
   })
+  lifecycle { prevent_destroy = true }
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_terraform_full" {
   role       = aws_iam_role.github_actions.name
   policy_arn = aws_iam_policy.github_actions_terraform_full.arn
+  lifecycle { prevent_destroy = true }
 }
 
 output "github_actions_role_arn" {
   value = aws_iam_role.github_actions.arn
+}
+
+# Política mínima con permisos de destroy que te faltan
+resource "aws_iam_policy" "github_actions_destroy_extras" {
+  name = "github-actions-destroy-extras"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      # IAM (lecturas durante destroy)
+      {
+        Effect = "Allow",
+        Action = [
+          "iam:ListPolicyVersions",
+          "iam:ListInstanceProfilesForRole"
+        ],
+        Resource = "*"
+      },
+      # ECS (espera y borrado de servicios)
+      {
+        Effect = "Allow",
+        Action = [
+          "ecs:DescribeClusters",
+          "ecs:DescribeServices",
+          "ecs:ListServices",
+          "ecs:UpdateService",
+          "ecs:DeleteService"
+        ],
+        Resource = "*"
+      },
+      # ECR (borrar repos y lifecycle)
+      {
+        Effect = "Allow",
+        Action = [
+          "ecr:DescribeRepositories",
+          "ecr:ListImages",
+          "ecr:BatchDeleteImage",
+          "ecr:DeleteLifecyclePolicy",
+          "ecr:DeleteRepository",
+          "ecr:ListTagsForResource",
+          "ecr:GetLifecyclePolicy",
+        ],
+        Resource = "*"
+      },
+      # RDS (espera de borrado)
+      {
+        Effect = "Allow",
+        Action = [
+          "rds:DescribeDBInstances"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Adjuntar al rol de GitHub Actions
+resource "aws_iam_role_policy_attachment" "github_actions_destroy_extras" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_destroy_extras.arn
 }
