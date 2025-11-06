@@ -275,6 +275,8 @@ resource "aws_ecs_service" "this" {
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
+  enable_execute_command = true
+
   network_configuration {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.svc.id]
@@ -313,7 +315,13 @@ resource "aws_lb_listener_rule" "optimizer_path" {
 
   condition {
     path_pattern {
-      values = ["/optimizer/*", "/api/v1/optimize/*", "/api/v1/geocode/*", "/api/v1/route/*"]
+      values = [
+        "/optimizer/*", 
+        "/api/v1/optimize/*", 
+        "/api/v1/geocode/*", 
+        "/api/v1/route/calculate",
+        "/api/v1/route/matrix"
+      ]
     }
   }
 }

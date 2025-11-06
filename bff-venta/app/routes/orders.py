@@ -1,7 +1,14 @@
 from flask import Blueprint, request, jsonify, current_app
 import requests
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+import threading
+import time
 
 bp = Blueprint("orders", __name__)
+
+# Thread pool global para operaciones I/O
+executor = ThreadPoolExecutor(max_workers=10)
 
 
 def get_orders_service_url():
@@ -14,146 +21,112 @@ def get_orders_service_url():
 
 
 @bp.post("/api/v1/orders")
-def create_order():
+def post_message():
     """
-    Crear nueva orden (proxy a orders-service)
+    Create a new order (async via SQS)
     ---
     tags:
       - Orders
-    summary: Crear nueva orden
-    description: |
-      Crea una nueva orden en el sistema con soporte de idempotencia.
-      
-      El servicio de ordenes maneja:
-      - Validacion de datos
-      - Idempotencia (evita duplicados)
-      - Persistencia en base de datos
-      - Eventos outbox para procesamiento asíncrono
-    
     parameters:
-      - in: header
-        name: Idempotency-Key
-        type: string
-        required: false
-        description: UUID v4 para idempotencia (opcional, se genera si no se provee)
-        example: "550e8400-e29b-41d4-a716-446655440000"
       - in: body
         name: body
+        description: Order data
         required: true
         schema:
           type: object
           required:
-            - customer_id
-            - items
+            - body
           properties:
-            customer_id:
-              type: string
-              description: ID del cliente
-              example: "Hospital San José"
-            items:
-              type: array
-              description: Items de la orden
-              items:
-                type: object
-                properties:
-                  sku:
-                    type: string
-                  qty:
-                    type: integer
-              example:
-                - sku: "PROD-A"
-                  qty: 2
-                - sku: "PROD-B"
-                  qty: 1
-            user_name:
-              type: string
-              description: Usuario que crea la orden
-              example: "juan.perez"
-            address:
+            body:
               type: object
-              description: Direccion de entrega
-              properties:
-                street:
-                  type: string
-                city:
-                  type: string
-                state:
-                  type: string
-                zip_code:
-                  type: string
-                country:
-                  type: string
-    
+              description: Order details
+              example:
+                customer_id: "123"
+                items:
+                  - product_id: "ABC"
+                    quantity: 2
+            group_id:
+              type: string
+              description: SQS Message Group ID
+              example: "customer-123"
+            dedup_id:
+              type: string
+              description: Deduplication ID
+              example: "order-456"
     responses:
       202:
-        description: Orden aceptada para procesamiento
+        description: Order accepted
         schema:
           type: object
           properties:
-            request_id:
+            messageId:
               type: string
-              description: ID de la peticion (hash del Idempotency-Key)
-            message:
+              example: "async-uuid-here"
+            event_id:
               type: string
-        examples:
-          application/json:
-            request_id: "abc123..."
-            message: "Orden aceptada"
-      
+              example: "uuid-here"
+            status:
+              type: string
+              example: "accepted"
       400:
-        description: Error de validacion
-      
-      409:
-        description: Conflicto - Idempotency-Key ya usado con payload diferente
-      
-      503:
-        description: Servicio no disponible
+        description: Validation error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Falta 'body' en el JSON"
     """
-    orders_url = get_orders_service_url()
-    if not orders_url:
-        return jsonify(error="Servicio de ordenes no disponible"), 503
+    data = request.get_json(silent=True) or {}
+    body = data.get("body")
+    if not body:
+        return jsonify(error="Falta 'body' en el JSON"), 400
     
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify(error="Body JSON requerido"), 400
-    
-    # Enriquecer con metadata del BFF
-    enriched_data = {
-        **data,
-        "created_by_role": "vendor",
-        "source": "bff-venta"
+    enriched_body = {
+    **body,  # Mantener todos los campos originales
+    "created_by_role": "vendor", 
+    "source": "bff-venta"
     }
-    
-    # Copiar Idempotency-Key header si existe
-    headers = {}
-    if "Idempotency-Key" in request.headers:
-        headers["Idempotency-Key"] = request.headers["Idempotency-Key"]
-    
-    try:
-        response = requests.post(
-            f"{orders_url}/orders",
-            json=enriched_data,
-            headers=headers,
-            timeout=30
-        )
-        response.raise_for_status()
-        return jsonify(response.json()), response.status_code
-        
-    except requests.exceptions.HTTPError as e:
-        if e.response is not None:
-            try:
-                return jsonify(e.response.json()), e.response.status_code
-            except:
-                return jsonify(error=e.response.text), e.response.status_code
-        return jsonify(error="Error creando orden"), 500
-        
-    except requests.exceptions.Timeout:
-        return jsonify(error="Timeout creando orden"), 504
-        
-    except requests.exceptions.RequestException as e:
-        current_app.logger.error(f"Error: {e}")
-        return jsonify(error="Error conectando con servicio de ordenes"), 503
+    event_id = str(uuid.uuid4())
+    sqs_message = {
+        "event_id": event_id,
+        "order": enriched_body,
+        "timestamps": {
+            "bff_received": time.time(),
+            "sqs_sent": time.time()
+        }
+    }
 
+    group_id = data.get("group_id")
+    dedup_id = data.get("dedup_id", event_id)
+
+    sqs: "SQSService" = current_app.extensions["sqs"]
+    
+    # Enviar a SQS de forma asincrona (no bloqueante)
+    future = executor.submit(
+        send_sqs_message_async, 
+        sqs, 
+        sqs_message, 
+        group_id, 
+        dedup_id
+    )
+    
+    # Respuesta inmediata sin esperar SQS
+    return jsonify(
+        messageId=f"async-{event_id}",  # ID temporal
+        event_id=event_id,
+        status="accepted"
+    ), 202
+
+def send_sqs_message_async(sqs, message, group_id, dedup_id):
+    """Función para enviar mensaje a SQS en background"""
+    try:
+        resp = sqs.send_message(body=message, group_id=group_id, dedup_id=dedup_id)
+        current_app.logger.info(f"SQS message sent: {resp['MessageId']}")
+        return resp
+    except Exception as e:
+        current_app.logger.error(f"Error sending SQS message: {e}")
+        # Aquí podrías implementar retry logic o DLQ
 
 @bp.get("/api/v1/orders")
 def get_orders():
@@ -359,3 +332,81 @@ def orders_health_check():
             status="unhealthy",
             error=str(e)
         ), 503
+
+@bp.post("/api/v1/orders/seed-data")
+def seed_orders_data():
+    """
+    Cargar datos de prueba en Orders Service
+    ---
+    tags:
+      - Orders
+    summary: Cargar datos de prueba
+    responses:
+      201:
+        description: Datos cargados exitosamente
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+            count:
+              type: integer
+      503:
+        description: Servicio no disponible
+    """
+    orders_url = get_orders_service_url()
+    if not orders_url:
+        return jsonify(error="Servicio de ordenes no disponible"), 503
+    
+    try:
+        response = requests.post(
+            f"{orders_url}/seed-data",
+            timeout=10
+        )
+        response.raise_for_status()
+        return jsonify(response.json()), response.status_code
+        
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error cargando datos de prueba"), 503
+
+
+@bp.delete("/api/v1/orders/clear-all")
+def clear_all_orders():
+    """
+    Borrar TODOS los registros de Orders Service
+    ---
+    tags:
+      - Orders
+    summary: Limpiar base de datos
+    description: CUIDADO - Borra todos los registros
+    responses:
+      200:
+        description: Datos eliminados
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+            tables_cleared:
+              type: array
+              items:
+                type: string
+      503:
+        description: Servicio no disponible
+    """
+    orders_url = get_orders_service_url()
+    if not orders_url:
+        return jsonify(error="Servicio de ordenes no disponible"), 503
+    
+    try:
+        response = requests.delete(
+            f"{orders_url}/clear-all",
+            timeout=10
+        )
+        response.raise_for_status()
+        return jsonify(response.json()), response.status_code
+        
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error limpiando datos"), 503

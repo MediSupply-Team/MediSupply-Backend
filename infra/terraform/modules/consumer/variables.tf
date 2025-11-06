@@ -62,6 +62,6 @@ variable "environment" {
 
 variable "ecr_force_delete" {
   type    = bool
-  default = false
+  default = true
   description = "If true, allows deleting the ECR repository even when it still contains images."
 }

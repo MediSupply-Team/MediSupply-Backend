@@ -22,14 +22,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health Check
 @app.get("/health", tags=["Health"])
 async def health_check():
-    return {
-        "status": "OK",
-        "service": "optimizador-rutas-service",
-        "version": "1.0.0"
-    }
+    return {"status": "OK", "service": "optimizador-rutas-service", "version": "1.0.0"}
+
+@app.get("/optimizer/health", tags=["Health"])
+async def health_check_with_prefix():
+    return {"status": "OK", "service": "optimizador-rutas-service", "version": "1.0.0"}
 
 # Incluir rutas
 app.include_router(router)

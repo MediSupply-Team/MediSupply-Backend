@@ -29,10 +29,36 @@ variable "sqs_arn" {
   type        = string
 }
 
+# ============================================================
+# BACKEND SERVICE URLS
+# ============================================================
+# Todas las URLs de servicios backend que el BFF necesita
+# consumir. Estas se pasan como variables de entorno al contenedor.
+# ============================================================
+
 variable "catalogo_service_url" {
   description = "URL of the catalogo service (internal ALB)"
   type        = string
 }
+
+variable "optimizer_service_url" {
+  description = "URL del servicio optimizador de rutas"
+  type        = string
+}
+
+variable "rutas_service_url" {
+  description = "URL del servicio de rutas"
+  type        = string
+}
+
+variable "orders_service_url" {
+  description = "URL del servicio de órdenes (orders-service)"
+  type        = string
+}
+
+# ============================================================
+# SERVICE DISCOVERY
+# ============================================================
 
 variable "service_connect_namespace_name" {
   description = "Service Connect namespace for internal service discovery"
