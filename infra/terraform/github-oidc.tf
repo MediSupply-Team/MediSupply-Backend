@@ -92,6 +92,80 @@ resource "aws_iam_role_policy_attachment" "github_actions_passrole" {
   policy_arn = aws_iam_policy.github_actions_passrole.arn
 }
 
+# Política para Terraform State (S3 + DynamoDB)
+resource "aws_iam_policy" "github_actions_terraform_state" {
+  name = "github-actions-terraform-state"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::miso-tfstate-217466752988",
+          "arn:aws:s3:::miso-tfstate-217466752988/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:DescribeTable"
+        ]
+        Resource = "arn:aws:dynamodb:us-east-1:217466752988:table/miso-tf-locks"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_terraform_state" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_terraform_state.arn
+}
+
+# Política para que Terraform pueda gestionar toda la infraestructura
+resource "aws_iam_policy" "github_actions_terraform_full" {
+  name = "github-actions-terraform-full"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:*",
+          "rds:*",
+          "elasticache:*",
+          "elasticloadbalancing:*",
+          "iam:*",
+          "secretsmanager:*",
+          "logs:*",
+          "cloudwatch:*",
+          "sqs:*",
+          "sns:*",
+          "s3:*",
+          "servicediscovery:*",
+          "application-autoscaling:*"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_terraform_full" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_terraform_full.arn
+}
+
 output "github_actions_role_arn" {
   value = aws_iam_role.github_actions.arn
 }
