@@ -935,9 +935,8 @@ module "optimizador_rutas" {
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Secret ARN - read from AWS, never deleted by Terraform
-  #mapbox_token_secret_arn = data.aws_secretsmanager_secret.mapbox_token.arn
-  mapbox_token_secret_arn = local.mapbox_token_dummy_arn
+  # Secret ARN - real Mapbox token from AWS Secrets Manager
+  mapbox_token_secret_arn = "arn:aws:secretsmanager:us-east-1:217466752988:secret:/medisupply/dev/mapbox-token-sshGcj"
 
   shared_http_listener_arn = module.bff_venta.alb_listener_arn
   shared_alb_sg_id         = module.bff_venta.alb_sg_id

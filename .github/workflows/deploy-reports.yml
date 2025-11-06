@@ -2,7 +2,7 @@ name: Deploy reports Service
 
 on:
   push:
-    branches: [ "main", "develop", "feature/HU013-·-Generar-informe-y-exportar" ]
+    branches: [ "develop" ]
     paths:
       - "report-service/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-reports.yml"
@@ -12,6 +12,13 @@ on:
         description: "Branch/Tag/Commit a desplegar"
         required: true
         default: "develop"
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: false
+        type: string
+        default: "main"
 
 env:
   AWS_REGION: us-east-1

@@ -170,8 +170,9 @@ resource "aws_db_instance" "catalogo_postgres" {
 # Los archivos de carga masiva se guardarán con prefijo: bulk-uploads/
 # Las fotos de visitas usan prefijo: visitas/
 
-data "aws_s3_bucket" "shared_uploads" {
-  bucket = var.s3_bucket_name
+locals {
+  s3_bucket_name = trim(var.s3_bucket_name, " ")
+  s3_bucket_arn  = "arn:aws:s3:::${local.s3_bucket_name}"
 }
 
 # ============================================================
@@ -382,8 +383,8 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
           "s3:ListBucket"
         ]
         Resource = [
-          data.aws_s3_bucket.shared_uploads.arn,
-          "${data.aws_s3_bucket.shared_uploads.arn}/*"
+          local.s3_bucket_arn,
+          "${local.s3_bucket_arn}/*"
         ]
       },
       {
@@ -512,7 +513,7 @@ resource "aws_ecs_task_definition" "catalogo" {
         },
         {
           name  = "S3_BUCKET_NAME"
-          value = data.aws_s3_bucket.shared_uploads.id
+          value = local.s3_bucket_name
         },
         {
           name  = "REDIS_URL"
@@ -676,5 +677,9 @@ resource "aws_ecs_service" "catalogo" {
     Service = "catalogo-service"
     Project = var.project
     Env     = var.env
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 }

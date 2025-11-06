@@ -116,7 +116,7 @@ terraform validate
 terraform plan -var-file="environments/aws/terraform.tfvars"
 ```
 
-### Desplegar
+### Desplegar 
 ```powershell
 terraform apply -var-file="environments/aws/terraform.tfvars" -auto-approve
 ```
