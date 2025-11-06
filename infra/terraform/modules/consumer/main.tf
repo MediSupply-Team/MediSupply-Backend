@@ -120,8 +120,8 @@ locals {
   is_local = var.environment == "local"
   
   consumer_lb_target = var.use_haproxy ? "http://127.0.0.1/orders" : "http://${var.bff_alb_dns_name}/orders"
-  # URL para conectarse al servicio orders via Service Connect
-  orders_url = var.orders_service_url != "" ? var.orders_service_url : "http://orders:3000/orders"
+  # URL para conectarse al servicio orders via ALB interno
+  orders_url = var.orders_service_url != "" ? var.orders_service_url : "http://${var.orders_alb_dns_name}/orders"  # ✅
 }
 
 # TaskDefinition: Condicional según use_haproxy
@@ -156,7 +156,7 @@ resource "aws_ecs_task_definition" "td" {
         { name = "AWS_REGION", value = var.aws_region },
         { name = "SQS_QUEUE_URL", value = aws_sqs_queue.fifo.url },
         # Soporta tanto LB_TARGET_URL como TARGET_URL para compatibilidad
-        { name = "LB_TARGET_URL", value = local.orders_url },
+        { name = "LB_TARGET_URL", value = "http://${var.orders_alb_dns_name}/orders" },
         { name = "TARGET_URL", value = local.orders_url },
         { name = "SQS_WAIT", value = "20" },
         { name = "SQS_BATCH", value = "10" },

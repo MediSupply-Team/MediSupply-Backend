@@ -619,6 +619,8 @@ module "consumer" {
   # Cluster donde correrÃ¡ el consumer
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
+  orders_alb_dns_name = module.orders.alb_dns_name
+
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
   ecr_force_delete = true
