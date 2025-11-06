@@ -2,7 +2,7 @@ name: Deploy BFF Venta Service
 
 on:
   push:
-    branches: [ "develop", "nueva-cuenta" ]
+    branches: [ "develop"]
     paths:
       - "bff-venta/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-bff-venta.yml"

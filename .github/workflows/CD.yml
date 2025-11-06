@@ -51,22 +51,22 @@ jobs:
 
       - name: 🔧 Terraform Init
         working-directory: ./infra/terraform
-        run: terraform init
+        run: terraform init -backend-config="environments/aws/backend.hcl" -migrate-state
+
+      - name: 📋 Terraform Validate
+        working-directory: ./infra/terraform
+        run: terraform validate
 
       - name: 📋 Terraform Plan
         working-directory: ./infra/terraform
-        run: |
-          terraform plan \
-            -var-file="environments/aws/terraform.tfvars" \
-            -out=tfplan \
-            -input=false
+        run: terraform plan -var-file="environments/aws/terraform.tfvars"
 
       - name: 🚀 Terraform Apply
         id: apply
         working-directory: ./infra/terraform
         run: |
           echo "🚀 Applying changes..."
-          if terraform apply -input=false tfplan; then
+          if terraform apply -var-file="environments/aws/terraform.tfvars" -auto-approve; then
             echo "✅ Terraform successful"
             echo "success=true" >> $GITHUB_OUTPUT
           else
