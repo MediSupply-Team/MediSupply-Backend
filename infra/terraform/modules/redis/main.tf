@@ -69,8 +69,8 @@ resource "aws_elasticache_cluster" "redis" {
 
   # Maintenance and backup
   maintenance_window      = "sun:05:00-sun:06:00"
-  snapshot_window          = ""
-  snapshot_retention_limit = 0
+  snapshot_window         = "03:00-04:00"
+  snapshot_retention_limit = 1
 
   tags = {
     Name        = "${var.project}-${var.env}-redis"
