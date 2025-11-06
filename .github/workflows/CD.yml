@@ -1,0 +1,255 @@
+name: 🚀 CD - Continuous Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: false
+        default: "main"
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/terraform/**'
+      - '.github/workflows/CD.yml'
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.5.0
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # ========================================
+  # JOB 1: Deploy Infrastructure
+  # ========================================
+  terraform-deploy:
+    name: ☁️ Terraform Deploy
+    runs-on: ubuntu-latest
+    outputs:
+      terraform_success: ${{ steps.apply.outputs.success }}
+      bff_venta_alb: ${{ steps.outputs.outputs.bff_venta_alb }}
+      bff_cliente_alb: ${{ steps.outputs.outputs.bff_cliente_alb }}
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: ⚙️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: 🔧 Terraform Init
+        working-directory: ./infra/terraform
+        run: terraform init
+
+      - name: 📋 Terraform Plan
+        working-directory: ./infra/terraform
+        run: |
+          terraform plan \
+            -var-file="environments/aws/terraform.tfvars" \
+            -out=tfplan \
+            -input=false
+
+      - name: 🚀 Terraform Apply
+        id: apply
+        working-directory: ./infra/terraform
+        run: |
+          echo "🚀 Applying changes..."
+          if terraform apply -input=false tfplan; then
+            echo "✅ Terraform successful"
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Terraform failed"
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: 📊 Get Outputs
+        id: outputs
+        if: steps.apply.outputs.success == 'true'
+        working-directory: ./infra/terraform
+        run: |
+          BFF_VENTA_ALB=$(terraform output -raw bff_alb_dns 2>/dev/null || echo "")
+          BFF_CLIENTE_ALB=$(terraform output -raw bff_cliente_alb_dns 2>/dev/null || echo "")
+          
+          echo "bff_venta_alb=${BFF_VENTA_ALB}" >> $GITHUB_OUTPUT
+          echo "bff_cliente_alb=${BFF_CLIENTE_ALB}" >> $GITHUB_OUTPUT
+
+  # ========================================
+  # JOB 2-11: Deploy Services (Solo si Terraform OK)
+  # ========================================
+  
+  deploy-catalogo:
+    name: 📚 Deploy Catalogo
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-catalogo.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
+  deploy-cliente:
+    name: 👤 Deploy Cliente
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-cliente.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
+  deploy-orders:
+    name: 📦 Deploy Orders
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-orders.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
+  deploy-bff-venta:
+    name: 🛒 Deploy BFF Venta
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-bff-venta.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
+  deploy-bff-cliente:
+    name: 👥 Deploy BFF Cliente
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-bff-cliente.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
+  deploy-consumer:
+    name: 🔄 Deploy Consumer
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-consumer.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
+  deploy-rutas:
+    name: 🚗 Deploy Rutas
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-rutas.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
+  deploy-reports:
+    name: 📊 Deploy Reports
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-reports.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
+  deploy-visita:
+    name: 📍 Deploy Visita
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-visita.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
+  deploy-optimizer:
+    name: 🔧 Deploy Optimizer
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-optimizer.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
+  # ========================================
+  # JOB 12: Deployment Summary
+  # ========================================
+  deployment-summary:
+    name: 📊 Deployment Summary
+    needs: [
+      terraform-deploy,
+      deploy-catalogo,
+      deploy-cliente,
+      deploy-orders,
+      deploy-bff-venta,
+      deploy-bff-cliente,
+      deploy-consumer,
+      deploy-rutas,
+      deploy-reports,
+      deploy-visita,
+      deploy-optimizer
+    ]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📊 Generate Summary
+        run: |
+          # Count successes
+          TOTAL=10
+          SUCCESS=0
+          
+          [[ "${{ needs.deploy-catalogo.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-cliente.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-orders.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-bff-venta.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-bff-cliente.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-consumer.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-rutas.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-reports.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-visita.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-optimizer.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          
+          if [ "$SUCCESS" -eq "$TOTAL" ]; then
+            STATUS="✅ ALL SERVICES DEPLOYED"
+            EMOJI="🎉"
+          else
+            STATUS="⚠️ PARTIAL DEPLOYMENT"
+            EMOJI="⚠️"
+          fi
+          
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          # 🚀 CD Pipeline Summary $EMOJI
+          
+          ## $STATUS ($SUCCESS/$TOTAL services)
+          
+          | Service | Status |
+          |---------|--------|
+          | ☁️ Terraform | ${{ needs.terraform-deploy.result }} |
+          | 📚 Catalogo | ${{ needs.deploy-catalogo.result }} |
+          | 👤 Cliente | ${{ needs.deploy-cliente.result }} |
+          | 📦 Orders | ${{ needs.deploy-orders.result }} |
+          | 🛒 BFF Venta | ${{ needs.deploy-bff-venta.result }} |
+          | 👥 BFF Cliente | ${{ needs.deploy-bff-cliente.result }} |
+          | 🔄 Consumer | ${{ needs.deploy-consumer.result }} |
+          | 🚗 Rutas | ${{ needs.deploy-rutas.result }} |
+          | 📊 Reports | ${{ needs.deploy-reports.result }} |
+          | 📍 Visita | ${{ needs.deploy-visita.result }} |
+          | 🔧 Optimizer | ${{ needs.deploy-optimizer.result }} |
+          
+          ## 🌐 Endpoints
+          - **BFF Venta:** http://${{ needs.terraform-deploy.outputs.bff_venta_alb }}
+          - **BFF Cliente:** http://${{ needs.terraform-deploy.outputs.bff_cliente_alb }}
+          
+          ---
+          **Workflow:** [View Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          EOF
