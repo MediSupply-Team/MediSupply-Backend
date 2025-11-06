@@ -74,7 +74,7 @@ class TestCoverageBasic:
     @pytest.mark.asyncio
     async def test_health_endpoint_real(self):
         """Test endpoint de health real"""
-        from httpx import AsyncClient
+        from httpx import AsyncClient, ASGITransport
         from app.main import app
         
         with patch('app.routes.client.get_settings') as mock_settings:
@@ -82,7 +82,7 @@ class TestCoverageBasic:
             mock_config.sla_max_response_ms = 2000
             mock_settings.return_value = mock_config
             
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.get("/api/cliente/health")
                 
                 assert response.status_code == 200
@@ -92,10 +92,10 @@ class TestCoverageBasic:
     @pytest.mark.asyncio 
     async def test_validation_endpoints(self):
         """Test validaciones en endpoints"""
-        from httpx import AsyncClient
+        from httpx import AsyncClient, ASGITransport
         from app.main import app
         
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Test validación - término muy corto (debe fallar)
             response = await client.get(
                 "/api/cliente/search", 
@@ -175,7 +175,7 @@ class TestCoverageBasic:
     @pytest.mark.asyncio
     async def test_metrics_endpoint_mock(self):
         """Test endpoint de métricas con mock"""
-        from httpx import AsyncClient
+        from httpx import AsyncClient, ASGITransport
         from app.main import app
         from unittest.mock import AsyncMock, patch
         
@@ -190,7 +190,7 @@ class TestCoverageBasic:
             mock_service.obtener_metricas.return_value = mock_metrics
             mock_service_class.return_value = mock_service
             
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.get("/api/cliente/metrics")
                 
                 assert response.status_code == 200
@@ -200,7 +200,7 @@ class TestCoverageBasic:
     @pytest.mark.asyncio
     async def test_list_endpoint_mock(self):
         """Test endpoint de listado con mock"""
-        from httpx import AsyncClient
+        from httpx import AsyncClient, ASGITransport
         from app.main import app
         from unittest.mock import AsyncMock, patch
         
@@ -220,7 +220,7 @@ class TestCoverageBasic:
             mock_service.listar_clientes.return_value = mock_clientes
             mock_service_class.return_value = mock_service
             
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.get("/api/cliente/")
                 
                 assert response.status_code == 200
