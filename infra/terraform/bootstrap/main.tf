@@ -203,7 +203,7 @@ resource "aws_iam_role" "github_actions" {
   })
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false  # Temporalmente permitir cambios
   }
 
   tags = {
