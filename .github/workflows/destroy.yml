@@ -1,0 +1,67 @@
+name: 💥 Destroy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Escriba "DESTROY" para confirmar'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.5.0
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # ========================================
+  # Terraform Destroy
+  # ========================================
+  terraform-destroy:
+    name: 💥 Terraform Destroy
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirmation == 'DESTROY'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: ⚙️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: 🔧 Terraform Init
+        working-directory: ./infra/terraform
+        run: terraform init
+
+      - name: 💥 Terraform Destroy
+        working-directory: ./infra/terraform
+        run: |
+          terraform destroy \
+            -var-file="environments/aws/terraform.tfvars" \
+            -auto-approve
+
+      - name: 📊 Summary
+        if: always()
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          # 💥 Infrastructure Destruction
+          
+          **Status:** ${{ job.status }}
+          **Confirmation:** ${{ github.event.inputs.confirmation }}
+          **Triggered by:** ${{ github.actor }}
+          **Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          
+          ---
+          ⚠️ **All AWS resources have been destroyed**
+          EOF

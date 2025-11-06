@@ -7,6 +7,13 @@ on:
       - 'consumer-lb/**'
       - '.github/workflows/deploy-consumer.yml'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: false
+        type: string
+        default: "main"
 
 env:
   AWS_REGION: us-east-1
