@@ -1,4 +1,4 @@
-name: "📊 IC"
+name: "📊 CI - Continuous Intehration"
 
 # Se ejecuta en cada push a main
 on:
