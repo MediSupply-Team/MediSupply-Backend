@@ -215,10 +215,31 @@ resource "aws_iam_role" "github_actions" {
 # Políticas IAM - Permisos Amplios para GitHub Actions
 # ============================================================================
 
-# Política 1: ECS y ECR
-resource "aws_iam_role_policy_attachment" "github_actions_ecr" {
+# Política 1: ECR Full Access (incluyendo CreateRepository)
+resource "aws_iam_policy" "github_actions_ecr_full" {
+  name = "github-actions-ecr-full"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:*"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_ecr_full" {
   role       = aws_iam_role.github_actions.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
+  policy_arn = aws_iam_policy.github_actions_ecr_full.arn
 
   lifecycle {
     prevent_destroy = true
