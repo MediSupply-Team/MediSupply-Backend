@@ -12,7 +12,7 @@ from datetime import datetime
 
 # Configuración de Gemini
 GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-pro-vision")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
 # Configurar la API de Gemini
 if GEMINI_API_KEY:
