@@ -2,7 +2,7 @@ name: Deploy Visita Service
 
 on:
   push:
-    branches: [ "develop", "feature/HU09-Registrar-la-visita-a-un-cliente" ]
+    branches: [ "develop", "HU017-Procesamiento-de-video-y-generación-de-recomendación" ]
     paths:
       - "visita-service/**"
       - ".github/workflows/deploy-visita.yml"
