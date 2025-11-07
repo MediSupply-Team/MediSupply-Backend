@@ -7,13 +7,13 @@ on:
         description: "Branch to deploy"
         required: false
         default: "main"
-  push:
-    branches:
-      - main
-      - CD
-    paths:
-      - 'infra/terraform/**'
-      - '.github/workflows/CD.yml'
+  # push:
+  #   branches:
+  #     - main
+  #     - CD
+  #   paths:
+  #     - 'infra/terraform/**'
+  #     - '.github/workflows/CD.yml'
 
 env:
   AWS_REGION: us-east-1
