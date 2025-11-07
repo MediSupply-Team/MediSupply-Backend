@@ -124,7 +124,6 @@ def health():
 
 @app.post("/api/visitas", response_model=dict)
 async def crear_visita(
-    background_tasks: BackgroundTasks,
     vendedor_id: int = Form(...),
     cliente_id: int = Form(...),
     nombre_contacto: str = Form(...),
@@ -132,11 +131,12 @@ async def crear_visita(
     estado: EstadoVisita = Form(EstadoVisita.PENDIENTE),
     fotos: Optional[List[UploadFile]] = File(None),
     videos: Optional[List[UploadFile]] = File(None),
-    auto_analyze_videos: bool = Form(True),  # Nuevo parámetro para controlar análisis automático
     session: Session = Depends(get_session)
 ):
     """
     Crear una nueva visita a un cliente con fotos, videos y observaciones.
+    Los videos se guardan en S3 pero NO se analizan automáticamente.
+    Use POST /api/visitas/{visita_id}/analyze para procesar los videos con Gemini.
     
     - **vendedor_id**: ID del vendedor que realiza la visita
     - **cliente_id**: ID del cliente visitado
@@ -145,7 +145,6 @@ async def crear_visita(
     - **estado**: Estado de la visita (exitosa, pendiente, cancelada)
     - **fotos**: Lista de archivos de fotos (jpg, jpeg, png, gif)
     - **videos**: Lista de archivos de videos (mp4, avi, mov)
-    - **auto_analyze_videos**: Si es True, analiza automáticamente los videos con Gemini (default: True)
     """
     # 1. Crear la visita
     visita = Visita(
@@ -221,28 +220,6 @@ async def crear_visita(
                 )
                 session.add(hallazgo)
                 hallazgos_creados.append(hallazgo)
-                
-                # 3.1. Crear registro de análisis de video si auto_analyze_videos está activo
-                if auto_analyze_videos and video_analysis_service.is_configured():
-                    video_analysis = VideoAnalysis(
-                        visita_id=visita.id,
-                        video_url=file_path,
-                        status="pending"
-                    )
-                    session.add(video_analysis)
-                    session.commit()
-                    session.refresh(video_analysis)
-                    
-                    video_analyses_creados.append(video_analysis)
-                    
-                    # Disparar análisis en background
-                    background_tasks.add_task(
-                        process_video_analysis,
-                        video_analysis.id,
-                        file_path,
-                        session
-                    )
-                    print(f"📊 Análisis de video programado para ID {video_analysis.id}")
     
     # 4. Guardar todos los hallazgos
     session.commit()
@@ -258,16 +235,6 @@ async def crear_visita(
         for h in hallazgos_creados
     ]
     
-    video_analyses_response = [
-        {
-            "id": va.id,
-            "video_url": va.video_url,
-            "status": va.status,
-            "created_at": va.created_at.isoformat()
-        }
-        for va in video_analyses_creados
-    ]
-    
     return {
         "id": visita.id,
         "vendedor_id": visita.vendedor_id,
@@ -278,10 +245,8 @@ async def crear_visita(
         "fecha_visita": visita.fecha_visita.isoformat(),
         "created_at": visita.created_at.isoformat(),
         "hallazgos": hallazgos_response,
-        "video_analyses": video_analyses_response,
         "total_fotos": len([h for h in hallazgos_creados if h.tipo == "foto"]),
-        "total_videos": len([h for h in hallazgos_creados if h.tipo == "video"]),
-        "total_analyses_programados": len(video_analyses_creados)
+        "total_videos": len([h for h in hallazgos_creados if h.tipo == "video"])
     }
 
 @app.get("/api/visitas", response_model=List[dict])
@@ -570,6 +535,111 @@ async def eliminar_hallazgo(
 # ENDPOINTS DE ANÁLISIS DE VIDEO CON GEMINI
 # ============================================================
 
+@app.post("/api/visitas/{visita_id}/analyze")
+async def analizar_videos_visita(
+    visita_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session)
+):
+    """
+    Analizar todos los videos de una visita con Gemini AI.
+    Procesa todos los videos guardados en la visita y genera recomendaciones.
+    
+    - **visita_id**: ID de la visita cuyos videos se quieren analizar
+    
+    Retorna información sobre los análisis iniciados. Use GET /api/visitas/{visita_id}/video-analyses
+    para consultar el progreso y resultados.
+    """
+    # Verificar que la visita existe
+    visita = session.get(Visita, visita_id)
+    if not visita:
+        raise HTTPException(status_code=404, detail="Visita no encontrada")
+    
+    # Verificar que Gemini esté configurado
+    if not video_analysis_service.is_configured():
+        raise HTTPException(
+            status_code=503, 
+            detail="Servicio de análisis de video no disponible. Configure GEMINI_API_KEY."
+        )
+    
+    # Obtener todos los hallazgos de tipo video
+    query = select(Hallazgo).where(
+        Hallazgo.visita_id == visita_id,
+        Hallazgo.tipo == "video"
+    )
+    videos = session.exec(query).all()
+    
+    if not videos:
+        raise HTTPException(
+            status_code=404, 
+            detail="No se encontraron videos en esta visita"
+        )
+    
+    # Crear registros de análisis para cada video
+    analyses_creados = []
+    for video in videos:
+        # Verificar que el archivo existe
+        if not await storage.file_exists(video.contenido):
+            print(f"⚠️ Video no encontrado: {video.contenido}")
+            continue
+        
+        # Verificar si ya existe un análisis para este video
+        existing = session.exec(
+            select(VideoAnalysis).where(
+                VideoAnalysis.visita_id == visita_id,
+                VideoAnalysis.video_url == video.contenido
+            )
+        ).first()
+        
+        if existing and existing.status in ["pending", "processing"]:
+            # Ya está en proceso
+            analyses_creados.append(existing)
+            continue
+        
+        # Crear nuevo análisis
+        video_analysis = VideoAnalysis(
+            visita_id=visita_id,
+            video_url=video.contenido,
+            status="pending"
+        )
+        session.add(video_analysis)
+        session.commit()
+        session.refresh(video_analysis)
+        
+        analyses_creados.append(video_analysis)
+        
+        # Disparar análisis en background
+        background_tasks.add_task(
+            process_video_analysis,
+            video_analysis.id,
+            video.contenido,
+            session
+        )
+        print(f"📊 Análisis de video programado para ID {video_analysis.id}")
+    
+    if not analyses_creados:
+        raise HTTPException(
+            status_code=404,
+            detail="No se pudieron iniciar análisis. Videos no encontrados en almacenamiento."
+        )
+    
+    return {
+        "visita_id": visita_id,
+        "total_videos": len(videos),
+        "analyses_iniciados": len(analyses_creados),
+        "analyses": [
+            {
+                "id": va.id,
+                "video_url": va.video_url,
+                "status": va.status,
+                "created_at": va.created_at.isoformat()
+            }
+            for va in analyses_creados
+        ],
+        "message": f"Se iniciaron {len(analyses_creados)} análisis. Use GET /api/visitas/{visita_id}/video-analyses para ver el progreso."
+    }
+
+
 @app.post("/api/video/analyze")
 async def analizar_video_manual(
     background_tasks: BackgroundTasks,
@@ -578,7 +648,9 @@ async def analizar_video_manual(
     session: Session = Depends(get_session)
 ):
     """
-    Lanzar análisis manual de un video ya subido
+    DEPRECATED: Use POST /api/visitas/{visita_id}/analyze en su lugar.
+    
+    Lanzar análisis manual de un video específico ya subido.
     
     - **visita_id**: ID de la visita asociada
     - **video_url**: URL del video en S3 o path local
