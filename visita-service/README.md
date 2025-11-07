@@ -1,6 +1,6 @@
 # Visita Service
 
-Servicio para gestionar visitas de vendedores a clientes con registro de hallazgos técnicos/clínicos.
+Servicio para gestionar visitas de vendedores a clientes con registro de hallazgos técnicos/clínicos y **análisis de video con IA**.
 
 ## Funcionalidades
 
@@ -8,9 +8,31 @@ Servicio para gestionar visitas de vendedores a clientes con registro de hallazg
 - ✅ Estados de visita: `exitosa`, `pendiente`, `cancelada`
 - ✅ Subir fotos (jpg, png, gif)
 - ✅ Subir videos (mp4, avi, mov)
+- ✅ **Análisis automático de videos con Gemini AI** ⭐ NUEVO
+- ✅ **Generación de resúmenes, etiquetas y recomendaciones** ⭐ NUEVO
 - ✅ Agregar hallazgos de texto
 - ✅ Listar y filtrar visitas
 - ✅ Descargar archivos adjuntos
+
+## 🎬 Análisis de Video con IA
+
+El servicio ahora incluye **procesamiento automático de videos** usando Google Gemini AI:
+
+- **Resumen automático**: Descripción detallada del contenido del video
+- **Etiquetas**: Categorización automática del contenido
+- **Recomendaciones**: Sugerencias de productos o acciones basadas en el análisis
+
+📖 **Ver documentación completa**: [VIDEO_ANALYSIS.md](./VIDEO_ANALYSIS.md)
+
+### Configuración Rápida
+
+Agregar en `.env`:
+```env
+GEMINI_API_KEY=tu_api_key_aqui
+GEMINI_MODEL=gemini-1.5-flash
+```
+
+Obtener API Key: [Google AI Studio](https://aistudio.google.com/app/apikey)
 
 ## Iniciar en Local
 
@@ -158,13 +180,24 @@ GET http://localhost:8003/api/hallazgos/1/archivo
 # Health check
 curl http://localhost:8003/health
 
-# Crear visita
+# Verificar estado del servicio de análisis de video
+curl http://localhost:8003/api/video/service-status
+
+# Crear visita con análisis automático de video
 curl -X POST http://localhost:8003/api/visitas \
   -F "vendedor_id=1" \
   -F "cliente_id=10" \
   -F "nombre_contacto=Dr. Juan Pérez" \
   -F "observaciones=Necesita equipo nuevo" \
-  -F "estado=pendiente"
+  -F "estado=pendiente" \
+  -F "videos=@video.mp4" \
+  -F "auto_analyze_videos=true"
+
+# Consultar progreso del análisis de video
+curl http://localhost:8003/api/video/analysis/1
+
+# Listar análisis de video de una visita
+curl http://localhost:8003/api/visitas/1/video-analyses
 
 # Subir foto
 curl -X POST http://localhost:8003/api/visitas/1/hallazgos/archivo \
@@ -180,7 +213,7 @@ curl -X POST http://localhost:8003/api/visitas/1/hallazgos/texto \
 # Listar visitas
 curl "http://localhost:8003/api/visitas?vendedor_id=1"
 
-# Obtener visita completa
+# Obtener visita completa (incluye análisis de video)
 curl http://localhost:8003/api/visitas/1
 
 # Actualizar estado
@@ -208,6 +241,18 @@ curl -X PATCH http://localhost:8003/api/visitas/1/estado \
 - `contenido`: Ruta del archivo o texto
 - `descripcion`: Descripción opcional
 - `created_at`: Fecha de creación
+
+### Tabla `video_analysis` ⭐ NUEVO
+- `id`: Primary key
+- `visita_id`: Foreign key a visitas
+- `video_url`: URL del video (S3 o local)
+- `summary`: Resumen generado por IA
+- `tags`: Lista de etiquetas (JSON)
+- `recommendations`: Lista de recomendaciones (JSON)
+- `status`: `pending` | `processing` | `completed` | `failed`
+- `error_message`: Mensaje de error si falla
+- `created_at`: Fecha de creación
+- `completed_at`: Fecha de completado
 
 ## Base de Datos
 
