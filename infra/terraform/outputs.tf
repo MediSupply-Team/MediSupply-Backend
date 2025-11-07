@@ -91,20 +91,20 @@ output "orders_log_group" {
   value       = module.orders.log_group_name
 }
 
-output "orders_alb_dns" {
-  description = "DNS name del ALB interno de Orders"
-  value       = module.orders.alb_dns_name
+output "orders_service_connect_url" {
+  description = "Service Connect URL for Orders service (internal communication)"
+  value       = module.orders.service_connect_url
 }
 
-output "orders_alb_url" {
-  description = "URL completa del ALB de Orders (para BFF-Venta)"
-  value       = "http://${module.orders.alb_dns_name}"
-}
-
-output "orders_target_group_arn" {
-  description = "ARN del Target Group de Orders"
-  value       = module.orders.target_group_arn
-}
+# ============================================================
+# DEPRECATED OUTPUTS - ALB de Orders eliminado
+# ============================================================
+# Los siguientes outputs han sido eliminados:
+# - orders_alb_dns
+# - orders_alb_url
+# - orders_target_group_arn
+#
+# Usar orders_service_connect_url en su lugar
 
 
 # ============================================================
@@ -164,15 +164,15 @@ output "bff_cliente_service_name" {
 # ============================================================
 # CLIENTE SERVICE OUTPUTS
 # ============================================================
-output "cliente_service_alb_dns" {
-  description = "Cliente service ALB DNS name"
-  value       = module.cliente_service.alb_dns_name
+output "cliente_service_connect_url" {
+  description = "Service Connect URL for Cliente service (internal communication)"
+  value       = module.cliente_service.service_connect_url
 }
 
-output "cliente_service_alb_url" {
-  description = "Cliente service URL"
-  value       = module.cliente_service.alb_url
-}
+# DEPRECATED OUTPUTS - ALB de Cliente eliminado
+# - cliente_service_alb_dns
+# - cliente_service_alb_url
+# Usar cliente_service_connect_url en su lugar
 
 output "cliente_service_ecr_repo_url" {
   description = "Cliente service ECR repo URL"

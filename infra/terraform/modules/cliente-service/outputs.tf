@@ -3,14 +3,19 @@ output "ecr_repository_url" {
   value       = aws_ecr_repository.cliente.repository_url
 }
 
-output "alb_dns_name" {
-  description = "ALB DNS name"
-  value       = aws_lb.cliente_alb.dns_name
+output "service_connect_dns" {
+  description = "Service Connect DNS name for internal communication"
+  value       = "cliente.svc.local"
 }
 
-output "alb_url" {
-  description = "ALB URL"
-  value       = "http://${aws_lb.cliente_alb.dns_name}"
+output "service_connect_port" {
+  description = "Service Connect port"
+  value       = var.container_port
+}
+
+output "service_connect_url" {
+  description = "Full Service Connect URL for internal communication"
+  value       = "http://cliente.svc.local:${var.container_port}"
 }
 
 output "service_name" {
@@ -27,3 +32,12 @@ output "db_credentials_secret_arn" {
   description = "Database credentials secret ARN"
   value       = aws_secretsmanager_secret.cliente_db_credentials.arn
 }
+
+# ============================================================
+# DEPRECATED OUTPUTS - ALB eliminado para reducir costos
+# ============================================================
+# Los siguientes outputs han sido eliminados:
+# - alb_dns_name
+# - alb_url
+#
+# Usar service_connect_url en su lugar

@@ -47,3 +47,9 @@ variable "environment" {
     error_message = "Environment must be 'local' or 'aws'."
   }
 }
+
+variable "service_connect_namespace_name" {
+  description = "Service Connect namespace name for service discovery"
+  type        = string
+  default     = ""
+}

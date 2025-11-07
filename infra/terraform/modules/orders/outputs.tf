@@ -32,40 +32,34 @@ output "security_group_id" {
 }
 
 # ============================================================
-# ALB OUTPUTS (NUEVOS)
+# SERVICE CONNECT OUTPUTS (Reemplaza ALB outputs)
 # ============================================================
 
-output "alb_dns_name" {
-  description = "DNS name del ALB interno de Orders"
-  value       = aws_lb.orders_alb.dns_name
+output "service_connect_dns" {
+  description = "Service Connect DNS name for internal communication"
+  value       = "orders.svc.local"
 }
 
-output "alb_arn" {
-  description = "ARN del ALB de Orders"
-  value       = aws_lb.orders_alb.arn
+output "service_connect_port" {
+  description = "Service Connect port"
+  value       = var.app_port
 }
 
-output "alb_zone_id" {
-  description = "Zone ID del ALB de Orders (para Route53)"
-  value       = aws_lb.orders_alb.zone_id
+output "service_connect_url" {
+  description = "Full Service Connect URL for internal communication"
+  value       = "http://orders.svc.local:${var.app_port}"
 }
 
-output "alb_security_group_id" {
-  description = "ID del Security Group del ALB"
-  value       = aws_security_group.orders_alb_sg.id
-}
-
-output "target_group_arn" {
-  description = "ARN del Target Group de Orders"
-  value       = aws_lb_target_group.orders_tg.arn
-}
-
-output "target_group_name" {
-  description = "Nombre del Target Group de Orders"
-  value       = aws_lb_target_group.orders_tg.name
-}
-
-output "listener_arn" {
-  description = "ARN del Listener HTTP del ALB"
-  value       = aws_lb_listener.orders_http.arn
-}
+# ============================================================
+# DEPRECATED OUTPUTS - ALB eliminado para reducir costos
+# ============================================================
+# Los siguientes outputs han sido eliminados porque el ALB fue removido:
+# - alb_dns_name
+# - alb_arn
+# - alb_zone_id
+# - alb_security_group_id
+# - target_group_arn
+# - target_group_name
+# - listener_arn
+#
+# Usar service_connect_url en su lugar

@@ -599,6 +599,9 @@ module "orders" {
   # ARNs requeridos que faltaban
   ecs_execution_role_arn = aws_iam_role.orders_exec.arn
   ecs_task_role_arn      = aws_iam_role.orders_task.arn
+  
+  # Service Connect namespace
+  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
 }
 
 # Consumer (SQS + Worker)
@@ -619,7 +622,8 @@ module "consumer" {
   # Cluster donde correrÃ¡ el consumer
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  orders_alb_dns_name = module.orders.alb_dns_name
+  # Usar Service Connect en lugar de ALB
+  orders_service_url = module.orders.service_connect_url
 
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
@@ -659,7 +663,8 @@ module "bff_venta" {
   catalogo_service_url  = "http://${module.bff_venta.alb_dns_name}/catalog"
   optimizer_service_url = "http://${module.bff_venta.alb_dns_name}"
   rutas_service_url     = "http://${module.bff_venta.alb_dns_name}"
-  orders_service_url = "http://${module.orders.alb_dns_name}"
+  # Usar Service Connect para Orders (elimina ALB interno)
+  orders_service_url = module.orders.service_connect_url
   
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
@@ -721,9 +726,9 @@ module "bff_cliente" {
   sqs_url = module.consumer.sqs_queue_url
   sqs_arn = module.consumer.sqs_queue_arn
 
-  # Servicios backend (usando ALBs internos)
+  # Servicios backend - Usar Service Connect para servicios internos
   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
-  cliente_service_url  = local.is_local ? "http://cliente:8000" : "http://${module.cliente_service.alb_dns_name}"
+  cliente_service_url  = local.is_local ? "http://cliente:8000" : module.cliente_service.service_connect_url
 
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name

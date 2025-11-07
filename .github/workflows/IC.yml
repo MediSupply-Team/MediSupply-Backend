@@ -1,4 +1,4 @@
-name: "📊 CI - Continuous Intehration"
+name: "📊 CI - Continuous Integration"
 
 # Se ejecuta en cada push a main
 on:

@@ -65,9 +65,3 @@ variable "ecr_force_delete" {
   default = true
   description = "If true, allows deleting the ECR repository even when it still contains images."
 }
-
-variable "orders_alb_dns_name" {
-  description = "DNS name of the Orders internal ALB"
-  type        = string
-  default     = ""
-}

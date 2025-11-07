@@ -38,13 +38,13 @@ resource "aws_security_group" "ecs_sg" {
   description = "SG para ECS tasks de orders"
   vpc_id      = var.vpc_id
 
-  # Permitir tráfico desde el ALB
+  # Permitir tráfico desde otros servicios en la VPC
   ingress {
-    description     = "Trafico desde ALB"
-    from_port       = var.app_port
-    to_port         = var.app_port
-    protocol        = "tcp"
-    security_groups = [aws_security_group.orders_alb_sg.id]
+    description = "Trafico desde VPC (Service Connect)"
+    from_port   = var.app_port
+    to_port     = var.app_port
+    protocol    = "tcp"
+    cidr_blocks = ["10.20.0.0/16"]  # CIDR de tu VPC
   }
 
   egress {
@@ -65,100 +65,17 @@ resource "aws_security_group" "ecs_sg" {
   }
 }
 
-# Security Group para ALB
-resource "aws_security_group" "orders_alb_sg" {
-  name        = "${var.project}-${var.env}-orders-alb-sg"
-  description = "Security group for Orders ALB"
-  vpc_id      = var.vpc_id
-
-  # Permitir HTTP desde toda la VPC (para BFF-Venta y otros servicios)
-  ingress {
-    description = "HTTP from VPC"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["10.20.0.0/16"]  # CIDR de tu VPC
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name    = "${var.project}-${var.env}-orders-alb-sg"
-    Project = var.project
-    Env     = var.env
-  }
-}
-
 # ============================================================
-# APPLICATION LOAD BALANCER (INTERNAL)
+# ALB ELIMINADO - Usando Service Connect para comunicación interna
 # ============================================================
-
-resource "aws_lb" "orders_alb" {
-  name               = "${var.project}-${var.env}-orders-alb"
-  internal           = true  # ALB INTERNO (no accesible desde internet)
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.orders_alb_sg.id]
-  subnets            = var.private_subnets
-
-  enable_deletion_protection = false
-  enable_http2              = true
-
-  tags = {
-    Name    = "${var.project}-${var.env}-orders-alb"
-    Project = var.project
-    Env     = var.env
-  }
-}
-
-# Target Group
-resource "aws_lb_target_group" "orders_tg" {
-  name                 = "${var.project}-${var.env}-orders-tg"
-  port                 = var.app_port
-  protocol             = "HTTP"
-  target_type          = "ip"  # Importante para Fargate
-  vpc_id               = var.vpc_id
-  deregistration_delay = 30
-
-  health_check {
-    enabled             = true
-    path                = "/health"
-    protocol            = "HTTP"
-    matcher             = "200"
-    interval            = 30
-    timeout             = 5
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-  }
-
-  tags = {
-    Name    = "${var.project}-${var.env}-orders-tg"
-    Project = var.project
-    Env     = var.env
-  }
-}
-
-# Listener
-resource "aws_lb_listener" "orders_http" {
-  load_balancer_arn = aws_lb.orders_alb.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.orders_tg.arn
-  }
-
-  tags = {
-    Name    = "${var.project}-${var.env}-orders-listener"
-    Project = var.project
-    Env     = var.env
-  }
-}
+# Los siguientes recursos han sido eliminados para reducir costos:
+# - aws_security_group.orders_alb_sg
+# - aws_lb.orders_alb
+# - aws_lb_target_group.orders_tg
+# - aws_lb_listener.orders_http
+#
+# Ahorro: ~$16-18/mes
+# Comunicación: Via Service Connect (orders.svc.local:3000)
 
 # ============================================================
 # ECS TASK DEFINITION
@@ -233,7 +150,7 @@ resource "aws_ecs_task_definition" "orders" {
 }
 
 # ============================================================
-# ECS SERVICE CON ALB
+# ECS SERVICE CON SERVICE CONNECT
 # ============================================================
 
 resource "aws_ecs_service" "orders" {
@@ -253,21 +170,25 @@ resource "aws_ecs_service" "orders" {
   }
 
   # ============================================================
-  # LOAD BALANCER (reemplaza Service Connect)
+  # SERVICE CONNECT (reemplaza ALB para comunicación interna)
   # ============================================================
-  load_balancer {
-    target_group_arn = aws_lb_target_group.orders_tg.arn
-    container_name   = "orders"
-    container_port   = var.app_port
+  dynamic "service_connect_configuration" {
+    for_each = local.is_local ? [] : [1]
+    content {
+      enabled   = true
+      namespace = var.service_connect_namespace_name
+
+      service {
+        port_name      = "http"
+        discovery_name = "orders"
+        
+        client_alias {
+          port     = var.app_port
+          dns_name = "orders"
+        }
+      }
+    }
   }
-
-  # Grace period para health checks del ALB
-  health_check_grace_period_seconds = 60
-
-  # Depende del listener para evitar errores de creación
-  depends_on = [
-    aws_lb_listener.orders_http
-  ]
 
   tags = {
     Project = var.project
