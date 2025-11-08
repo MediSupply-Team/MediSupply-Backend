@@ -1,13 +1,13 @@
 # services/report_service.py
 """
-Servicio de generación de reportes basado en datos reales del servicio Orders
+Servicio de generación de reportes basado en datos reales de la base de datos de Orders
 """
 from datetime import date, datetime, timedelta
 from typing import Optional, List, Dict, Any
 from collections import defaultdict
 import logging
 
-from services.orders_client import orders_client
+from services.database_client import db_client
 from schemas.report import (
     ReportResponse, FiltersApplied, Period, Summary, Charts,
     TrendPoint, TopProduct, Table, TableRow
@@ -75,14 +75,19 @@ async def get_sales_performance(
         ReportResponse con todas las métricas y datos
     """
     try:
-        # Obtener órdenes del servicio Orders
+        # Obtener órdenes directamente de la base de datos
         logger.info(f"Obteniendo órdenes desde {period_from} hasta {period_to}")
-        all_orders = await orders_client.get_orders(
-            from_date=period_from,
-            to_date=period_to
+        
+        # Convertir dates a datetime para la query
+        start_datetime = datetime.combine(period_from, datetime.min.time())
+        end_datetime = datetime.combine(period_to, datetime.max.time())
+        
+        all_orders = await db_client.get_orders(
+            start_date=start_datetime,
+            end_date=end_datetime
         )
         
-        # Filtrar por fechas (en caso que el servicio Orders no lo haga)
+        # Filtrar por fechas (validación adicional)
         orders = _filter_orders_by_date(all_orders, period_from, period_to)
         
         # Filtrar por product_id si se especifica
@@ -117,9 +122,13 @@ async def get_sales_performance(
         prev_from = period_from - timedelta(days=delta_days)
         prev_to = period_from - timedelta(days=1)
         
-        prev_orders = await orders_client.get_orders(
-            from_date=prev_from,
-            to_date=prev_to
+        # Convertir dates a datetime para la query del período anterior
+        prev_start_datetime = datetime.combine(prev_from, datetime.min.time())
+        prev_end_datetime = datetime.combine(prev_to, datetime.max.time())
+        
+        prev_orders = await db_client.get_orders(
+            start_date=prev_start_datetime,
+            end_date=prev_end_datetime
         )
         prev_orders = _filter_orders_by_date(prev_orders, prev_from, prev_to)
         prev_total = sum(_calculate_order_revenue(order) for order in prev_orders)

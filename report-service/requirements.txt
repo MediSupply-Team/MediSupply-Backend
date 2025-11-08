@@ -2,7 +2,8 @@ fastapi
 uvicorn
 python-dotenv
 requests
-httpx
+asyncpg
+sqlalchemy[asyncio]
 python-dateutil
 boto3
 reportlab
