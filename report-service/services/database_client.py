@@ -15,6 +15,12 @@ class DatabaseClient:
         self.database_url = os.getenv("DATABASE_URL")
         if not self.database_url:
             raise ValueError("DATABASE_URL environment variable is required")
+        
+        # asyncpg solo acepta 'postgresql://' o 'postgres://', no 'postgresql+asyncpg://'
+        # Limpiamos el esquema si es necesario
+        if self.database_url.startswith("postgresql+asyncpg://"):
+            self.database_url = self.database_url.replace("postgresql+asyncpg://", "postgresql://")
+        
         self.pool: Optional[asyncpg.Pool] = None
     
     async def connect(self):
