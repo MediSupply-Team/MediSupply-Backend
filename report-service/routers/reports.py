@@ -1,8 +1,6 @@
 # routers/reports.py
 from datetime import date
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlmodel import Session
-from database import get_session
+from fastapi import APIRouter, Query, HTTPException
 from schemas.report import ReportResponse, ExportResponse
 from services.report_service import get_sales_performance
 from services.export_service import generate_csv, generate_pdf
@@ -14,15 +12,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 @router.get("/sales-performance", response_model=ReportResponse)
-def sales_performance(
+async def sales_performance(
     period_from: date = Query(..., alias="from"),
     period_to: date = Query(..., alias="to"),
     vendor_id: int | None = Query(None),
     product_id: int | None = Query(None),
-    session: Session = Depends(get_session),
 ):
-    return get_sales_performance(
-        session=session,
+    """
+    Obtiene el reporte de desempeño de ventas basado en datos reales de Orders
+    """
+    return await get_sales_performance(
         period_from=period_from,
         period_to=period_to,
         vendor_id=vendor_id,
@@ -30,13 +29,12 @@ def sales_performance(
     )
 
 @router.get("/sales-performance/export", response_model=ExportResponse)
-def export_sales_performance(
+async def export_sales_performance(
     period_from: date = Query(..., alias="from"),
     period_to: date = Query(..., alias="to"),
     vendor_id: int | None = Query(None),
     product_id: int | None = Query(None),
     format: str = Query("csv", pattern="^(csv|pdf)$"),
-    session: Session = Depends(get_session),
 ):
     """
     Exporta el reporte de desempeño de ventas y retorna una URL de S3
@@ -54,8 +52,7 @@ def export_sales_performance(
     """
     try:
         # Obtener los datos del reporte
-        report = get_sales_performance(
-            session=session, 
+        report = await get_sales_performance(
             period_from=period_from, 
             period_to=period_to, 
             vendor_id=vendor_id, 

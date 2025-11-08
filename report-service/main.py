@@ -1,17 +1,22 @@
-from fastapi import FastAPI, Depends, Query
-from sqlmodel import Session, select
-from database import get_session, init_db
+from fastapi import FastAPI
 from routers.reports import router as reports_router
-from datetime import date
+import logging
 
-app = FastAPI()
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
-@app.on_event("startup")
-def on_startup():
-    init_db()
+app = FastAPI(
+    title="MediSupply Reports Service",
+    description="Servicio de generación de reportes basado en datos reales del servicio Orders",
+    version="2.0.0"
+)
 
 @app.get("/health")
-def health(): return {"ok": True}
+def health(): 
+    return {"ok": True, "service": "reports"}
 
 # Monta el router de reportes 
 app.include_router(reports_router)
