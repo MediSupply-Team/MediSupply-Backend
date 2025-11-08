@@ -382,7 +382,9 @@ resource "aws_ecs_task_definition" "this" {
         { name = "AWS_REGION", value = var.aws_region },
         { name = "PORT", value = tostring(var.app_port) },
         { name = "S3_BUCKET_NAME", value = aws_s3_bucket.uploads.id },
-        { name = "UPLOAD_METHOD", value = "s3" } # Para indicar que use S3
+        { name = "UPLOAD_METHOD", value = "s3" }, # Para indicar que use S3
+        { name = "GOOGLE_API_KEY", value = var.google_api_key },
+        { name = "GEMINI_MODEL", value = var.gemini_model }
       ]
 
       secrets = [

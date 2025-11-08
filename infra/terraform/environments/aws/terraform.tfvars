@@ -61,6 +61,12 @@ catalogo_db_backup_retention_days = 7
 bff_catalogo_image_tag = "latest"
 
 # ============================================================
+# GEMINI AI (para visita-service)
+# ============================================================
+google_api_key = "AIzaSyDwfzTZLcnN2L379LwrRKDAyfDcsYGVfGc"
+gemini_model = "gemini-2.5-flash"
+
+# ============================================================
 # TAGS ADICIONALES
 # ============================================================
 additional_tags = {

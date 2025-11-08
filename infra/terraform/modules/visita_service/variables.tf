@@ -100,3 +100,15 @@ variable "s3_bucket_name" {
   type        = string
   default     = ""
 }
+
+variable "google_api_key" {
+  description = "API Key de Google Gemini para análisis de video"
+  type        = string
+  sensitive   = true
+}
+
+variable "gemini_model" {
+  description = "Modelo de Gemini a usar"
+  type        = string
+  default     = "gemini-1.5-flash-latest"
+}

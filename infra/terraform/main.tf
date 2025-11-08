@@ -920,6 +920,10 @@ module "visita_service" {
 
   # S3 bucket para uploads (fotos/videos)
   s3_bucket_name = "${var.project}-${var.env}-visita-uploads"
+  
+  # Gemini API para análisis de video
+  google_api_key = var.google_api_key
+  gemini_model   = var.gemini_model
 }
 
 # ============================================================

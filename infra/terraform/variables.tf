@@ -362,3 +362,18 @@ variable "db_url_secret_arn" {
   type        = string
   default     = ""
 }
+
+# ============================================================
+# GEMINI AI (para visita-service)
+# ============================================================
+variable "google_api_key" {
+  description = "Google Gemini API Key para análisis de video"
+  type        = string
+  sensitive   = true
+}
+
+variable "gemini_model" {
+  description = "Modelo de Gemini a usar para análisis de video"
+  type        = string
+  default     = "gemini-1.5-flash-latest"
+}
