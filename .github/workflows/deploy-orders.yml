@@ -2,7 +2,7 @@ name: Deploy Orders Service
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "develop", "nueva-cuenta" ]
     paths:
       - "orders-service/**"
       - ".github/workflows/deploy-orders.yml"
@@ -12,6 +12,13 @@ on:
         description: "Branch/Tag/Commit a desplegar"
         required: true
         default: "develop"
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: false
+        type: string
+        default: "main"
 
 env:
   AWS_REGION: us-east-1
@@ -37,8 +44,8 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-           # Cuenta compartida (dev team): 838693051133
-          role-to-assume: arn:aws:iam::838693051133:role/github-actions-deploy
+           # Cuenta compartida (dev team): 217466752988
+          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
           # Cuenta personal Sergio: 217466752988 (para desarrollo independiente)
           #role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
 

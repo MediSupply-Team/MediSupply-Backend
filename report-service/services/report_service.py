@@ -131,10 +131,9 @@ def get_sales_performance(
     top_sum = sum(tp.amount for tp in top_products)
     others_amount = max(0.0, float(total_sales) - float(top_sum))
 
-    # -------- table.rows (resumen por vendedor+producto, simple)
+    # -------- table.rows (ventas individuales sin agrupar)
     table_rows_db = session.exec(
-        select(Vendedor.nombre, Producto.nombre, func.sum(Venta.cantidad), func.sum(Venta.monto_total),
-               func.max(Venta.estado))
+        select(Vendedor.nombre, Producto.nombre, Venta.cantidad, Venta.monto_total, Venta.estado)
         .join(Vendedor, Vendedor.id == Venta.vendedor_id)
         .join(Producto, Producto.id == Venta.producto_id)
         .where(
@@ -143,8 +142,7 @@ def get_sales_performance(
             *( [Venta.vendedor_id == vendor_id] if vendor_id else [] ),
             *( [Venta.producto_id == product_id] if product_id else [] ),
         )
-        .group_by(Vendedor.nombre, Producto.nombre)
-        .order_by(Vendedor.nombre.asc())
+        .order_by(Venta.fecha.desc())
     ).all()
 
     table = Table(

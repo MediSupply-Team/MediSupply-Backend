@@ -43,8 +43,12 @@ override.tf.json
 .terraform.lock.hcl
 *.tfplan*
 
-# tfvars reales (mantén solo .example en git)
+# IMPORTANTE: tfvars pueden contener secretos - NO commitear
+# Solo commitear archivos .tfvars.example
 *.tfvars
 !terraform.tfvars.example
+!*.tfvars.example
+
 .env
 .DS_Store
+.coverage

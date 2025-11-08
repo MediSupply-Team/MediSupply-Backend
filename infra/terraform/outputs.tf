@@ -91,6 +91,22 @@ output "orders_log_group" {
   value       = module.orders.log_group_name
 }
 
+output "orders_service_connect_url" {
+  description = "Service Connect URL for Orders service (internal communication)"
+  value       = module.orders.service_connect_url
+}
+
+# ============================================================
+# DEPRECATED OUTPUTS - ALB de Orders eliminado
+# ============================================================
+# Los siguientes outputs han sido eliminados:
+# - orders_alb_dns
+# - orders_alb_url
+# - orders_target_group_arn
+#
+# Usar orders_service_connect_url en su lugar
+
+
 # ============================================================
 # CONSUMER OUTPUTS
 # ============================================================
@@ -148,15 +164,15 @@ output "bff_cliente_service_name" {
 # ============================================================
 # CLIENTE SERVICE OUTPUTS
 # ============================================================
-output "cliente_service_alb_dns" {
-  description = "Cliente service ALB DNS name"
-  value       = module.cliente_service.alb_dns_name
+output "cliente_service_connect_url" {
+  description = "Service Connect URL for Cliente service (internal communication)"
+  value       = module.cliente_service.service_connect_url
 }
 
-output "cliente_service_alb_url" {
-  description = "Cliente service URL"
-  value       = module.cliente_service.alb_url
-}
+# DEPRECATED OUTPUTS - ALB de Cliente eliminado
+# - cliente_service_alb_dns
+# - cliente_service_alb_url
+# Usar cliente_service_connect_url en su lugar
 
 output "cliente_service_ecr_repo_url" {
   description = "Cliente service ECR repo URL"
@@ -235,17 +251,45 @@ output "quick_reference" {
 }
 
 # Rutas Service outputs
-output "rutas_alb_dns" {
-  description = "DNS del ALB de Rutas"
-  value       = module.rutas_service.alb_dns_name
-}
+# output "rutas_alb_dns" {
+#   description = "DNS del ALB de Rutas"
+#   value       = module.rutas_service.alb_dns_name
+# }
 
-output "rutas_alb_url" {
-  description = "URL completa del servicio de Rutas"
-  value       = "http://${module.rutas_service.alb_dns_name}"
-}
+# output "rutas_alb_url" {
+#   description = "URL completa del servicio de Rutas"
+#   value       = "http://${module.rutas_service.alb_dns_name}"
+# }
 
 output "rutas_service_name" {
   description = "Nombre del servicio de Rutas en ECS"
   value       = module.rutas_service.service_name
+}
+
+output "reports_service_name" {
+  description = "Nombre del servicio de reports en ECS"
+  value       = module.report_service.service_name
+}
+
+# ============================================================
+# VISITA SERVICE OUTPUTS
+# ============================================================
+output "visita_service_name" {
+  description = "Nombre del servicio de visita en ECS"
+  value       = module.visita_service.service_name
+}
+
+output "visita_ecr_repository_url" {
+  description = "URL del repositorio ECR para visita-service"
+  value       = module.visita_service.ecr_repository_url
+}
+
+output "visita_s3_bucket_name" {
+  description = "Nombre del bucket S3 para uploads de visitas"
+  value       = module.visita_service.s3_bucket_name
+}
+
+output "visita_service_url" {
+  description = "URL del servicio de visitas (via BFF Cliente ALB)"
+  value       = "http://${module.bff_cliente.alb_dns_name}/api/visitas"
 }

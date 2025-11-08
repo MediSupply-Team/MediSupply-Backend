@@ -35,6 +35,17 @@ output "db_port" {
   value       = aws_db_instance.catalogo_postgres.port
 }
 
+# S3 Bucket (compartido con visita-service)
+output "s3_bucket_name" {
+  description = "Nombre del bucket S3 compartido para uploads"
+  value       = local.s3_bucket_name
+}
+
+output "s3_bucket_arn" {
+  description = "ARN del bucket S3 compartido para uploads"
+  value       = local.s3_bucket_arn
+}
+
 # SQS Queue
 output "sqs_queue_url" {
   description = "URL de la cola SQS FIFO para catalogo-service"
@@ -86,8 +97,8 @@ output "db_security_group_id" {
 
 # CloudWatch Logs
 output "cloudwatch_log_group_name" {
-  description = "Nombre del log group de CloudWatch para catalogo-service"
-  value       = aws_cloudwatch_log_group.catalogo.name
+  description = "Nombre del log group de CloudWatch para catalogo-service (empty in LocalStack)"
+  value       = length(aws_cloudwatch_log_group.catalogo) > 0 ? aws_cloudwatch_log_group.catalogo[0].name : ""
 }
 
 # Secrets Manager

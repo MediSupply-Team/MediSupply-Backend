@@ -25,6 +25,7 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+      - ~/.aws:/root/.aws:ro  # Credenciales AWS desde el host
 
 volumes:
   postgres_data:

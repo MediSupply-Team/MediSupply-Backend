@@ -8,6 +8,15 @@ variable "env" {
   type        = string
 }
 
+variable "environment" {
+  description = "Deployment environment (local for LocalStack, aws for real AWS)"
+  type        = string
+  validation {
+    condition     = contains(["local", "aws"], var.environment)
+    error_message = "Environment must be either 'local' or 'aws'."
+  }
+}
+
 variable "aws_region" {
   description = "AWS region"
   type        = string
@@ -71,17 +80,27 @@ variable "desired_count" {
 variable "cpu" {
   description = "CPU units"
   type        = string
-  default     = "512"
+  default     = "256"
 }
 
 variable "memory" {
   description = "Memory in MB"
   type        = string
-  default     = "1024"
+  default     = "512"
 }
 
 variable "health_check_path" {
   description = "Health check endpoint"
   type        = string
   default     = "/health"
+}
+
+variable "shared_http_listener_arn" {
+  type        = string
+  description = "ARN del listener HTTP del ALB compartido (BFF Venta)"
+}
+
+variable "shared_alb_sg_id" {
+  type        = string
+  description = "Security Group ID del ALB compartido (BFF Venta)"
 }

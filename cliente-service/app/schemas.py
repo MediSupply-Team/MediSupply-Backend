@@ -12,6 +12,33 @@ from decimal import Decimal
 # ESQUEMAS DE ENTRADA (REQUEST PAYLOADS)
 # ==========================================
 
+class ClienteCreate(BaseModel):
+    """Payload para crear un nuevo cliente"""
+    id: str = Field(..., min_length=1, max_length=64, description="ID único del cliente", example="CLI005")
+    nit: str = Field(..., min_length=5, max_length=32, description="NIT del cliente", example="900555666-7")
+    nombre: str = Field(..., min_length=3, max_length=255, description="Nombre del cliente", example="Farmacia Los Andes")
+    codigo_unico: str = Field(..., min_length=3, max_length=64, description="Código único del cliente", example="FLA001")
+    email: Optional[str] = Field(None, max_length=255, description="Email del cliente", example="contacto@losandes.com")
+    telefono: Optional[str] = Field(None, max_length=32, description="Teléfono del cliente", example="+57-1-3456789")
+    direccion: Optional[str] = Field(None, max_length=512, description="Dirección del cliente", example="Calle 45 #12-34")
+    ciudad: Optional[str] = Field(None, max_length=128, description="Ciudad del cliente", example="Medellín")
+    pais: Optional[str] = Field(default="CO", max_length=8, description="País del cliente", example="CO")
+    activo: bool = Field(default=True, description="Si el cliente está activo")
+    vendedor_id: str = Field(..., min_length=1, max_length=64, description="ID del vendedor que crea el cliente", example="VEN001")
+
+
+class ClienteUpdate(BaseModel):
+    """Payload para actualizar un cliente existente"""
+    nombre: Optional[str] = Field(None, min_length=3, max_length=255, description="Nombre del cliente")
+    email: Optional[str] = Field(None, max_length=255, description="Email del cliente")
+    telefono: Optional[str] = Field(None, max_length=32, description="Teléfono del cliente")
+    direccion: Optional[str] = Field(None, max_length=512, description="Dirección del cliente")
+    ciudad: Optional[str] = Field(None, max_length=128, description="Ciudad del cliente")
+    pais: Optional[str] = Field(None, max_length=8, description="País del cliente")
+    activo: Optional[bool] = Field(None, description="Si el cliente está activo")
+    vendedor_id: str = Field(..., min_length=1, max_length=64, description="ID del vendedor que actualiza el cliente", example="VEN001")
+
+
 class ClienteBusquedaRequest(BaseModel):
     """Payload para búsqueda de cliente por NIT, nombre o código único"""
     termino_busqueda: str = Field(

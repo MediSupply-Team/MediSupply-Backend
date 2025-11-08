@@ -1,8 +1,44 @@
 locals {
+  is_local = var.environment == "local"
   bff_id = "${var.project}-${var.env}-${var.bff_name}"
 
   # ARN derivado desde la URL SQS
   sqs_arn = replace(var.sqs_url, "https://sqs.${var.aws_region}.amazonaws.com/", "arn:aws:sqs:${var.aws_region}:")
+  
+  # ============================================================
+  # COMPUTED SERVICE URLS
+  # ============================================================
+  # Si las URLs vienen vacías o con placeholder, usar self-reference del ALB
+  # Todos los servicios backend están detrás del mismo ALB con path-based routing
+  # ============================================================
+  
+  # Catálogo: /catalog/* o /catalogo/*
+  computed_catalogo_url = (
+    var.catalogo_service_url == "" || var.catalogo_service_url == "placeholder-will-be-updated-after-deploy"
+    ? "http://${aws_lb.alb.dns_name}/catalog"
+    : var.catalogo_service_url
+  )
+  
+  # Optimizer: /api/v1/optimize/*, /api/v1/route/*, /optimizer/*, /api/v1/geocode/*
+  computed_optimizer_url = (
+    var.optimizer_service_url == ""
+    ? "http://${aws_lb.alb.dns_name}"
+    : var.optimizer_service_url
+  )
+  
+  # Rutas: /api/ruta/*
+  computed_rutas_url = (
+    var.rutas_service_url == ""
+    ? "http://${aws_lb.alb.dns_name}"
+    : var.rutas_service_url
+  )
+  
+  # Orders: Service Connect (http.svc.local:8000)
+  computed_orders_url = (
+    var.orders_service_url == ""
+    ? "http://http.svc.local:8000"
+    : var.orders_service_url
+  )
 }
 
 resource "aws_ecr_repository" "bff" {
@@ -21,6 +57,7 @@ resource "aws_ecr_repository" "bff" {
 }
 
 resource "aws_cloudwatch_log_group" "bff" {
+  count             = local.is_local ? 0 : 1
   name              = "/ecs/${local.bff_id}"
   retention_in_days = 14
 
@@ -254,27 +291,37 @@ resource "aws_ecs_task_definition" "td" {
           containerPort = var.bff_app_port
           hostPort      = var.bff_app_port
           protocol      = "tcp"
+          name          = "bff-venta-http"  # Required for Service Connect
         }
       ]
 
-      logConfiguration = {
+      logConfiguration = local.is_local ? null : {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.bff.name
+          awslogs-group         = aws_cloudwatch_log_group.bff[0].name
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = var.bff_name
         }
       }
 
+      # ============================================================
+      # ENVIRONMENT VARIABLES CON TODAS LAS URLs DE SERVICIOS
+      # ============================================================
       environment = concat(
         [for k, v in var.bff_env : { name = k, value = v }],
         [
           { name = "SQS_QUEUE_URL", value = var.sqs_url },
-          { name = "CATALOGO_SERVICE_URL", value = var.catalogo_service_url }
+          { name = "AWS_REGION", value = var.aws_region },
+          
+          #TODAS LAS URLs DE SERVICIOS BACKEND
+          { name = "CATALOGO_SERVICE_URL", value = local.computed_catalogo_url },
+          { name = "OPTIMIZER_SERVICE_URL", value = local.computed_optimizer_url },
+          { name = "RUTAS_SERVICE_URL", value = local.computed_rutas_url },
+          { name = "ORDERS_SERVICE_URL", value = local.computed_orders_url }
         ]
       )
 
-      # 👇 health del contenedor (ajustado)
+      # Health check del contenedor
       healthCheck = {
         command     = ["CMD-SHELL", "curl -sf http://localhost:${var.bff_app_port}/health || exit 1"]
         interval    = 15
@@ -284,6 +331,11 @@ resource "aws_ecs_task_definition" "td" {
       }
     }
   ])
+
+  # Lifecycle para crear una nueva versión en cada apply
+  lifecycle {
+    create_before_destroy = true
+  }
 
   tags = {
     Project   = var.project
@@ -297,15 +349,22 @@ resource "aws_ecs_service" "svc" {
   name            = "${local.bff_id}-svc"
   cluster         = var.ecs_cluster_arn
   task_definition = aws_ecs_task_definition.td.arn
-  desired_count   = 2 # ⬅️ subimos a 2 para rollouts suaves
+  desired_count   = 2
   launch_type     = "FARGATE"
   enable_execute_command = true
-  health_check_grace_period_seconds = 120 # ⬅️ la “gracia” vive en el service
+  health_check_grace_period_seconds = 120
 
   network_configuration {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.svc_sg.id]
     assign_public_ip = false
+  }
+
+  # Service Connect: enable as client only to discover other services
+  service_connect_configuration {
+    enabled   = true
+    namespace = var.service_connect_namespace_name
+    # No 'service' block needed - this service is client-only
   }
 
   load_balancer {
@@ -323,5 +382,9 @@ resource "aws_ecs_service" "svc" {
     Project   = var.project
     Env       = var.env
     Component = var.bff_name
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 }
