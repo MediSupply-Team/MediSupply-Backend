@@ -4,6 +4,8 @@ from app.routes.inventario import router as inventario_router
 from app.config import settings
 from app.db import engine, Base
 import logging
+from app.websockets.ws_catalog_router import router as ws_catalog_router
+from fastapi.middleware.cors import CORSMiddleware 
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +13,14 @@ app = FastAPI(
     title="MediSupply Catalog API",
     description="API para gestión de catálogo de productos y movimientos de inventario",
     version="2.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Health check endpoint
@@ -27,6 +37,7 @@ async def health_check():
 # El ALB rutea /catalog/* al servicio, por lo que el prefix completo debe ser /catalog/api/*
 app.include_router(catalog_router, prefix="/catalog/api/catalog")
 app.include_router(inventario_router, prefix="/catalog/api/inventory")
+app.include_router(ws_catalog_router, prefix="/catalog/api/catalog") 
 
 # Logs de configuración de rutas para debugging
 logger.info("📦 Catalog API iniciada con gestión de inventario")
@@ -35,6 +46,7 @@ logger.info("   ├─ Catalog: prefix='/catalog/api/catalog'")
 logger.info("   │  └─ Endpoints: /catalog/api/catalog/items, /catalog/api/catalog/items/{id}")
 logger.info("   └─ Inventory: prefix='/catalog/api/inventory'")
 logger.info("      └─ Endpoints: /catalog/api/inventory/movements, /catalog/api/inventory/transfers, etc.")
+logger.info("      └─ WebSocket: /catalog/api/catalog/items/ws")
 logger.info(f"⚙️  Configuración:")
 logger.info(f"   ├─ Puerto: 3000")
 logger.info(f"   ├─ Health check: /health")
