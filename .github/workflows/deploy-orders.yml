@@ -2,7 +2,7 @@ name: Deploy Orders Service
 
 on:
   push:
-    branches: [ "develop", "nueva-cuenta" ]
+    branches: [ "develop", "report-service" ]
     paths:
       - "orders-service/**"
       - ".github/workflows/deploy-orders.yml"
