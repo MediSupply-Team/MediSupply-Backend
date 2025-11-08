@@ -4,3 +4,5 @@ sqlmodel
 psycopg2-binary
 python-dotenv
 requests
+psycopg[binary]>=3.0
+pytest

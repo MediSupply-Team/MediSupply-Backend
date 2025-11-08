@@ -1,14 +1,20 @@
+
 from fastapi import FastAPI, Depends, Query
 from sqlmodel import Session, select
 from database import get_session, init_db
 from models import Visita
 from datetime import date
+from contextlib import asynccontextmanager
 
-app = FastAPI()
-
-@app.on_event("startup")
-def on_startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     init_db()
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/health")
+def health(): return {"ok": True}
 
 @app.get("/api/ruta")
 def obtener_ruta(
