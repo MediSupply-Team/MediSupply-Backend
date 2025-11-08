@@ -515,31 +515,6 @@ resource "aws_secretsmanager_secret_version" "rutas_db_url_v" {
 }
 
 # ============================================================
-# REPORTS DATABASE SECRETS
-# ============================================================
-
-resource "aws_secretsmanager_secret" "reports_db_url" {
-  name                    = "${var.project}/${var.env}/reports/DB_URL"
-  description             = "Database connection URL for reports service"
-  recovery_window_in_days = 0
-
-  #recovery_window_in_days = 0
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = "reports"
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "reports_db_url_v" {
-
-  secret_id = aws_secretsmanager_secret.reports_db_url.id
-  # Usar el mismo usuario que orders
-  secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/reports?sslmode=require"
-}
-
-# ============================================================
 # VISITA DATABASE SECRETS
 # ============================================================
 
@@ -867,8 +842,10 @@ module "report_service" {
   public_subnets  = module.vpc.public_subnets
   private_subnets = module.vpc.private_subnets
 
-  ecs_cluster_arn   = aws_ecs_cluster.orders.arn
-  db_url_secret_arn = aws_secretsmanager_secret.reports_db_url.arn
+  ecs_cluster_arn = aws_ecs_cluster.orders.arn
+  
+  # URL del servicio Orders (usando service connect)
+  orders_service_url = module.orders.service_connect_url
 
   app_port      = 8000
   image_tag     = "latest"
@@ -885,7 +862,7 @@ module "report_service" {
   s3_bucket_arn  = module.visita_service.s3_bucket_arn
   s3_bucket_name = module.visita_service.s3_bucket_name
   
-  depends_on = [module.visita_service]
+  depends_on = [module.visita_service, module.orders]
 }
 
 # Visita Service

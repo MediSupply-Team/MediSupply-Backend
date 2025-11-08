@@ -74,26 +74,6 @@ resource "aws_iam_role_policy_attachment" "execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Política adicional para leer Secrets Manager
-data "aws_iam_policy_document" "secrets_policy" {
-  statement {
-    actions = [
-      "secretsmanager:GetSecretValue"
-    ]
-    resources = [var.db_url_secret_arn]
-  }
-}
-
-resource "aws_iam_policy" "secrets_policy" {
-  name   = "${local.service_id}-secrets-policy"
-  policy = data.aws_iam_policy_document.secrets_policy.json
-}
-
-resource "aws_iam_role_policy_attachment" "secrets_attach" {
-  role       = aws_iam_role.execution_role.name
-  policy_arn = aws_iam_policy.secrets_policy.arn
-}
-
 # Task Role (permisos de la aplicación)
 resource "aws_iam_role" "task_role" {
   name               = "${local.service_id}-task-role"
@@ -249,14 +229,8 @@ resource "aws_ecs_task_definition" "this" {
         { name = "ENV", value = var.env },
         { name = "AWS_REGION", value = var.aws_region },
         { name = "PORT", value = tostring(var.app_port) },
-        { name = "S3_BUCKET_NAME", value = var.s3_bucket_name }
-      ]
-
-      secrets = [
-        {
-          name      = "DATABASE_URL"
-          valueFrom = var.db_url_secret_arn
-        }
+        { name = "S3_BUCKET_NAME", value = var.s3_bucket_name },
+        { name = "ORDERS_SERVICE_URL", value = var.orders_service_url }
       ]
 
       logConfiguration = {
