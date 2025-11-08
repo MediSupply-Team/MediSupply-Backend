@@ -1,5 +1,5 @@
 ﻿# Orders Service (Windows PowerShell)
-## Uso 
+## Uso
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\bootstrap_orders_service.ps1 -ProjectName orders-service
 cd orders-service
