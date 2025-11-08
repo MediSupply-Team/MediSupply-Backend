@@ -254,10 +254,16 @@ def listar_visitas(
     vendedor_id: Optional[int] = Query(None),
     cliente_id: Optional[int] = Query(None),
     estado: Optional[EstadoVisita] = Query(None),
+    con_videos: Optional[bool] = Query(None, description="Filtrar solo visitas que tienen videos"),
     session: Session = Depends(get_session)
 ):
     """
     Listar visitas con filtros opcionales.
+    
+    - **vendedor_id**: Filtrar por ID del vendedor
+    - **cliente_id**: Filtrar por ID del cliente
+    - **estado**: Filtrar por estado de la visita
+    - **con_videos**: Si es true, solo retorna visitas que tienen al menos un video
     """
     query = select(Visita)
     
@@ -270,6 +276,20 @@ def listar_visitas(
     
     visitas = session.exec(query).all()
     
+    # Aplicar filtro de videos si se solicita
+    if con_videos:
+        visitas_con_videos = []
+        for v in visitas:
+            # Contar hallazgos de tipo video
+            query_videos = select(Hallazgo).where(
+                Hallazgo.visita_id == v.id,
+                Hallazgo.tipo == "video"
+            )
+            tiene_videos = len(session.exec(query_videos).all()) > 0
+            if tiene_videos:
+                visitas_con_videos.append(v)
+        visitas = visitas_con_videos
+    
     return [
         {
             "id": v.id,
@@ -280,7 +300,8 @@ def listar_visitas(
             "estado": v.estado,
             "fecha_visita": v.fecha_visita.isoformat(),
             "created_at": v.created_at.isoformat(),
-            "cantidad_hallazgos": len(v.hallazgos) if v.hallazgos else 0
+            "cantidad_hallazgos": len(v.hallazgos) if v.hallazgos else 0,
+            "cantidad_videos": len([h for h in v.hallazgos if h.tipo == "video"]) if v.hallazgos else 0
         }
         for v in visitas
     ]

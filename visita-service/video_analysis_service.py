@@ -81,17 +81,56 @@ class VideoAnalysisService:
             
             # Crear el prompt para análisis
             prompt = """
-            Analiza este video de una visita médica/farmacéutica y proporciona:
+            Eres un asistente de ventas médico-farmacéutico especializado. Analiza este video de una visita a cliente/establecimiento de salud y proporciona recomendaciones comerciales específicas.
             
-            1. Un resumen detallado de lo que ocurre en el video (2-3 párrafos)
-            2. Una lista de etiquetas o categorías relevantes (ej: "consulta médica", "inventario", "productos farmacéuticos", etc.)
-            3. Una lista de recomendaciones de productos o acciones basadas en el contenido del video
+            **CONTEXTO**: Este video corresponde a una visita de un representante médico-farmacéutico a un cliente (hospital, clínica, farmacia, laboratorio clínico, etc.).
             
-            Responde ÚNICAMENTE con un objeto JSON válido en el siguiente formato, sin texto adicional:
+            **INSTRUCCIONES**:
+            
+            1. **RESUMEN DEL VIDEO** (2-3 párrafos):
+               - Describe qué tipo de establecimiento se observa (hospital, clínica, farmacia, laboratorio, etc.)
+               - Identifica el contexto: ¿qué se está discutiendo o mostrando? (inventario, necesidades, consulta, revisión de productos, etc.)
+               - Detecta señales visuales o verbales sobre necesidades actuales del cliente
+               - Identifica cualquier mención de temporada, epidemia, o situación especial
+            
+            2. **ETIQUETAS** (lista de categorías):
+               - Tipo de establecimiento (ej: "Hospital general", "Unidad neonatal", "Laboratorio clínico", "Farmacia comunitaria")
+               - Área médica (ej: "Pediatría", "Cuidados intensivos", "Urgencias", "Medicina general")
+               - Contexto temporal si es relevante (ej: "Temporada de gripe", "Temporada de dengue", "Periodo escolar")
+               - Necesidades detectadas (ej: "Revisión de inventario", "Falta de insumos", "Evaluación de equipos")
+            
+            3. **RECOMENDACIONES DE PRODUCTOS** (lista de 5-8 productos comerciales específicos):
+               Basándote en:
+               - **Perfil del cliente**: tipo de establecimiento y especialidad médica observada
+               - **Contexto temporal**: estacionalidad (ej: temporada de enfermedades respiratorias, dengue, influenza)
+               - **Necesidades detectadas**: problemas o carencias mencionadas/observadas en el video
+               - **Eventos epidemiológicos**: si se menciona alguna alerta sanitaria o aumento de casos
+               
+               Sugiere productos médicos/farmacéuticos CONCRETOS como:
+               - Medicamentos específicos (con nombre genérico o principio activo)
+               - Insumos médicos (guantes, jeringas, mascarillas, etc.)
+               - Equipos médicos (oxímetros, termómetros, nebulizadores, etc.)
+               - Material de diagnóstico (pruebas rápidas, reactivos, etc.)
+               - Productos de higiene hospitalaria
+               
+               **FORMATO DE CADA RECOMENDACIÓN**: "Producto X - Razón comercial basada en el video"
+               
+               Ejemplos:
+               - "Oseltamivir 75mg (antigripal) - Por temporada de influenza mencionada y perfil de farmacia comunitaria"
+               - "Pruebas rápidas de dengue NS1 - Por alerta epidemiológica en la región observada en conversación"
+               - "Solución salina 0.9% 500ml - Por necesidad de reabastecimiento en área de urgencias identificada"
+               - "Guantes de nitrilo talla M - Por bajo inventario observado en almacén del establecimiento"
+            
+            Responde ÚNICAMENTE con un objeto JSON válido en el siguiente formato, sin texto adicional ni markdown:
             {
-                "summary": "Descripción detallada del video...",
-                "tags": ["etiqueta1", "etiqueta2", "etiqueta3"],
-                "recommendations": ["Producto/Acción 1", "Producto/Acción 2", "Producto/Acción 3"]
+                "summary": "Descripción detallada del video con enfoque en el contexto comercial y necesidades del cliente...",
+                "tags": ["Tipo de establecimiento", "Área médica", "Contexto temporal", "Necesidad detectada", ...],
+                "recommendations": [
+                    "Producto específico 1 - Justificación basada en el contexto del video",
+                    "Producto específico 2 - Justificación basada en el contexto del video",
+                    "Producto específico 3 - Justificación basada en el contexto del video",
+                    ...
+                ]
             }
             """
             
