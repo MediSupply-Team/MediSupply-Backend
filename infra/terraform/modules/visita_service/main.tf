@@ -157,7 +157,10 @@ data "aws_iam_policy_document" "secrets_policy" {
     actions = [
       "secretsmanager:GetSecretValue"
     ]
-    resources = [var.db_url_secret_arn]
+    resources = [
+      var.db_url_secret_arn,
+      "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.google_api_key_secret_name}*"
+    ]
   }
 }
 
@@ -383,7 +386,6 @@ resource "aws_ecs_task_definition" "this" {
         { name = "PORT", value = tostring(var.app_port) },
         { name = "S3_BUCKET_NAME", value = aws_s3_bucket.uploads.id },
         { name = "UPLOAD_METHOD", value = "s3" }, # Para indicar que use S3
-        { name = "GOOGLE_API_KEY", value = var.google_api_key },
         { name = "GEMINI_MODEL", value = var.gemini_model }
       ]
 
@@ -391,6 +393,10 @@ resource "aws_ecs_task_definition" "this" {
         {
           name      = "DATABASE_URL"
           valueFrom = var.db_url_secret_arn
+        },
+        {
+          name      = "GOOGLE_API_KEY"
+          valueFrom = "arn:aws:secretsmanager:${var.aws_region}:217466752988:secret:medisupply/google-api-key-5fXPPJ"
         }
       ]
 

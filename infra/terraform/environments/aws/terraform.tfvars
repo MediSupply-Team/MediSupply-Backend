@@ -63,7 +63,9 @@ bff_catalogo_image_tag = "latest"
 # ============================================================
 # GEMINI AI (para visita-service)
 # ============================================================
-google_api_key = "AIzaSyDwfzTZLcnN2L379LwrRKDAyfDcsYGVfGc"
+# IMPORTANTE: La API key se obtiene de AWS Secrets Manager
+# Ejecuta primero: ./infra/scripts/create-google-api-secret.sh
+google_api_key_secret_name = "medisupply/google-api-key"
 gemini_model = "gemini-2.5-flash"
 
 # ============================================================
