@@ -7,6 +7,10 @@ on:
         description: "Branch to deploy"
         required: false
         default: "develop"
+      confirmation:
+        description: 'Escriba "DEPLOY" para confirmar'
+        required: true
+        type: string
   push:
     branches: [ "update-workflow-CD"]
     paths:
