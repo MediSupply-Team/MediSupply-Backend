@@ -42,13 +42,6 @@ override.tf.json
 *_override.tf.json
 .terraform.lock.hcl
 *.tfplan*
-
-# IMPORTANTE: tfvars pueden contener secretos - NO commitear
-# Solo commitear archivos .tfvars.example
-*.tfvars
-!terraform.tfvars.example
-!*.tfvars.example
-
 .env
 .DS_Store
 .coverage

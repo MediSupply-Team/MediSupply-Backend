@@ -1,20 +1,58 @@
 # services/report_service.py
+"""
+Servicio de generación de reportes basado en datos reales de la base de datos de Orders
+"""
 from datetime import date, datetime, timedelta
-from typing import Optional, List
-from sqlmodel import Session, select, func
-from dateutil.relativedelta import relativedelta
+from typing import Optional, List, Dict, Any
+from collections import defaultdict
+import logging
 
-from models import Venta, Producto, Vendedor
+from services.database_client import db_client
 from schemas.report import (
     ReportResponse, FiltersApplied, Period, Summary, Charts,
     TrendPoint, TopProduct, Table, TableRow
 )
 
+logger = logging.getLogger(__name__)
+
 def _as_date(dt) -> date:
+    """Convierte datetime a date"""
     return dt.date() if isinstance(dt, datetime) else dt
 
-def get_sales_performance(
-    session: Session,
+def _parse_order_date(order: Dict[str, Any]) -> datetime:
+    """Extrae la fecha de una orden"""
+    created_at = order.get("created_at")
+    if isinstance(created_at, str):
+        # Maneja formato ISO con Z o timezone
+        return datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    elif isinstance(created_at, datetime):
+        return created_at
+    return datetime.now()
+
+def _calculate_order_revenue(order: Dict[str, Any]) -> float:
+    """Calcula el revenue total de una orden basado en items"""
+    items = order.get("items", [])
+    total = 0.0
+    for item in items:
+        quantity = item.get("qty", 0)  # Cambiado de "quantity" a "qty"
+        price = item.get("price", 0.0)
+        total += quantity * price
+    return round(total, 2)
+
+def _filter_orders_by_date(
+    orders: List[Dict[str, Any]],
+    from_date: date,
+    to_date: date
+) -> List[Dict[str, Any]]:
+    """Filtra órdenes por rango de fechas"""
+    filtered = []
+    for order in orders:
+        order_date = _parse_order_date(order)
+        if from_date <= order_date.date() <= to_date:
+            filtered.append(order)
+    return filtered
+
+async def get_sales_performance(
     period_from: date,
     period_to: date,
     vendor_id: Optional[int] = None,
@@ -22,159 +60,215 @@ def get_sales_performance(
     max_trend_points: int = 90,
     top_n_products: int = 5,
 ) -> ReportResponse:
-
-    # -------- Filtros base
-    stmt_base = select(Venta).where(
-        Venta.fecha >= datetime.combine(period_from, datetime.min.time()),
-        Venta.fecha <= datetime.combine(period_to, datetime.max.time()),
-    )
-    if vendor_id:
-        stmt_base = stmt_base.where(Venta.vendedor_id == vendor_id)
-    if product_id:
-        stmt_base = stmt_base.where(Venta.producto_id == product_id)
-
-    # -------- Summary.total_sales
-    total_sales = session.exec(
-        select(func.coalesce(func.sum(Venta.monto_total), 0.0))
-        .where(
-            Venta.fecha >= datetime.combine(period_from, datetime.min.time()),
-            Venta.fecha <= datetime.combine(period_to, datetime.max.time()),
-            *( [Venta.vendedor_id == vendor_id] if vendor_id else [] ),
-            *( [Venta.producto_id == product_id] if product_id else [] ),
+    """
+    Genera reporte de desempeño de ventas basado en datos reales de Orders
+    
+    Args:
+        period_from: Fecha de inicio del período
+        period_to: Fecha fin del período
+        vendor_id: ID del vendedor (opcional, no implementado aún)
+        product_id: ID del producto (opcional)
+        max_trend_points: Máximo número de puntos en el gráfico de tendencia
+        top_n_products: Número de productos top a mostrar
+        
+    Returns:
+        ReportResponse con todas las métricas y datos
+    """
+    try:
+        # Obtener órdenes directamente de la base de datos
+        logger.info(f"Obteniendo órdenes desde {period_from} hasta {period_to}")
+        
+        # Convertir dates a datetime para la query
+        start_datetime = datetime.combine(period_from, datetime.min.time())
+        end_datetime = datetime.combine(period_to, datetime.max.time())
+        
+        all_orders = await db_client.get_orders(
+            start_date=start_datetime,
+            end_date=end_datetime
         )
-    ).first()
-
-
-    # -------- pending_orders
-    pending_orders = session.exec(
-        select(func.count(Venta.id))
-        .where(
-            Venta.estado == "pendiente",
-            Venta.fecha >= datetime.combine(period_from, datetime.min.time()),
-            Venta.fecha <= datetime.combine(period_to, datetime.max.time()),
+        
+        # Filtrar por fechas (validación adicional)
+        orders = _filter_orders_by_date(all_orders, period_from, period_to)
+        
+        # Filtrar por product_id si se especifica
+        if product_id:
+            filtered_orders = []
+            for order in orders:
+                items = order.get("items", [])
+                for item in items:
+                    if str(item.get("sku")) == str(product_id):  # Cambiado de "product_id" a "sku"
+                        filtered_orders.append(order)
+                        break
+            orders = filtered_orders
+        
+        logger.info(f"Total de órdenes obtenidas: {len(orders)}")
+        
+        # -------- SUMMARY: Total Sales --------
+        total_sales = sum(_calculate_order_revenue(order) for order in orders)
+        
+        # -------- SUMMARY: Pending Orders --------
+        pending_orders = sum(
+            1 for order in orders 
+            if order.get("status", "").upper() in ["NEW", "VALIDATED", "CONFIRMED", "PROCESSING", "ON_HOLD"]
         )
-    ).first()
-
-
-
-    # -------- products_in_stock (sum simple)
-    products_in_stock = session.exec(
-        select(func.coalesce(func.sum(Producto.stock), 0))
-    ).first()
-
-
-    # -------- sales_change_pct_vs_prev_period
-    delta_days = (period_to - period_from).days + 1
-    prev_from = period_from - timedelta(days=delta_days)
-    prev_to = period_from - timedelta(days=1)
-
-    prev_total = session.exec(
-        select(func.coalesce(func.sum(Venta.monto_total), 0.0))
-        .where(
-            Venta.fecha >= datetime.combine(prev_from, datetime.min.time()),
-            Venta.fecha <= datetime.combine(prev_to, datetime.max.time()),
-            *( [Venta.vendedor_id == vendor_id] if vendor_id else [] ),
-            *( [Venta.producto_id == product_id] if product_id else [] ),
+        
+        # -------- SUMMARY: Products in Stock --------
+        # TODO: Esto debería venir del servicio de Catálogo/Inventario
+        # Por ahora, usamos un valor placeholder
+        products_in_stock = 0  # Placeholder
+        
+        # -------- SUMMARY: Sales Change vs Previous Period --------
+        delta_days = (period_to - period_from).days + 1
+        prev_from = period_from - timedelta(days=delta_days)
+        prev_to = period_from - timedelta(days=1)
+        
+        # Convertir dates a datetime para la query del período anterior
+        prev_start_datetime = datetime.combine(prev_from, datetime.min.time())
+        prev_end_datetime = datetime.combine(prev_to, datetime.max.time())
+        
+        prev_orders = await db_client.get_orders(
+            start_date=prev_start_datetime,
+            end_date=prev_end_datetime
         )
-    ).first()
-
-    change_pct = 0.0 if prev_total == 0 else (total_sales - prev_total) / prev_total
-
-
-
-    # -------- charts.trend (agregado por día; si el rango es grande, compactá a semana/mes)
-    days_span = (period_to - period_from).days + 1
-    if days_span <= max_trend_points:
-        # por día
-        rows = session.exec(
-            select(func.date(Venta.fecha), func.coalesce(func.sum(Venta.monto_total), 0.0))
-            .where(
-                Venta.fecha >= datetime.combine(period_from, datetime.min.time()),
-                Venta.fecha <= datetime.combine(period_to, datetime.max.time()),
-                *( [Venta.vendedor_id == vendor_id] if vendor_id else [] ),
-                *( [Venta.producto_id == product_id] if product_id else [] ),
-            )
-            .group_by(func.date(Venta.fecha))
-            .order_by(func.date(Venta.fecha))
-        ).all()
-    else:
-        # por mes (también podés hacer por semana si preferís)
-        rows = session.exec(
-            select(func.date_trunc("month", Venta.fecha), func.coalesce(func.sum(Venta.monto_total), 0.0))
-            .where(
-                Venta.fecha >= datetime.combine(period_from, datetime.min.time()),
-                Venta.fecha <= datetime.combine(period_to, datetime.max.time()),
-                *( [Venta.vendedor_id == vendor_id] if vendor_id else [] ),
-                *( [Venta.producto_id == product_id] if product_id else [] ),
-            )
-            .group_by(func.date_trunc("month", Venta.fecha))
-            .order_by(func.date_trunc("month", Venta.fecha))
-        ).all()
-
-    trend = [TrendPoint(date=_as_date(r[0]), total=float(r[1])) for r in rows]
-
-    # -------- charts.top_products (top N)
-    top_rows = session.exec(
-        select(Producto.nombre, func.coalesce(func.sum(Venta.monto_total), 0.0))
-        .join(Producto, Producto.id == Venta.producto_id)
-        .where(
-            Venta.fecha >= datetime.combine(period_from, datetime.min.time()),
-            Venta.fecha <= datetime.combine(period_to, datetime.max.time()),
-            *( [Venta.vendedor_id == vendor_id] if vendor_id else [] ),
-            *( [Venta.producto_id == product_id] if product_id else [] ),
+        prev_orders = _filter_orders_by_date(prev_orders, prev_from, prev_to)
+        prev_total = sum(_calculate_order_revenue(order) for order in prev_orders)
+        
+        sales_change_pct = 0.0
+        if prev_total > 0:
+            sales_change_pct = round((total_sales - prev_total) / prev_total, 4)
+        
+        # -------- CHARTS: Trend (agregado por día o mes) --------
+        days_span = (period_to - period_from).days + 1
+        
+        # Agrupar ventas por fecha
+        sales_by_date: Dict[date, float] = defaultdict(float)
+        for order in orders:
+            order_date = _parse_order_date(order).date()
+            revenue = _calculate_order_revenue(order)
+            sales_by_date[order_date] += revenue
+        
+        # Crear puntos de tendencia
+        trend: List[TrendPoint] = []
+        if days_span <= max_trend_points:
+            # Agregación diaria
+            for d in sorted(sales_by_date.keys()):
+                trend.append(TrendPoint(date=d, total=sales_by_date[d]))
+        else:
+            # Agregación mensual
+            sales_by_month: Dict[str, float] = defaultdict(float)
+            for d, total in sales_by_date.items():
+                month_key = d.strftime("%Y-%m")
+                sales_by_month[month_key] += total
+            
+            for month_str in sorted(sales_by_month.keys()):
+                # Usar el primer día del mes como fecha representativa
+                year, month = map(int, month_str.split("-"))
+                trend.append(TrendPoint(
+                    date=date(year, month, 1),
+                    total=sales_by_month[month_str]
+                ))
+        
+        # -------- CHARTS: Top Products --------
+        product_sales: Dict[str, float] = defaultdict(float)
+        product_names: Dict[str, str] = {}
+        
+        for order in orders:
+            items = order.get("items", [])
+            for item in items:
+                product_id_str = str(item.get("sku", "unknown"))  # Cambiado de "product_id" a "sku"
+                product_name = item.get("product_name", f"Producto {product_id_str}")
+                quantity = item.get("qty", 0)  # Cambiado de "quantity" a "qty"
+                price = item.get("price", 0.0)
+                
+                revenue = quantity * price
+                product_sales[product_id_str] += revenue
+                product_names[product_id_str] = product_name
+        
+        # Ordenar y tomar top N
+        sorted_products = sorted(
+            product_sales.items(),
+            key=lambda x: x[1],
+            reverse=True
         )
-        .group_by(Producto.id, Producto.nombre)
-        .order_by(func.sum(Venta.monto_total).desc())
-        .limit(top_n_products)
-    ).all()
-    top_products = [TopProduct(product_name=r[0], amount=float(r[1])) for r in top_rows]
-    top_sum = sum(tp.amount for tp in top_products)
-    others_amount = max(0.0, float(total_sales) - float(top_sum))
-
-    # -------- table.rows (ventas individuales sin agrupar)
-    table_rows_db = session.exec(
-        select(Vendedor.nombre, Producto.nombre, Venta.cantidad, Venta.monto_total, Venta.estado)
-        .join(Vendedor, Vendedor.id == Venta.vendedor_id)
-        .join(Producto, Producto.id == Venta.producto_id)
-        .where(
-            Venta.fecha >= datetime.combine(period_from, datetime.min.time()),
-            Venta.fecha <= datetime.combine(period_to, datetime.max.time()),
-            *( [Venta.vendedor_id == vendor_id] if vendor_id else [] ),
-            *( [Venta.producto_id == product_id] if product_id else [] ),
+        
+        top_products: List[TopProduct] = []
+        top_sum = 0.0
+        for i, (prod_id, amount) in enumerate(sorted_products[:top_n_products]):
+            top_products.append(TopProduct(
+                product_name=product_names.get(prod_id, f"Producto {prod_id}"),
+                amount=round(amount, 2)
+            ))
+            top_sum += amount
+        
+        others_amount = max(0.0, total_sales - top_sum)
+        
+        # -------- TABLE: Rows (órdenes individuales) --------
+        table_rows: List[TableRow] = []
+        for order in orders:
+            vendor_name = order.get("user_name", "N/A")
+            items = order.get("items", [])
+            status = order.get("status", "COMPLETED")
+            
+            # Crear una fila por cada item en la orden
+            for item in items:
+                product_name = item.get("product_name", "Producto desconocido")
+                quantity = item.get("qty", 0)  # Cambiado de "quantity" a "qty"
+                price = item.get("price", 0.0)
+                revenue = round(quantity * price, 2)
+                
+                table_rows.append(TableRow(
+                    vendor_name=vendor_name,
+                    product_name=product_name,
+                    quantity=quantity,
+                    revenue=revenue,
+                    status=status.lower()
+                ))
+        
+        # Ordenar por revenue descendente
+        table_rows.sort(key=lambda x: x.revenue, reverse=True)
+        
+        # -------- Construir respuesta --------
+        return ReportResponse(
+            filters_applied=FiltersApplied(
+                period=Period(from_=period_from, to=period_to),
+                vendor_id=vendor_id,
+                product_id=product_id,
+            ),
+            summary=Summary(
+                total_sales=round(total_sales, 2),
+                pending_orders=pending_orders,
+                products_in_stock=products_in_stock,
+                sales_change_pct_vs_prev_period=sales_change_pct,
+            ),
+            charts=Charts(
+                trend=trend,
+                top_products=top_products,
+                others_amount=round(others_amount, 2),
+            ),
+            table=Table(rows=table_rows),
+            currency="USD",
         )
-        .order_by(Venta.fecha.desc())
-    ).all()
-
-    table = Table(
-        rows=[
-            TableRow(
-                vendor_name=r[0],
-                product_name=r[1],
-                quantity=int(r[2] or 0),
-                revenue=float(r[3] or 0.0),
-                status=(r[4] or "completado"),
-            )
-            for r in table_rows_db
-        ]
-    )
-
-    return ReportResponse(
-        filters_applied=FiltersApplied(
-            period=Period(from_=period_from, to=period_to),
-            vendor_id=vendor_id,
-            product_id=product_id,
-        ),
-        summary=Summary(
-            total_sales=float(total_sales),
-            pending_orders=int(pending_orders),
-            products_in_stock=int(products_in_stock),
-            sales_change_pct_vs_prev_period=float(change_pct),
-        ),
-        charts=Charts(
-            trend=trend,
-            top_products=top_products,
-            others_amount=float(others_amount),
-        ),
-        table=table,
-        currency="USD",
-    )
+    
+    except Exception as e:
+        logger.error(f"Error generando reporte: {str(e)}", exc_info=True)
+        # Devolver respuesta vacía en caso de error
+        return ReportResponse(
+            filters_applied=FiltersApplied(
+                period=Period(from_=period_from, to=period_to),
+                vendor_id=vendor_id,
+                product_id=product_id,
+            ),
+            summary=Summary(
+                total_sales=0.0,
+                pending_orders=0,
+                products_in_stock=0,
+                sales_change_pct_vs_prev_period=0.0,
+            ),
+            charts=Charts(
+                trend=[],
+                top_products=[],
+                others_amount=0.0,
+            ),
+            table=Table(rows=[]),
+            currency="USD",
+        )

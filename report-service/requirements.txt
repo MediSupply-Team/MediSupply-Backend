@@ -1,10 +1,9 @@
 fastapi
 uvicorn
-sqlmodel
-psycopg2-binary
 python-dotenv
 requests
-psycopg[binary]>=3.0
+asyncpg
+sqlalchemy[asyncio]
 python-dateutil
 boto3
 reportlab

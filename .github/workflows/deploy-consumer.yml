@@ -2,7 +2,7 @@ name: Deploy Consumer (SQS → HTTP)
 
 on:
   push:
-    branches: [ develop ]
+    branches: [ develop, report-service ]
     paths:
       - 'consumer-lb/**'
       - '.github/workflows/deploy-consumer.yml'
