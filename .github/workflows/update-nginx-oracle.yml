@@ -8,6 +8,11 @@ on:
       - "Deploy Route Optimizer Service"
     types: [completed]
     branches: [develop]
+  push:
+      branches:
+        - develop
+      paths:
+        - '.github/workflows/update-nginx-oracle.yml'
   
   # También puedes ejecutarlo manualmente
   workflow_dispatch:
