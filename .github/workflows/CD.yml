@@ -204,8 +204,7 @@ jobs:
       deploy-rutas,
       deploy-reports,
       deploy-visita,
-      deploy-optimizer,
-      update-nginx-oracle
+      deploy-optimizer
     ]
     if: always()
     runs-on: ubuntu-latest
@@ -227,7 +226,6 @@ jobs:
           [[ "${{ needs.deploy-reports.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
           [[ "${{ needs.deploy-visita.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
           [[ "${{ needs.deploy-optimizer.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
-          [[ "${{ needs.update-nginx-oracle.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
           
           if [ "$SUCCESS" -eq "$TOTAL" ]; then
             STATUS="✅ ALL SERVICES DEPLOYED"
@@ -255,7 +253,6 @@ jobs:
           | 📊 Reports | ${{ needs.deploy-reports.result }} |
           | 📍 Visita | ${{ needs.deploy-visita.result }} |
           | 🔧 Optimizer | ${{ needs.deploy-optimizer.result }} |
-          | 🛰️ Nginx Update | ${{ needs.update-nginx-oracle.result }} |
           
           ## 🌐 Endpoints
 
