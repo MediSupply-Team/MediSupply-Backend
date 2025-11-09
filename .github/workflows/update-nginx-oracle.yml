@@ -1,0 +1,178 @@
+name: Update Nginx Config (Oracle Cloud)
+
+on:
+  # Se dispara automáticamente después de deploy exitoso
+  # workflow_run:
+  #   workflows: 
+  #     - "Deploy BFF Venta Service"
+  #     - "Deploy Route Optimizer Service"
+  #   types: [completed]
+  #   branches: [develop]
+  
+  # También puedes ejecutarlo manualmente
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: false
+        default: "develop"
+  push:
+      branches:
+        - develop
+      paths:
+        - '.github/workflows/update-nginx-oracle.yml'
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  update-nginx:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::217466752988:role/github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Get ALB DNS Names from AWS
+        id: alb-dns
+        run: |
+          echo "🔍 Obteniendo DNS de ALBs en AWS..."
+          
+          # Obtener DNS de BFF Venta
+          BFF_VENTA_DNS=$(aws elbv2 describe-load-balancers \
+            --region ${{ env.AWS_REGION }} \
+            --query "LoadBalancers[?contains(LoadBalancerName, 'medisupply-dev-bff-venta')].DNSName" \
+            --output text)
+          
+          # Obtener DNS de BFF Cliente
+          BFF_CLIENTE_DNS=$(aws elbv2 describe-load-balancers \
+            --region ${{ env.AWS_REGION }} \
+            --query "LoadBalancers[?contains(LoadBalancerName, 'medisupply-dev-bff-cliente')].DNSName" \
+            --output text)
+          
+          # Validar que se obtuvieron los DNS
+          if [ -z "$BFF_VENTA_DNS" ]; then
+            echo "❌ Error: No se pudo obtener DNS de BFF Venta"
+            exit 1
+          fi
+          
+          if [ -z "$BFF_CLIENTE_DNS" ]; then
+            echo "❌ Error: No se pudo obtener DNS de BFF Cliente"
+            exit 1
+          fi
+          
+          # Guardar en outputs
+          echo "bff_venta=$BFF_VENTA_DNS" >> $GITHUB_OUTPUT
+          echo "bff_cliente=$BFF_CLIENTE_DNS" >> $GITHUB_OUTPUT
+          
+          # Mostrar resultados
+          echo "✅ DNS obtenidos exitosamente:"
+          echo "   BFF Venta:   $BFF_VENTA_DNS"
+          echo "   BFF Cliente: $BFF_CLIENTE_DNS"
+      
+      - name: Update Nginx Config on Oracle Cloud
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_SSH_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          script_stop: true  # Detener si hay error
+          script: |
+            set -e  # Exit on error
+            
+            echo "================================"
+            echo "🔧 Actualizando Nginx en Oracle Cloud"
+            echo "================================"
+            
+            # Crear backup con timestamp
+            BACKUP_FILE="/etc/nginx/sites-enabled/default.backup.$(date +%Y%m%d_%H%M%S)"
+            echo "📦 Creando backup: $BACKUP_FILE"
+            sudo cp /etc/nginx/sites-enabled/default "$BACKUP_FILE"
+            
+            # Mostrar configuración actual
+            echo ""
+            echo "📋 Configuración actual:"
+            grep "proxy_pass.*medisupply" /etc/nginx/sites-enabled/default | head -5
+            
+            # Actualizar BFF Venta
+            echo ""
+            echo "🔄 Actualizando BFF Venta ALB..."
+            sudo sed -i 's|proxy_pass http://medisupply-dev-bff-venta-alb-[0-9]*\.us-east-1\.elb\.amazonaws\.com|proxy_pass http://${{ steps.alb-dns.outputs.bff_venta }}|g' /etc/nginx/sites-enabled/default
+            
+            # Actualizar BFF Cliente
+            echo "🔄 Actualizando BFF Cliente ALB..."
+            sudo sed -i 's|proxy_pass http://medisupply-dev-bff-cliente-alb-[0-9]*\.us-east-1\.elb\.amazonaws\.com|proxy_pass http://${{ steps.alb-dns.outputs.bff_cliente }}|g' /etc/nginx/sites-enabled/default
+            
+            # Mostrar nueva configuración
+            echo ""
+            echo "📋 Nueva configuración:"
+            grep "proxy_pass.*medisupply" /etc/nginx/sites-enabled/default | head -5
+            
+            # Validar configuración
+            echo ""
+            echo "✅ Validando configuración Nginx..."
+            if sudo nginx -t; then
+              echo "✅ Configuración válida"
+            else
+              echo "❌ Configuración inválida, restaurando backup..."
+              sudo cp "$BACKUP_FILE" /etc/nginx/sites-enabled/default
+              exit 1
+            fi
+            
+            # Recargar Nginx
+            echo ""
+            echo "🔄 Recargando Nginx..."
+            sudo systemctl reload nginx
+            
+            # Verificar estado
+            echo ""
+            echo "🔍 Verificando estado de Nginx..."
+            sudo systemctl status nginx --no-pager | head -10
+            
+            echo ""
+            echo "================================"
+            echo "🎉 Nginx actualizado exitosamente!"
+            echo "================================"
+      
+      - name: Verify Nginx endpoints
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_SSH_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            echo "🧪 Probando endpoints..."
+            
+            # Test endpoint raíz
+            echo ""
+            echo "📍 Testing: https://medisupply-backend.duckdns.org/"
+            curl -s -k https://localhost/ | jq . || echo "❌ Endpoint raíz falló"
+            
+            # Test health endpoint venta
+            echo ""
+            echo "📍 Testing: /venta/health"
+            curl -s -k https://localhost/venta/health | jq . || echo "❌ Health venta falló"
+            
+            echo ""
+            echo "✅ Tests completados"
+      
+      - name: Send notification on success
+        if: success()
+        run: |
+          echo "✅ Nginx actualizado exitosamente en Oracle Cloud"
+          echo "🔗 BFF Venta:   ${{ steps.alb-dns.outputs.bff_venta }}"
+          echo "🔗 BFF Cliente: ${{ steps.alb-dns.outputs.bff_cliente }}"
+      
+      - name: Send notification on failure
+        if: failure()
+        run: |
+          echo "❌ Error al actualizar Nginx en Oracle Cloud"
+          echo "⚠️  Revisa los logs y la configuración"
