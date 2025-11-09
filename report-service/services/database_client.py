@@ -12,9 +12,9 @@ class DatabaseClient:
     """Cliente para consultar la base de datos de Orders directamente"""
     
     def __init__(self):
-        self.database_url = os.getenv("DATABASE_URL")
+        self.database_url = os.getenv("DB_URL") or os.getenv("DATABASE_URL")
         if not self.database_url:
-            raise ValueError("DATABASE_URL environment variable is required")
+            raise ValueError("DB_URL or DATABASE_URL environment variable is required")
         
         # asyncpg solo acepta 'postgresql://' o 'postgres://', no 'postgresql+asyncpg://'
         # Limpiamos el esquema si es necesario
