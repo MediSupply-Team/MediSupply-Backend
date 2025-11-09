@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # TERRAFORM CONFIGURATION
 # ============================================================
 terraform {
@@ -21,6 +21,7 @@ terraform {
 # ============================================================
 locals {
   is_local = var.environment == "local"
+  mapbox_token_dummy_arn = "arn:aws:secretsmanager:us-east-1:000000000000:secret:dummy-mapbox-token"
 }
 
 provider "aws" {
@@ -514,31 +515,6 @@ resource "aws_secretsmanager_secret_version" "rutas_db_url_v" {
 }
 
 # ============================================================
-# REPORTS DATABASE SECRETS
-# ============================================================
-
-resource "aws_secretsmanager_secret" "reports_db_url" {
-  name                    = "${var.project}/${var.env}/reports/DB_URL"
-  description             = "Database connection URL for reports service"
-  recovery_window_in_days = 0
-
-  #recovery_window_in_days = 0
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = "reports"
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "reports_db_url_v" {
-
-  secret_id = aws_secretsmanager_secret.reports_db_url.id
-  # Usar el mismo usuario que orders
-  secret_string = "postgresql://${aws_db_instance.postgres.username}:${urlencode(random_password.db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/reports?sslmode=require"
-}
-
-# ============================================================
 # VISITA DATABASE SECRETS
 # ============================================================
 
@@ -564,13 +540,13 @@ resource "aws_secretsmanager_secret_version" "visita_db_url_v" {
   }
 }
 
-data "aws_secretsmanager_secret" "mapbox_token" {
-  name = "/${var.project}/${var.env}/mapbox-token"
-}
+#data "aws_secretsmanager_secret" "mapbox_token" {
+#  name = "/${var.project}/${var.env}/mapbox-token"
+#}
 
-data "aws_secretsmanager_secret_version" "mapbox_token" {
-  secret_id = data.aws_secretsmanager_secret.mapbox_token.id
-}
+#data "aws_secretsmanager_secret_version" "mapbox_token" {
+#  secret_id = data.aws_secretsmanager_secret.mapbox_token.id
+#}
 
 # ============================================================
 # SERVICES MODULES
@@ -588,19 +564,19 @@ module "orders" {
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
 
-  # Imagen ECR completa (repo:tag o repo@sha256:digest) â€” evita :latest
+  # Imagen ECR completa (repo:tag o repo@sha256:digest) â€" evita :latest
   ecr_image         = "${aws_ecr_repository.orders.repository_url}:latest"
-  app_port          = 3000
+  app_port          = 8000
   db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Service Connect namespace - solo en AWS
-  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
-
   # ARNs requeridos que faltaban
   ecs_execution_role_arn = aws_iam_role.orders_exec.arn
   ecs_task_role_arn      = aws_iam_role.orders_task.arn
+  
+  # Service Connect namespace
+  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
 }
 
 # Consumer (SQS + Worker)
@@ -620,6 +596,9 @@ module "consumer" {
 
   # Cluster donde correrÃ¡ el consumer
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
+
+  # Usar Service Connect en lugar de ALB
+  orders_service_url = module.orders.service_connect_url
 
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
@@ -659,7 +638,8 @@ module "bff_venta" {
   catalogo_service_url  = "http://${module.bff_venta.alb_dns_name}/catalog"
   optimizer_service_url = "http://${module.bff_venta.alb_dns_name}"
   rutas_service_url     = "http://${module.bff_venta.alb_dns_name}"
-  orders_service_url = var.orders_service_url != "" ? var.orders_service_url : ""
+  # Usar Service Connect para Orders (elimina ALB interno)
+  orders_service_url = module.orders.service_connect_url
   
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
@@ -721,9 +701,9 @@ module "bff_cliente" {
   sqs_url = module.consumer.sqs_queue_url
   sqs_arn = module.consumer.sqs_queue_arn
 
-  # Servicios backend (usando ALBs internos)
+  # Servicios backend - Usar Service Connect para servicios internos
   catalogo_service_url = "http://${module.bff_venta.alb_dns_name}/catalog"
-  cliente_service_url  = local.is_local ? "http://cliente:8000" : "http://${module.cliente_service.alb_dns_name}"
+  cliente_service_url  = local.is_local ? "http://cliente:8000" : module.cliente_service.service_connect_url
 
   # Service Connect namespace - solo en AWS
   service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
@@ -862,8 +842,10 @@ module "report_service" {
   public_subnets  = module.vpc.public_subnets
   private_subnets = module.vpc.private_subnets
 
-  ecs_cluster_arn   = aws_ecs_cluster.orders.arn
-  db_url_secret_arn = aws_secretsmanager_secret.reports_db_url.arn
+  ecs_cluster_arn = aws_ecs_cluster.orders.arn
+  
+  # URL del servicio Orders (usando service connect)
+  orders_service_url = module.orders.service_connect_url
 
   app_port      = 8000
   image_tag     = "latest"
@@ -880,7 +862,10 @@ module "report_service" {
   s3_bucket_arn  = module.visita_service.s3_bucket_arn
   s3_bucket_name = module.visita_service.s3_bucket_name
   
-  depends_on = [module.visita_service]
+  # Database URL secret (mismo que orders)
+  db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
+  
+  depends_on = [module.visita_service, module.orders]
 }
 
 # Visita Service
@@ -915,6 +900,10 @@ module "visita_service" {
 
   # S3 bucket para uploads (fotos/videos)
   s3_bucket_name = "${var.project}-${var.env}-visita-uploads"
+  
+  # Gemini API para análisis de video - usando Secrets Manager
+  google_api_key_secret_name = var.google_api_key_secret_name
+  gemini_model               = var.gemini_model
 }
 
 # ============================================================
@@ -937,8 +926,8 @@ module "optimizador_rutas" {
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 
-  # Secret ARN - read from AWS, never deleted by Terraform
-  mapbox_token_secret_arn = data.aws_secretsmanager_secret.mapbox_token.arn
+  # Secret ARN - real Mapbox token from AWS Secrets Manager
+  mapbox_token_secret_arn = "arn:aws:secretsmanager:us-east-1:217466752988:secret:/medisupply/dev/mapbox-token-sshGcj"
 
   shared_http_listener_arn = module.bff_venta.alb_listener_arn
   shared_alb_sg_id         = module.bff_venta.alb_sg_id

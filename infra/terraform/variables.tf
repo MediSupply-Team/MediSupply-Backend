@@ -362,3 +362,18 @@ variable "db_url_secret_arn" {
   type        = string
   default     = ""
 }
+
+# ============================================================
+# GEMINI AI (para visita-service)
+# ============================================================
+variable "google_api_key_secret_name" {
+  description = "Nombre del secreto en AWS Secrets Manager que contiene la Google Gemini API Key"
+  type        = string
+  default     = "medisupply/google-api-key"
+}
+
+variable "gemini_model" {
+  description = "Modelo de Gemini a usar para análisis de video"
+  type        = string
+  default     = "gemini-2.5-flash"
+}

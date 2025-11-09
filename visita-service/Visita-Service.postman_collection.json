@@ -1,0 +1,452 @@
+{
+	"info": {
+		"_postman_id": "visita-service-collection",
+		"name": "Visita Service - API Collection",
+		"description": "Colección de endpoints para el servicio de visitas con análisis de video usando Gemini AI",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health & Status",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						},
+						"description": "Verificar que el servicio está funcionando"
+					}
+				},
+				{
+					"name": "Video Service Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/video/service-status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "video", "service-status"]
+						},
+						"description": "Verificar el estado del servicio de análisis de video con Gemini"
+					}
+				}
+			]
+		},
+		{
+			"name": "Visitas",
+			"item": [
+				{
+					"name": "Crear Visita (sin archivos)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "vendedor_id",
+									"value": "1",
+									"type": "text"
+								},
+								{
+									"key": "cliente_id",
+									"value": "100",
+									"type": "text"
+								},
+								{
+									"key": "nombre_contacto",
+									"value": "Dr. Juan Pérez",
+									"type": "text"
+								},
+								{
+									"key": "observaciones",
+									"value": "Cliente interesado en equipos de diagnóstico",
+									"type": "text"
+								},
+								{
+									"key": "estado",
+									"value": "pendiente",
+									"type": "text",
+									"description": "Valores: exitosa, pendiente, cancelada"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/visitas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas"]
+						},
+						"description": "Crear una nueva visita sin archivos adjuntos"
+					}
+				},
+				{
+					"name": "Crear Visita con Fotos y Videos",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "vendedor_id",
+									"value": "1",
+									"type": "text"
+								},
+								{
+									"key": "cliente_id",
+									"value": "100",
+									"type": "text"
+								},
+								{
+									"key": "nombre_contacto",
+									"value": "Dr. María García",
+									"type": "text"
+								},
+								{
+									"key": "observaciones",
+									"value": "Visita de seguimiento con registro multimedia",
+									"type": "text"
+								},
+								{
+									"key": "estado",
+									"value": "exitosa",
+									"type": "text"
+								},
+								{
+									"key": "fotos",
+									"type": "file",
+									"src": [],
+									"description": "Archivos: jpg, jpeg, png, gif"
+								},
+								{
+									"key": "videos",
+									"type": "file",
+									"src": [],
+									"description": "Archivos: mp4, avi, mov"
+								},
+								{
+									"key": "auto_analyze_videos",
+									"value": "true",
+									"type": "text",
+									"description": "true = analizar automáticamente con Gemini"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/visitas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas"]
+						},
+						"description": "Crear visita con fotos y videos. Los videos se analizarán automáticamente si auto_analyze_videos=true"
+					}
+				},
+				{
+					"name": "Listar Todas las Visitas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/visitas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas"]
+						},
+						"description": "Obtener listado de todas las visitas"
+					}
+				},
+				{
+					"name": "Listar Visitas con Filtros",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/visitas?vendedor_id=1&estado=pendiente",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas"],
+							"query": [
+								{
+									"key": "vendedor_id",
+									"value": "1",
+									"description": "Filtrar por vendedor"
+								},
+								{
+									"key": "cliente_id",
+									"value": "100",
+									"description": "Filtrar por cliente",
+									"disabled": true
+								},
+								{
+									"key": "estado",
+									"value": "pendiente",
+									"description": "Filtrar por estado: exitosa, pendiente, cancelada"
+								}
+							]
+						},
+						"description": "Listar visitas con filtros opcionales"
+					}
+				},
+				{
+					"name": "Obtener Visita por ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/visitas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas", "1"]
+						},
+						"description": "Obtener detalle completo de una visita incluyendo hallazgos y análisis de video"
+					}
+				},
+				{
+					"name": "Actualizar Estado de Visita",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "estado",
+									"value": "exitosa",
+									"type": "text",
+									"description": "Valores: exitosa, pendiente, cancelada"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/visitas/1/estado",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas", "1", "estado"]
+						},
+						"description": "Actualizar el estado de una visita"
+					}
+				}
+			]
+		},
+		{
+			"name": "Hallazgos",
+			"item": [
+				{
+					"name": "Agregar Hallazgo de Texto",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "contenido",
+									"value": "Equipo de rayos X presenta falla en el generador principal",
+									"type": "text"
+								},
+								{
+									"key": "descripcion",
+									"value": "Hallazgo técnico crítico",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/visitas/1/hallazgos/texto",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas", "1", "hallazgos", "texto"]
+						},
+						"description": "Agregar un hallazgo de tipo texto a una visita"
+					}
+				},
+				{
+					"name": "Subir Foto como Hallazgo",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "archivo",
+									"type": "file",
+									"src": [],
+									"description": "Archivo de imagen (jpg, jpeg, png, gif)"
+								},
+								{
+									"key": "tipo",
+									"value": "foto",
+									"type": "text"
+								},
+								{
+									"key": "descripcion",
+									"value": "Foto del equipo dañado",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/visitas/1/hallazgos/archivo",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas", "1", "hallazgos", "archivo"]
+						},
+						"description": "Subir una foto como hallazgo"
+					}
+				},
+				{
+					"name": "Subir Video como Hallazgo",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "archivo",
+									"type": "file",
+									"src": [],
+									"description": "Archivo de video (mp4, avi, mov)"
+								},
+								{
+									"key": "tipo",
+									"value": "video",
+									"type": "text"
+								},
+								{
+									"key": "descripcion",
+									"value": "Video del procedimiento de diagnóstico",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/visitas/1/hallazgos/archivo",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas", "1", "hallazgos", "archivo"]
+						},
+						"description": "Subir un video como hallazgo"
+					}
+				},
+				{
+					"name": "Listar Hallazgos de Visita",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/visitas/1/hallazgos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas", "1", "hallazgos"]
+						},
+						"description": "Listar todos los hallazgos de una visita"
+					}
+				},
+				{
+					"name": "Descargar Archivo de Hallazgo",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/hallazgos/1/archivo",
+							"host": ["{{base_url}}"],
+							"path": ["api", "hallazgos", "1", "archivo"]
+						},
+						"description": "Descargar archivo (foto o video) de un hallazgo"
+					}
+				},
+				{
+					"name": "Eliminar Hallazgo",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/hallazgos/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "hallazgos", "1"]
+						},
+						"description": "Eliminar un hallazgo y su archivo asociado"
+					}
+				}
+			]
+		},
+		{
+			"name": "Análisis de Video (Gemini AI)",
+			"item": [
+				{
+					"name": "Analizar Video Manualmente",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "visita_id",
+									"value": "1",
+									"type": "text"
+								},
+								{
+									"key": "video_url",
+									"value": "s3://bucket/video.mp4",
+									"type": "text",
+									"description": "URL del video (S3 o path local)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/video/analyze",
+							"host": ["{{base_url}}"],
+							"path": ["api", "video", "analyze"]
+						},
+						"description": "Lanzar análisis manual de un video ya subido. El análisis se ejecuta en background."
+					}
+				},
+				{
+					"name": "Obtener Resultado de Análisis",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/video/analysis/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "video", "analysis", "1"]
+						},
+						"description": "Obtener resultados de un análisis de video específico. Incluye summary, tags y recommendations si está completado."
+					}
+				},
+				{
+					"name": "Listar Análisis de una Visita",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/visitas/1/video-analyses",
+							"host": ["{{base_url}}"],
+							"path": ["api", "visitas", "1", "video-analyses"]
+						},
+						"description": "Listar todos los análisis de video de una visita específica"
+					}
+				},
+				{
+					"name": "Eliminar Análisis de Video",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/video/analysis/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "video", "analysis", "1"]
+						},
+						"description": "Eliminar un registro de análisis de video (no elimina el video original)"
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8003",
+			"type": "string"
+		}
+	]
+}

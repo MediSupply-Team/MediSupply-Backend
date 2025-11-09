@@ -28,5 +28,8 @@ project    = "medisupply"
 env        = "dev"
 aws_region = "us-east-1"
 
+# Database Configuration (Free Tier)
+db_instance_class = "db.t3.micro"
+
 # Catalogo Service URL para BFF (Service Connect DNS)
 catalogo_service_url = "http://catalogo:8000"

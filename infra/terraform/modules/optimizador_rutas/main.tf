@@ -277,6 +277,8 @@ resource "aws_ecs_service" "this" {
 
   enable_execute_command = true
 
+  health_check_grace_period_seconds = 120
+
   network_configuration {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.svc.id]
@@ -289,8 +291,8 @@ resource "aws_ecs_service" "this" {
     container_port   = var.app_port
   }
 
-  deployment_minimum_healthy_percent = 50
-  deployment_maximum_percent         = 200
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 100
 
   depends_on = [aws_lb_listener_rule.optimizer_path]
 
@@ -298,6 +300,10 @@ resource "aws_ecs_service" "this" {
     Project = var.project
     Env     = var.env
     Service = var.service_name
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 }
 

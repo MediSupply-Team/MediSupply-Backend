@@ -3,7 +3,7 @@ name: Deploy Cliente Service
 
 on:
   push:
-    branches: [ "main", "develop", "fix-carga-masiva" ]
+    branches: [ "develop", "fix-carga-masiva" ]
     paths:
       - "cliente-service/**"
       - ".github/workflows/deploy-cliente.yml"
@@ -13,6 +13,13 @@ on:
         description: "Branch/Tag/Commit a desplegar"
         required: true
         default: "develop"
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: false
+        type: string
+        default: "main"
 
 env:
   AWS_REGION: us-east-1

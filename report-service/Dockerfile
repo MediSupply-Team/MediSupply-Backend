@@ -8,7 +8,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 
 WORKDIR /app
 
-# Instalar curl para health check
+# Instalar curl para health check 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
@@ -30,9 +30,9 @@ ENV ENV=dev \
     PORT=8000
 EXPOSE 8000
 USER appuser
-CMD ["bash", "-c", "python create_reports_db.py && python seed.py && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
-# -------- Producción --------
+# -------- Producción ------ 
 FROM base AS prod
 ENV ENV=production \
     PORT=8000 \
@@ -44,5 +44,5 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
-# Comando: crear DB → cargar seed → iniciar con workers
-CMD ["bash", "-c", "python create_reports_db.py && python seed.py && uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers ${WORKERS}"]
+# Comando: iniciar con workers
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers ${WORKERS}"]

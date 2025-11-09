@@ -1,0 +1,21 @@
+[run]
+source = app
+omit =
+    # Scripts de inicialización (no son lógica de negocio)
+    app/populate_db.py
+    app/create_cliente_db.py
+    
+    # Tests
+    tests/*
+    
+[report]
+exclude_lines =
+    # Líneas estándar para excluir
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+

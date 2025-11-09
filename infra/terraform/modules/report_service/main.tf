@@ -74,7 +74,7 @@ resource "aws_iam_role_policy_attachment" "execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Política adicional para leer Secrets Manager
+# Política para acceso a Secrets Manager
 data "aws_iam_policy_document" "secrets_policy" {
   statement {
     actions = [
@@ -249,12 +249,13 @@ resource "aws_ecs_task_definition" "this" {
         { name = "ENV", value = var.env },
         { name = "AWS_REGION", value = var.aws_region },
         { name = "PORT", value = tostring(var.app_port) },
-        { name = "S3_BUCKET_NAME", value = var.s3_bucket_name }
+        { name = "S3_BUCKET_NAME", value = var.s3_bucket_name },
+        { name = "ORDERS_SERVICE_URL", value = var.orders_service_url }
       ]
 
       secrets = [
         {
-          name      = "DATABASE_URL"
+          name      = "DB_URL"
           valueFrom = var.db_url_secret_arn
         }
       ]
@@ -315,6 +316,10 @@ resource "aws_ecs_service" "this" {
     Project = var.project
     Env     = var.env
     Service = var.service_name
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 }
 

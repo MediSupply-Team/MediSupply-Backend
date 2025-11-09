@@ -230,6 +230,8 @@ services:
       context: ./catalogo-service
       dockerfile: Dockerfile
     container_name: catalog-service
+    entrypoint: []  # 👈 AGREGAR: Bypass entrypoint
+    command: uvicorn app.main:app --host 0.0.0.0 --port 3000 --reload  # 👈 AGREGAR
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-catalog_user}:${POSTGRES_PASSWORD:-catalog_pass}@catalog-db:5432/catalogo
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis}@redis:6379/1
@@ -238,7 +240,7 @@ services:
       catalog-db: { condition: service_healthy }
       redis: { condition: service_healthy }
       db-init-catalog: { condition: service_completed_successfully }
-    ports: ["3001:8080"]
+    ports: ["3001:3000"]
     volumes:
       - ./catalogo-service:/app
 

@@ -100,3 +100,15 @@ variable "s3_bucket_name" {
   type        = string
   default     = ""
 }
+
+variable "google_api_key_secret_name" {
+  description = "Nombre del secreto en AWS Secrets Manager que contiene la API Key de Google Gemini"
+  type        = string
+  default     = "medisupply/google-api-key"
+}
+
+variable "gemini_model" {
+  description = "Modelo de Gemini a usar"
+  type        = string
+  default     = "gemini-2.5-flash"
+}

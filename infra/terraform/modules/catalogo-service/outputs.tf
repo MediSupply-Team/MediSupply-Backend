@@ -38,12 +38,12 @@ output "db_port" {
 # S3 Bucket (compartido con visita-service)
 output "s3_bucket_name" {
   description = "Nombre del bucket S3 compartido para uploads"
-  value       = data.aws_s3_bucket.shared_uploads.id
+  value       = local.s3_bucket_name
 }
 
 output "s3_bucket_arn" {
   description = "ARN del bucket S3 compartido para uploads"
-  value       = data.aws_s3_bucket.shared_uploads.arn
+  value       = local.s3_bucket_arn
 }
 
 # SQS Queue

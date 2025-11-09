@@ -42,8 +42,6 @@ override.tf.json
 *_override.tf.json
 .terraform.lock.hcl
 *.tfplan*
-
-# tfvars reales (mantén solo .example en git)
-!terraform.tfvars.example
 .env
 .DS_Store
+.coverage

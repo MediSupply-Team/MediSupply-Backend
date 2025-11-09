@@ -1,12 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query, Request
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query, Request, BackgroundTasks
 from fastapi.responses import Response
 from sqlmodel import Session, select
 from database import get_session, init_db
-from models import Visita, Hallazgo, EstadoVisita
+from models import Visita, Hallazgo, EstadoVisita, VideoAnalysis
 from datetime import datetime
 from typing import List, Optional
 import storage
 import os
+from video_analysis_service import video_analysis_service
 
 # Configurar FastAPI sin límites de body size
 app = FastAPI(
@@ -54,6 +55,64 @@ def on_startup():
     """Inicializa la base de datos al arrancar"""
     init_db()
 
+# ============================================================
+# FUNCIONES AUXILIARES PARA ANÁLISIS DE VIDEO
+# ============================================================
+
+async def process_video_analysis(video_analysis_id: int, video_url: str, session: Session):
+    """
+    Procesa el análisis de video en background
+    
+    Args:
+        video_analysis_id: ID del registro de VideoAnalysis
+        video_url: URL del video a analizar
+        session: Sesión de base de datos
+    """
+    from database import engine
+    
+    try:
+        # Crear nueva sesión para el background task
+        with Session(engine) as bg_session:
+            video_analysis = bg_session.get(VideoAnalysis, video_analysis_id)
+            if not video_analysis:
+                print(f"❌ VideoAnalysis {video_analysis_id} no encontrado")
+                return
+            
+            # Actualizar estado
+            video_analysis.status = "processing"
+            bg_session.add(video_analysis)
+            bg_session.commit()
+            
+            print(f"🎬 Iniciando análisis de video {video_analysis_id}: {video_url}")
+            
+            # Realizar análisis
+            result = await video_analysis_service.analyze_video_from_url(video_url)
+            
+            # Actualizar con resultados
+            video_analysis.summary = result.get("summary", "")
+            video_analysis.tags = result.get("tags", [])
+            video_analysis.recommendations = result.get("recommendations", [])
+            video_analysis.status = "completed"
+            video_analysis.completed_at = datetime.utcnow()
+            
+            bg_session.add(video_analysis)
+            bg_session.commit()
+            
+            print(f"✅ Análisis de video {video_analysis_id} completado")
+            
+    except Exception as e:
+        print(f"❌ Error en análisis de video {video_analysis_id}: {str(e)}")
+        
+        # Actualizar con error
+        with Session(engine) as error_session:
+            video_analysis = error_session.get(VideoAnalysis, video_analysis_id)
+            if video_analysis:
+                video_analysis.status = "failed"
+                video_analysis.error_message = str(e)
+                video_analysis.completed_at = datetime.utcnow()
+                error_session.add(video_analysis)
+                error_session.commit()
+
 @app.get("/health")
 def health():
     """Health check endpoint"""
@@ -76,6 +135,8 @@ async def crear_visita(
 ):
     """
     Crear una nueva visita a un cliente con fotos, videos y observaciones.
+    Los videos se guardan en S3 pero NO se analizan automáticamente.
+    Use POST /api/visitas/{visita_id}/analyze para procesar los videos con Gemini.
     
     - **vendedor_id**: ID del vendedor que realiza la visita
     - **cliente_id**: ID del cliente visitado
@@ -98,6 +159,7 @@ async def crear_visita(
     session.refresh(visita)
     
     hallazgos_creados = []
+    video_analyses_creados = []
     
     # 2. Procesar fotos si existen
     if fotos:
@@ -192,10 +254,16 @@ def listar_visitas(
     vendedor_id: Optional[int] = Query(None),
     cliente_id: Optional[int] = Query(None),
     estado: Optional[EstadoVisita] = Query(None),
+    con_videos: Optional[bool] = Query(None, description="Filtrar solo visitas que tienen videos"),
     session: Session = Depends(get_session)
 ):
     """
     Listar visitas con filtros opcionales.
+    
+    - **vendedor_id**: Filtrar por ID del vendedor
+    - **cliente_id**: Filtrar por ID del cliente
+    - **estado**: Filtrar por estado de la visita
+    - **con_videos**: Si es true, solo retorna visitas que tienen al menos un video
     """
     query = select(Visita)
     
@@ -208,6 +276,20 @@ def listar_visitas(
     
     visitas = session.exec(query).all()
     
+    # Aplicar filtro de videos si se solicita
+    if con_videos:
+        visitas_con_videos = []
+        for v in visitas:
+            # Contar hallazgos de tipo video
+            query_videos = select(Hallazgo).where(
+                Hallazgo.visita_id == v.id,
+                Hallazgo.tipo == "video"
+            )
+            tiene_videos = len(session.exec(query_videos).all()) > 0
+            if tiene_videos:
+                visitas_con_videos.append(v)
+        visitas = visitas_con_videos
+    
     return [
         {
             "id": v.id,
@@ -218,7 +300,8 @@ def listar_visitas(
             "estado": v.estado,
             "fecha_visita": v.fecha_visita.isoformat(),
             "created_at": v.created_at.isoformat(),
-            "cantidad_hallazgos": len(v.hallazgos) if v.hallazgos else 0
+            "cantidad_hallazgos": len(v.hallazgos) if v.hallazgos else 0,
+            "cantidad_videos": len([h for h in v.hallazgos if h.tipo == "video"]) if v.hallazgos else 0
         }
         for v in visitas
     ]
@@ -229,7 +312,7 @@ def obtener_visita(
     session: Session = Depends(get_session)
 ):
     """
-    Obtener detalle completo de una visita con sus hallazgos.
+    Obtener detalle completo de una visita con sus hallazgos y análisis de video.
     """
     visita = session.get(Visita, visita_id)
     if not visita:
@@ -246,6 +329,24 @@ def obtener_visita(
         for h in visita.hallazgos
     ]
     
+    # Incluir análisis de video si existen
+    video_analyses = []
+    if hasattr(visita, 'video_analyses') and visita.video_analyses:
+        video_analyses = [
+            {
+                "id": va.id,
+                "video_url": va.video_url,
+                "status": va.status,
+                "summary": va.summary if va.status == "completed" else None,
+                "tags": va.tags if va.status == "completed" else None,
+                "recommendations": va.recommendations if va.status == "completed" else None,
+                "error_message": va.error_message if va.status == "failed" else None,
+                "created_at": va.created_at.isoformat(),
+                "completed_at": va.completed_at.isoformat() if va.completed_at else None
+            }
+            for va in visita.video_analyses
+        ]
+    
     return {
         "id": visita.id,
         "vendedor_id": visita.vendedor_id,
@@ -255,7 +356,8 @@ def obtener_visita(
         "estado": visita.estado,
         "fecha_visita": visita.fecha_visita.isoformat(),
         "created_at": visita.created_at.isoformat(),
-        "hallazgos": hallazgos
+        "hallazgos": hallazgos,
+        "video_analyses": video_analyses
     }
 
 @app.patch("/api/visitas/{visita_id}/estado")
@@ -448,3 +550,282 @@ async def eliminar_hallazgo(
     session.commit()
     
     return {"message": "Hallazgo eliminado exitosamente"}
+
+
+# ============================================================
+# ENDPOINTS DE ANÁLISIS DE VIDEO CON GEMINI
+# ============================================================
+
+@app.post("/api/visitas/{visita_id}/analyze")
+async def analizar_videos_visita(
+    visita_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session)
+):
+    """
+    Analizar todos los videos de una visita con Gemini AI.
+    Procesa todos los videos guardados en la visita y genera recomendaciones.
+    
+    - **visita_id**: ID de la visita cuyos videos se quieren analizar
+    
+    Retorna información sobre los análisis iniciados. Use GET /api/visitas/{visita_id}/video-analyses
+    para consultar el progreso y resultados.
+    """
+    # Verificar que la visita existe
+    visita = session.get(Visita, visita_id)
+    if not visita:
+        raise HTTPException(status_code=404, detail="Visita no encontrada")
+    
+    # Verificar que Gemini esté configurado
+    if not video_analysis_service.is_configured():
+        raise HTTPException(
+            status_code=503, 
+            detail="Servicio de análisis de video no disponible. Configure GEMINI_API_KEY."
+        )
+    
+    # Obtener todos los hallazgos de tipo video
+    query = select(Hallazgo).where(
+        Hallazgo.visita_id == visita_id,
+        Hallazgo.tipo == "video"
+    )
+    videos = session.exec(query).all()
+    
+    if not videos:
+        raise HTTPException(
+            status_code=404, 
+            detail="No se encontraron videos en esta visita"
+        )
+    
+    # Crear registros de análisis para cada video
+    analyses_creados = []
+    for video in videos:
+        # Verificar que el archivo existe
+        if not await storage.file_exists(video.contenido):
+            print(f"⚠️ Video no encontrado: {video.contenido}")
+            continue
+        
+        # Verificar si ya existe un análisis para este video
+        existing = session.exec(
+            select(VideoAnalysis).where(
+                VideoAnalysis.visita_id == visita_id,
+                VideoAnalysis.video_url == video.contenido
+            )
+        ).first()
+        
+        if existing and existing.status in ["pending", "processing"]:
+            # Ya está en proceso
+            analyses_creados.append(existing)
+            continue
+        
+        # Crear nuevo análisis
+        video_analysis = VideoAnalysis(
+            visita_id=visita_id,
+            video_url=video.contenido,
+            status="pending"
+        )
+        session.add(video_analysis)
+        session.commit()
+        session.refresh(video_analysis)
+        
+        analyses_creados.append(video_analysis)
+        
+        # Disparar análisis en background
+        background_tasks.add_task(
+            process_video_analysis,
+            video_analysis.id,
+            video.contenido,
+            session
+        )
+        print(f"📊 Análisis de video programado para ID {video_analysis.id}")
+    
+    if not analyses_creados:
+        raise HTTPException(
+            status_code=404,
+            detail="No se pudieron iniciar análisis. Videos no encontrados en almacenamiento."
+        )
+    
+    return {
+        "visita_id": visita_id,
+        "total_videos": len(videos),
+        "analyses_iniciados": len(analyses_creados),
+        "analyses": [
+            {
+                "id": va.id,
+                "video_url": va.video_url,
+                "status": va.status,
+                "created_at": va.created_at.isoformat()
+            }
+            for va in analyses_creados
+        ],
+        "message": f"Se iniciaron {len(analyses_creados)} análisis. Use GET /api/visitas/{visita_id}/video-analyses para ver el progreso."
+    }
+
+
+@app.post("/api/video/analyze")
+async def analizar_video_manual(
+    background_tasks: BackgroundTasks,
+    visita_id: int = Form(...),
+    video_url: str = Form(...),
+    session: Session = Depends(get_session)
+):
+    """
+    DEPRECATED: Use POST /api/visitas/{visita_id}/analyze en su lugar.
+    
+    Lanzar análisis manual de un video específico ya subido.
+    
+    - **visita_id**: ID de la visita asociada
+    - **video_url**: URL del video en S3 o path local
+    """
+    # Verificar que la visita existe
+    visita = session.get(Visita, visita_id)
+    if not visita:
+        raise HTTPException(status_code=404, detail="Visita no encontrada")
+    
+    # Verificar que Gemini esté configurado
+    if not video_analysis_service.is_configured():
+        raise HTTPException(
+            status_code=503, 
+            detail="Servicio de análisis de video no disponible. Configure GEMINI_API_KEY."
+        )
+    
+    # Verificar que el archivo existe
+    if not await storage.file_exists(video_url):
+        raise HTTPException(status_code=404, detail="Video no encontrado")
+    
+    # Crear registro de análisis
+    video_analysis = VideoAnalysis(
+        visita_id=visita_id,
+        video_url=video_url,
+        status="pending"
+    )
+    session.add(video_analysis)
+    session.commit()
+    session.refresh(video_analysis)
+    
+    # Disparar análisis en background
+    background_tasks.add_task(
+        process_video_analysis,
+        video_analysis.id,
+        video_url,
+        session
+    )
+    
+    return {
+        "id": video_analysis.id,
+        "visita_id": video_analysis.visita_id,
+        "video_url": video_analysis.video_url,
+        "status": video_analysis.status,
+        "created_at": video_analysis.created_at.isoformat(),
+        "message": "Análisis de video iniciado. Use GET /api/video/analysis/{id} para ver el progreso."
+    }
+
+
+@app.get("/api/video/analysis/{analysis_id}")
+def obtener_analisis_video(
+    analysis_id: int,
+    session: Session = Depends(get_session)
+):
+    """
+    Obtener resultados de un análisis de video
+    
+    - **analysis_id**: ID del análisis de video
+    """
+    video_analysis = session.get(VideoAnalysis, analysis_id)
+    if not video_analysis:
+        raise HTTPException(status_code=404, detail="Análisis de video no encontrado")
+    
+    response = {
+        "id": video_analysis.id,
+        "visita_id": video_analysis.visita_id,
+        "video_url": video_analysis.video_url,
+        "status": video_analysis.status,
+        "created_at": video_analysis.created_at.isoformat(),
+    }
+    
+    # Agregar resultados si está completado
+    if video_analysis.status == "completed":
+        response.update({
+            "summary": video_analysis.summary,
+            "tags": video_analysis.tags,
+            "recommendations": video_analysis.recommendations,
+            "completed_at": video_analysis.completed_at.isoformat() if video_analysis.completed_at else None
+        })
+    
+    # Agregar error si falló
+    if video_analysis.status == "failed":
+        response.update({
+            "error_message": video_analysis.error_message,
+            "completed_at": video_analysis.completed_at.isoformat() if video_analysis.completed_at else None
+        })
+    
+    return response
+
+
+@app.get("/api/visitas/{visita_id}/video-analyses")
+def listar_analisis_videos_visita(
+    visita_id: int,
+    session: Session = Depends(get_session)
+):
+    """
+    Listar todos los análisis de video de una visita
+    
+    - **visita_id**: ID de la visita
+    """
+    visita = session.get(Visita, visita_id)
+    if not visita:
+        raise HTTPException(status_code=404, detail="Visita no encontrada")
+    
+    query = select(VideoAnalysis).where(VideoAnalysis.visita_id == visita_id)
+    analyses = session.exec(query).all()
+    
+    return [
+        {
+            "id": va.id,
+            "video_url": va.video_url,
+            "status": va.status,
+            "summary": va.summary if va.status == "completed" else None,
+            "tags": va.tags if va.status == "completed" else None,
+            "recommendations": va.recommendations if va.status == "completed" else None,
+            "error_message": va.error_message if va.status == "failed" else None,
+            "created_at": va.created_at.isoformat(),
+            "completed_at": va.completed_at.isoformat() if va.completed_at else None
+        }
+        for va in analyses
+    ]
+
+
+@app.delete("/api/video/analysis/{analysis_id}")
+def eliminar_analisis_video(
+    analysis_id: int,
+    session: Session = Depends(get_session)
+):
+    """
+    Eliminar un registro de análisis de video
+    
+    - **analysis_id**: ID del análisis de video
+    """
+    video_analysis = session.get(VideoAnalysis, analysis_id)
+    if not video_analysis:
+        raise HTTPException(status_code=404, detail="Análisis de video no encontrado")
+    
+    session.delete(video_analysis)
+    session.commit()
+    
+    return {"message": "Análisis de video eliminado exitosamente"}
+
+
+@app.get("/api/video/service-status")
+def estado_servicio_video():
+    """
+    Verificar el estado del servicio de análisis de video
+    """
+    is_configured = video_analysis_service.is_configured()
+    
+    return {
+        "service": "video-analysis",
+        "status": "available" if is_configured else "unavailable",
+        "gemini_configured": is_configured,
+        "model": os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+        "message": "Servicio disponible" if is_configured else "Configure GEMINI_API_KEY para habilitar el servicio"
+    }
+

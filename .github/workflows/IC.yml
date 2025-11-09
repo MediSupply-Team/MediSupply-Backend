@@ -1,9 +1,15 @@
-name: "CI - Coverage Report"
+name: "📊 CI - Continuous Integration"
 
 # Se ejecuta en cada push a main
 on:
   push:
-    branches: [main]
+    branches: [develop, tests-services]
+    paths:
+      - 'orders-service/**'
+      - 'catalogo-service/**'
+      - 'cliente-service/**'
+      - 'ruta-service/**'
+      - 'report-service/**'
 
 concurrency:
   group: coverage-${{ github.ref }}
@@ -27,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [orders-service, catalogo-service, cliente-service]
+        service: [orders-service, catalogo-service, cliente-service, ruta-service, report-service]
     
     steps:
       - name: 📥 Checkout code
@@ -157,7 +163,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [orders-service, catalogo-service, cliente-service]
+        service: [orders-service, catalogo-service, cliente-service, ruta-service, report-service]
     
     steps:
       - name: 📥 Checkout code

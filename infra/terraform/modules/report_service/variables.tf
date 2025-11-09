@@ -39,8 +39,8 @@ variable "ecs_cluster_arn" {
   type        = string
 }
 
-variable "db_url_secret_arn" {
-  description = "Database URL secret ARN from Secrets Manager"
+variable "orders_service_url" {
+  description = "URL del servicio Orders para obtener datos"
   type        = string
 }
 
@@ -103,5 +103,10 @@ variable "s3_bucket_arn" {
 
 variable "s3_bucket_name" {
   description = "Nombre del bucket S3 para subir reportes"
+  type        = string
+}
+
+variable "db_url_secret_arn" {
+  description = "ARN del secreto que contiene la URL de la base de datos"
   type        = string
 }

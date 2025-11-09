@@ -2,7 +2,7 @@ name: Deploy BFF Venta Service
 
 on:
   push:
-    branches: ["main", "develop", "nueva-cuenta" ]
+    branches: [ "develop"]
     paths:
       - "bff-venta/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-bff-venta.yml"
@@ -12,6 +12,13 @@ on:
         description: "Branch/Tag/Commit a desplegar"
         required: true
         default: "develop"
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: false
+        type: string
+        default: "main"
 
 env:
   AWS_REGION: us-east-1

@@ -250,42 +250,19 @@ resource "aws_iam_role_policy" "cliente_ecs_exec_policy" {
 # ============================================================
 # SECURITY GROUPS
 # ============================================================
-resource "aws_security_group" "cliente_alb_sg" {
-  name        = "${local.service_id}-alb-sg"
-  description = "Security group for cliente-service ALB"
-  vpc_id      = var.vpc_id
 
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["10.20.0.0/16"]  # VPC CIDR
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = "cliente-service"
-  }
-}
-
+# Security Group para ECS tasks
 resource "aws_security_group" "cliente_ecs_sg" {
   name        = "${local.service_id}-ecs-sg"
   description = "Security group for cliente-service ECS tasks"
   vpc_id      = var.vpc_id
 
   ingress {
-    from_port       = var.container_port
-    to_port         = var.container_port
-    protocol        = "tcp"
-    security_groups = [aws_security_group.cliente_alb_sg.id]
+    from_port   = var.container_port
+    to_port     = var.container_port
+    protocol    = "tcp"
+    cidr_blocks = ["10.20.0.0/16"]  # Permitir desde toda la VPC (Service Connect)
+    description = "Allow traffic from VPC (Service Connect)"
   }
 
   egress {
@@ -303,66 +280,16 @@ resource "aws_security_group" "cliente_ecs_sg" {
 }
 
 # ============================================================
-# APPLICATION LOAD BALANCER
+# ALB ELIMINADO - Usando Service Connect para comunicación interna
 # ============================================================
-resource "aws_lb" "cliente_alb" {
-  name               = "${var.project}-${var.env}-cliente-alb"
-  internal           = true
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.cliente_alb_sg.id]
-  subnets            = var.private_subnets
-
-  enable_deletion_protection = false
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = "cliente-service"
-  }
-}
-
-resource "aws_lb_target_group" "cliente" {
-  name        = "${var.project}-${var.env}-cliente-tg"
-  port        = var.container_port
-  protocol    = "HTTP"
-  vpc_id      = var.vpc_id
-  target_type = "ip"
-
-  health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-    timeout             = 5
-    interval            = 30
-    path                = "/health"
-    matcher             = "200"
-    port                = "traffic-port"
-    protocol            = "HTTP"
-  }
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = "cliente-service"
-  }
-}
-
-resource "aws_lb_listener" "cliente_http" {
-  load_balancer_arn = aws_lb.cliente_alb.arn
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.cliente.arn
-  }
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = "cliente-service"
-  }
-}
+# Los siguientes recursos han sido eliminados para reducir costos:
+# - aws_security_group.cliente_alb_sg
+# - aws_lb.cliente_alb
+# - aws_lb_target_group.cliente
+# - aws_lb_listener.cliente_http
+#
+# Ahorro: ~$16-18/mes
+# Comunicación: Via Service Connect (cliente.svc.local:8000)
 
 # ============================================================
 # ECS TASK DEFINITION
@@ -469,32 +396,29 @@ resource "aws_ecs_service" "cliente" {
   }
 
   # Service Connect: exposes cliente-service for internal service discovery
-  service_connect_configuration {
-    enabled   = true
-    namespace = var.service_connect_namespace_name
+  dynamic "service_connect_configuration" {
+    for_each = var.service_connect_namespace_name != "" ? [1] : []
+    content {
+      enabled   = true
+      namespace = var.service_connect_namespace_name
 
-    service {
-      client_alias {
-        dns_name = "cliente"
-        port     = var.container_port
+      service {
+        client_alias {
+          dns_name = "cliente"
+          port     = var.container_port
+        }
+        port_name = "cliente-http"  # Must match the portMapping name
       }
-      port_name = "cliente-http"  # Must match the portMapping name
     }
   }
-
-  load_balancer {
-    target_group_arn = aws_lb_target_group.cliente.arn
-    container_name   = "cliente-service"
-    container_port   = var.container_port
-  }
-
-  depends_on = [
-    aws_lb_listener.cliente_http
-  ]
 
   tags = {
     Project = var.project
     Env     = var.env
     Service = "cliente-service"
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 }

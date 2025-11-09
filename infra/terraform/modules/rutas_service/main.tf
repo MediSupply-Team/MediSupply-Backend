@@ -297,6 +297,10 @@ resource "aws_ecs_service" "this" {
     Env     = var.env
     Service = var.service_name
   }
+
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
 }
 
 resource "aws_lb_listener_rule" "rutas_path" {
