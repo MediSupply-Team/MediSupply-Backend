@@ -564,9 +564,9 @@ module "orders" {
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
 
-  # Imagen ECR completa (repo:tag o repo@sha256:digest) â€” evita :latest
+  # Imagen ECR completa (repo:tag o repo@sha256:digest) â€" evita :latest
   ecr_image         = "${aws_ecr_repository.orders.repository_url}:latest"
-  app_port          = 3000
+  app_port          = 8000
   db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn

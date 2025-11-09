@@ -120,8 +120,8 @@ locals {
   is_local = var.environment == "local"
   
   consumer_lb_target = var.use_haproxy ? "http://127.0.0.1/orders" : "http://${var.bff_alb_dns_name}/orders"
-  # URL para conectarse al servicio orders via Service Connect o URL personalizada
-  orders_url = var.orders_service_url
+  # URL para conectarse al servicio orders via Service Connect - agregar /orders al path
+  orders_url = "${var.orders_service_url}/orders"
 }
 
 # TaskDefinition: Condicional según use_haproxy

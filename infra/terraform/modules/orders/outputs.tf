@@ -37,7 +37,7 @@ output "security_group_id" {
 
 output "service_connect_dns" {
   description = "Service Connect DNS name for internal communication"
-  value       = "orders.svc.local"
+  value       = "orders"
 }
 
 output "service_connect_port" {
@@ -46,8 +46,8 @@ output "service_connect_port" {
 }
 
 output "service_connect_url" {
-  description = "Full Service Connect URL for internal communication"
-  value       = "http://orders.svc.local:${var.app_port}"
+  description = "Full Service Connect URL for internal communication (base URL without path)"
+  value       = "http://orders:${var.app_port}"
 }
 
 # ============================================================
