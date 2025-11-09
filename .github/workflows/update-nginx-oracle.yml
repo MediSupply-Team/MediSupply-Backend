@@ -8,14 +8,19 @@ on:
       - "Deploy Route Optimizer Service"
     types: [completed]
     branches: [develop]
+  
+  # También puedes ejecutarlo manualmente
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: false
+        default: "develop"
   push:
       branches:
         - develop
       paths:
         - '.github/workflows/update-nginx-oracle.yml'
-  
-  # También puedes ejecutarlo manualmente
-  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
