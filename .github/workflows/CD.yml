@@ -8,10 +8,9 @@ on:
         required: false
         default: "develop"
   push:
-    branches:
-      - update-workflow-CD
+    branches: [ "update-workflow-CD"]
     paths:
-      - '.github/workflows/CD.yml'
+      - ".github/workflows/CD.yml"
 
 env:
   AWS_REGION: us-east-1
