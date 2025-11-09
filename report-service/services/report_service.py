@@ -29,13 +29,22 @@ def _parse_order_date(order: Dict[str, Any]) -> datetime:
         return created_at
     return datetime.now()
 
-def _calculate_order_revenue(order: Dict[str, Any]) -> float:
-    """Calcula el revenue total de una orden basado en items"""
+def _calculate_order_revenue(order: Dict[str, Any], products: Dict[str, Dict[str, Any]]) -> float:
+    """Calcula el revenue total de una orden basado en items usando precios del catálogo"""
     items = order.get("items", [])
     total = 0.0
     for item in items:
-        quantity = item.get("qty", 0)  # Cambiado de "quantity" a "qty"
-        price = item.get("price", 0.0)
+        sku = item.get("sku")
+        quantity = item.get("qty", 0)
+        
+        # Obtener precio del catálogo si existe, sino usar el precio del item
+        price = 0.0
+        if sku and sku in products:
+            price = products[sku].get("price", 0.0)
+        else:
+            # Fallback al precio en el item si no está en catálogo
+            price = item.get("price", 0.0)
+        
         total += quantity * price
     return round(total, 2)
 
@@ -90,13 +99,27 @@ async def get_sales_performance(
         # Filtrar por fechas (validación adicional)
         orders = _filter_orders_by_date(all_orders, period_from, period_to)
         
+        # Obtener todos los SKUs únicos de las órdenes
+        all_skus = set()
+        for order in orders:
+            items = order.get("items", [])
+            for item in items:
+                sku = item.get("sku")
+                if sku:
+                    all_skus.add(sku)
+        
+        # Obtener productos del catálogo
+        logger.info(f"Obteniendo productos del catálogo para {len(all_skus)} SKUs")
+        products = await db_client.get_products_by_skus(list(all_skus))
+        logger.info(f"Obtenidos {len(products)} productos del catálogo")
+        
         # Filtrar por product_id si se especifica
         if product_id:
             filtered_orders = []
             for order in orders:
                 items = order.get("items", [])
                 for item in items:
-                    if str(item.get("sku")) == str(product_id):  # Cambiado de "product_id" a "sku"
+                    if str(item.get("sku")) == str(product_id):
                         filtered_orders.append(order)
                         break
             orders = filtered_orders
@@ -104,7 +127,7 @@ async def get_sales_performance(
         logger.info(f"Total de órdenes obtenidas: {len(orders)}")
         
         # -------- SUMMARY: Total Sales --------
-        total_sales = sum(_calculate_order_revenue(order) for order in orders)
+        total_sales = sum(_calculate_order_revenue(order, products) for order in orders)
         
         # -------- SUMMARY: Pending Orders --------
         pending_orders = sum(
@@ -131,7 +154,7 @@ async def get_sales_performance(
             end_date=prev_end_datetime
         )
         prev_orders = _filter_orders_by_date(prev_orders, prev_from, prev_to)
-        prev_total = sum(_calculate_order_revenue(order) for order in prev_orders)
+        prev_total = sum(_calculate_order_revenue(order, products) for order in prev_orders)
         
         sales_change_pct = 0.0
         if prev_total > 0:
@@ -144,7 +167,7 @@ async def get_sales_performance(
         sales_by_date: Dict[date, float] = defaultdict(float)
         for order in orders:
             order_date = _parse_order_date(order).date()
-            revenue = _calculate_order_revenue(order)
+            revenue = _calculate_order_revenue(order, products)
             sales_by_date[order_date] += revenue
         
         # Crear puntos de tendencia
@@ -175,14 +198,24 @@ async def get_sales_performance(
         for order in orders:
             items = order.get("items", [])
             for item in items:
-                product_id_str = str(item.get("sku", "unknown"))  # Cambiado de "product_id" a "sku"
-                product_name = item.get("product_name", f"Producto {product_id_str}")
-                quantity = item.get("qty", 0)  # Cambiado de "quantity" a "qty"
-                price = item.get("price", 0.0)
+                sku = item.get("sku")
+                if not sku:
+                    continue
+                    
+                quantity = item.get("qty", 0)
+                
+                # Obtener precio del catálogo
+                price = 0.0
+                if sku in products:
+                    price = products[sku].get("price", 0.0)
+                    product_names[sku] = products[sku].get("name", f"Producto {sku}")
+                else:
+                    # Fallback al precio en el item
+                    price = item.get("price", 0.0)
+                    product_names[sku] = item.get("product_name", f"Producto {sku}")
                 
                 revenue = quantity * price
-                product_sales[product_id_str] += revenue
-                product_names[product_id_str] = product_name
+                product_sales[sku] += revenue
         
         # Ordenar y tomar top N
         sorted_products = sorted(
@@ -211,9 +244,17 @@ async def get_sales_performance(
             
             # Crear una fila por cada item en la orden
             for item in items:
-                product_name = item.get("product_name", "Producto desconocido")
-                quantity = item.get("qty", 0)  # Cambiado de "quantity" a "qty"
-                price = item.get("price", 0.0)
+                sku = item.get("sku")
+                quantity = item.get("qty", 0)
+                
+                # Obtener nombre y precio del catálogo
+                if sku and sku in products:
+                    product_name = products[sku].get("name", "Producto desconocido")
+                    price = products[sku].get("price", 0.0)
+                else:
+                    product_name = item.get("product_name", "Producto desconocido")
+                    price = item.get("price", 0.0)
+                
                 revenue = round(quantity * price, 2)
                 
                 table_rows.append(TableRow(
