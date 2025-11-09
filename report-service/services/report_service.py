@@ -34,7 +34,7 @@ def _calculate_order_revenue(order: Dict[str, Any]) -> float:
     items = order.get("items", [])
     total = 0.0
     for item in items:
-        quantity = item.get("quantity", 0)
+        quantity = item.get("qty", 0)  # Cambiado de "quantity" a "qty"
         price = item.get("price", 0.0)
         total += quantity * price
     return round(total, 2)
@@ -96,7 +96,7 @@ async def get_sales_performance(
             for order in orders:
                 items = order.get("items", [])
                 for item in items:
-                    if str(item.get("product_id")) == str(product_id):
+                    if str(item.get("sku")) == str(product_id):  # Cambiado de "product_id" a "sku"
                         filtered_orders.append(order)
                         break
             orders = filtered_orders
@@ -175,9 +175,9 @@ async def get_sales_performance(
         for order in orders:
             items = order.get("items", [])
             for item in items:
-                product_id_str = str(item.get("product_id", "unknown"))
+                product_id_str = str(item.get("sku", "unknown"))  # Cambiado de "product_id" a "sku"
                 product_name = item.get("product_name", f"Producto {product_id_str}")
-                quantity = item.get("quantity", 0)
+                quantity = item.get("qty", 0)  # Cambiado de "quantity" a "qty"
                 price = item.get("price", 0.0)
                 
                 revenue = quantity * price
@@ -212,7 +212,7 @@ async def get_sales_performance(
             # Crear una fila por cada item en la orden
             for item in items:
                 product_name = item.get("product_name", "Producto desconocido")
-                quantity = item.get("quantity", 0)
+                quantity = item.get("qty", 0)  # Cambiado de "quantity" a "qty"
                 price = item.get("price", 0.0)
                 revenue = round(quantity * price, 2)
                 
