@@ -862,6 +862,9 @@ module "report_service" {
   s3_bucket_arn  = module.visita_service.s3_bucket_arn
   s3_bucket_name = module.visita_service.s3_bucket_name
   
+  # Database URL secret (mismo que orders)
+  db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
+  
   depends_on = [module.visita_service, module.orders]
 }
 
