@@ -26,23 +26,8 @@ env:
   AWS_REGION: us-east-1
 
 jobs:
-  # Solo ejecutar si el deploy fue exitoso
-  check-deploy-success:
-    runs-on: ubuntu-latest
-    # if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
-    outputs:
-      should_update: ${{ steps.check.outputs.result }}
-    steps:
-      - name: Check if deploy was successful
-        id: check
-        run: |
-          echo "result=true" >> $GITHUB_OUTPUT
-          echo "✅ Deploy exitoso, procediendo con actualización de Nginx"
-
   update-nginx:
-    needs: check-deploy-success
     runs-on: ubuntu-latest
-    if: needs.check-deploy-success.outputs.should_update == 'true'
     
     permissions:
       id-token: write
