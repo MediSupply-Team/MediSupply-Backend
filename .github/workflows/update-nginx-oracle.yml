@@ -1,4 +1,4 @@
-name: Update Nginx Config (Oracle Cloud)
+name: 🛰️ Update Nginx (Oracle Cloud)
 
 on:
   # Se dispara automáticamente después de deploy exitoso
