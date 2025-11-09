@@ -395,7 +395,7 @@ class DatabaseClient:
                 is_active,
                 created_at,
                 updated_at
-            FROM products
+            FROM producto
             WHERE sku IN ({placeholders})
         """
         
