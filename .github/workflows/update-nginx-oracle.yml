@@ -2,12 +2,12 @@ name: Update Nginx Config (Oracle Cloud)
 
 on:
   # Se dispara automáticamente después de deploy exitoso
-  workflow_run:
-    workflows: 
-      - "Deploy BFF Venta Service"
-      - "Deploy Route Optimizer Service"
-    types: [completed]
-    branches: [develop]
+  # workflow_run:
+  #   workflows: 
+  #     - "Deploy BFF Venta Service"
+  #     - "Deploy Route Optimizer Service"
+  #   types: [completed]
+  #   branches: [develop]
   
   # También puedes ejecutarlo manualmente
   workflow_dispatch:
