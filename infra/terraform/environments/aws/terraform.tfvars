@@ -48,7 +48,7 @@ bff_env = {
 # ============================================================
 catalogo_service_url              = "placeholder-will-be-updated-after-deploy"
 catalogo_container_port           = 3000
-catalogo_desired_count            = 2
+catalogo_desired_count            = 1
 catalogo_cpu                      = "512"
 catalogo_memory                   = "1024"
 catalogo_db_instance_class        = "db.t4g.micro"
