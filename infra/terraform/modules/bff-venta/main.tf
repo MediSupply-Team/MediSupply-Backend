@@ -349,7 +349,7 @@ resource "aws_ecs_service" "svc" {
   name            = "${local.bff_id}-svc"
   cluster         = var.ecs_cluster_arn
   task_definition = aws_ecs_task_definition.td.arn
-  desired_count   = 2
+  desired_count   = 1  # Reducido de 2 a 1 para optimizar costos
   launch_type     = "FARGATE"
   enable_execute_command = true
   health_check_grace_period_seconds = 120
