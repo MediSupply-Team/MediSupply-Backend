@@ -248,3 +248,9 @@ variable "redis_url" {
   type        = string
   default     = "redis://redis:6379/1"
 }
+
+variable "additional_db_security_group_ids" {
+  description = "Lista de security group IDs adicionales que necesitan acceso a la base de datos del catálogo"
+  type        = list(string)
+  default     = []
+}

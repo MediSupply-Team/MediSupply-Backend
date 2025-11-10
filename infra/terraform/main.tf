@@ -764,6 +764,9 @@ module "catalogo_service" {
   # Redis configuration
   redis_url = local.is_local ? "redis://redis:6379/1" : module.redis[0].redis_url
 
+  # Security groups adicionales que necesitan acceso a la DB del catálogo
+  additional_db_security_group_ids = [module.report_service.security_group_id]
+
   # Additional tags
   additional_tags = var.additional_tags
 }
@@ -862,10 +865,9 @@ module "report_service" {
   s3_bucket_arn  = module.visita_service.s3_bucket_arn
   s3_bucket_name = module.visita_service.s3_bucket_name
   
-  # Database URL secret (mismo que orders)
-  db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
-  
-  depends_on = [module.visita_service, module.orders]
+  # Database URL secrets
+  db_url_secret_arn         = aws_secretsmanager_secret.db_url.arn
+  catalog_db_url_secret_arn = module.catalogo_service.db_credentials_secret_arn
 }
 
 # Visita Service
