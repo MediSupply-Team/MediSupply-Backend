@@ -1,12 +1,37 @@
 """
 Modelos SQLAlchemy para cliente-service siguiendo patrón catalogo-service
-Definición de tablas para HU07: Consultar Cliente
+Definición de tablas para HU07: Consultar Cliente y HU: Registrar Vendedor
 """
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Integer, Boolean, Date, DateTime, ForeignKey, DECIMAL, JSON, Text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from datetime import date, datetime
 from decimal import Decimal
 from app.db import Base
+from typing import Optional
+from uuid import UUID, uuid4
+
+
+class Vendedor(Base):
+    """
+    Modelo de Vendedor para HU: Registrar Vendedor
+    Representa los vendedores del sistema MediSupply
+    """
+    __tablename__ = "vendedor"
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    identificacion: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, index=True)
+    nombre_completo: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    telefono: Mapped[str] = mapped_column(String(32), nullable=False)
+    pais: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
+    plan_de_ventas: Mapped[Optional[Decimal]] = mapped_column(DECIMAL(12,2), nullable=True)
+    rol: Mapped[str] = mapped_column(String(32), default="seller", nullable=False)  # seller para coincidir con orders
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_user_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
 
 class Cliente(Base):
@@ -16,7 +41,7 @@ class Cliente(Base):
     """
     __tablename__ = "cliente"
     
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     nit: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, index=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     codigo_unico: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
@@ -25,6 +50,8 @@ class Cliente(Base):
     direccion: Mapped[str] = mapped_column(String(512), nullable=True)
     ciudad: Mapped[str] = mapped_column(String(128), nullable=True, index=True)
     pais: Mapped[str] = mapped_column(String(8), nullable=True, default="CO")
+    vendedor_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), nullable=True)  # FK a vendedor
+    rol: Mapped[str] = mapped_column(String(32), default="cliente", nullable=False)  # Rol del cliente
     # tipo_cliente: Mapped[str] = mapped_column(String(32), nullable=True, default="farmacia")  # Comentado: columna no existe en DB
     activo: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

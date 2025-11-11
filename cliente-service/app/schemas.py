@@ -1,11 +1,12 @@
 """
 Esquemas Pydantic para cliente-service
-Payloads de entrada y salida para la HU07: Consultar Cliente
+Payloads de entrada y salida para la HU07: Consultar Cliente y HU: Registrar Vendedor
 """
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import date, datetime
 from decimal import Decimal
+from uuid import UUID
 
 
 # ==========================================
@@ -13,8 +14,7 @@ from decimal import Decimal
 # ==========================================
 
 class ClienteCreate(BaseModel):
-    """Payload para crear un nuevo cliente"""
-    id: str = Field(..., min_length=1, max_length=64, description="ID único del cliente", example="CLI005")
+    """Payload para crear un nuevo cliente (id se genera automáticamente con UUID)"""
     nit: str = Field(..., min_length=5, max_length=32, description="NIT del cliente", example="900555666-7")
     nombre: str = Field(..., min_length=3, max_length=255, description="Nombre del cliente", example="Farmacia Los Andes")
     codigo_unico: str = Field(..., min_length=3, max_length=64, description="Código único del cliente", example="FLA001")
@@ -24,7 +24,7 @@ class ClienteCreate(BaseModel):
     ciudad: Optional[str] = Field(None, max_length=128, description="Ciudad del cliente", example="Medellín")
     pais: Optional[str] = Field(default="CO", max_length=8, description="País del cliente", example="CO")
     activo: bool = Field(default=True, description="Si el cliente está activo")
-    vendedor_id: str = Field(..., min_length=1, max_length=64, description="ID del vendedor que crea el cliente", example="VEN001")
+    vendedor_id: str = Field(..., description="ID del vendedor (UUID como string)", example="550e8400-e29b-41d4-a716-446655440000")
 
 
 class ClienteUpdate(BaseModel):
@@ -98,7 +98,7 @@ class HistoricoClienteRequest(BaseModel):
 
 class ClienteBasicoResponse(BaseModel):
     """Información básica del cliente encontrado en la búsqueda"""
-    id: str = Field(..., description="ID único del cliente")
+    id: UUID = Field(..., description="ID único del cliente (UUID)")
     nit: str = Field(..., description="NIT del cliente")
     nombre: str = Field(..., description="Nombre completo del cliente")
     codigo_unico: str = Field(..., description="Código único del cliente")
@@ -107,6 +107,7 @@ class ClienteBasicoResponse(BaseModel):
     direccion: Optional[str] = Field(None, description="Dirección del cliente")
     ciudad: Optional[str] = Field(None, description="Ciudad del cliente")
     pais: Optional[str] = Field(None, description="País del cliente")
+    rol: str = Field(default="cliente", description="Rol del cliente")
     activo: bool = Field(default=True, description="Si el cliente está activo")
     created_at: Optional[datetime] = Field(None, description="Fecha de creación")
     updated_at: Optional[datetime] = Field(None, description="Fecha de última actualización")
@@ -388,3 +389,86 @@ class ValidacionResponse(BaseModel):
                 "advertencias": []
             }
         }
+
+
+# ==========================================
+# SCHEMAS PARA VENDEDORES (HU: Registrar Vendedor)
+# ==========================================
+
+class VendedorCreate(BaseModel):
+    """Schema para crear un vendedor (id se genera automáticamente con UUID)"""
+    identificacion: str = Field(..., min_length=5, max_length=32, description="Cédula o identificación", example="1234567890")
+    nombre_completo: str = Field(..., min_length=3, max_length=255, description="Nombre completo del vendedor", example="Juan Pérez Gómez")
+    email: str = Field(..., min_length=5, max_length=255, description="Email del vendedor", example="juan.perez@medisupply.com")
+    telefono: str = Field(..., min_length=7, max_length=32, description="Teléfono del vendedor", example="+57-300-1234567")
+    pais: str = Field(..., min_length=2, max_length=2, description="Código ISO del país", example="CO")
+    plan_de_ventas: Optional[Decimal] = Field(None, description="Meta de ventas asignada", example=50000000.00)
+    rol: str = Field(default="seller", description="Rol del vendedor", example="seller")
+    activo: bool = Field(default=True, description="Si el vendedor está activo")
+    password_hash: Optional[str] = Field(None, description="Hash de contraseña (opcional)")
+    created_by_user_id: Optional[str] = Field(None, max_length=64, description="ID del usuario que crea el vendedor")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "identificacion": "1234567890",
+                "nombre_completo": "Juan Pérez Gómez",
+                "email": "juan.perez@medisupply.com",
+                "telefono": "+57-300-1234567",
+                "pais": "CO",
+                "plan_de_ventas": 50000000.00,
+                "rol": "seller",
+                "activo": True,
+                "created_by_user_id": "ADMIN001"
+            }
+        }
+
+
+class VendedorUpdate(BaseModel):
+    """Schema para actualizar un vendedor existente"""
+    identificacion: Optional[str] = Field(None, min_length=5, max_length=32)
+    nombre_completo: Optional[str] = Field(None, min_length=3, max_length=255)
+    email: Optional[str] = Field(None, min_length=5, max_length=255)
+    telefono: Optional[str] = Field(None, min_length=7, max_length=32)
+    pais: Optional[str] = Field(None, min_length=2, max_length=2)
+    plan_de_ventas: Optional[Decimal] = None
+    rol: Optional[str] = None
+    activo: Optional[bool] = None
+    password_hash: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "telefono": "+57-311-7654321",
+                "plan_de_ventas": 75000000.00,
+                "activo": True
+            }
+        }
+
+
+class VendedorResponse(BaseModel):
+    """Schema de respuesta de un vendedor"""
+    id: UUID
+    identificacion: str
+    nombre_completo: str
+    email: str
+    telefono: str
+    pais: str
+    plan_de_ventas: Optional[Decimal]
+    rol: str
+    activo: bool
+    created_at: datetime
+    updated_at: datetime
+    created_by_user_id: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+
+class VendedorListResponse(BaseModel):
+    """Respuesta con lista de vendedores paginada"""
+    items: List[VendedorResponse]
+    total: int = Field(..., description="Total de vendedores encontrados")
+    page: int = Field(..., description="Página actual")
+    size: int = Field(..., description="Tamaño de página")
+    took_ms: int = Field(..., description="Tiempo de respuesta en ms")
