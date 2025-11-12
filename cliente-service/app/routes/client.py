@@ -109,24 +109,22 @@ async def crear_cliente(
     - 409: Cliente ya existe (NIT o código único duplicado)
     - 500: Error interno
     """
-    logger.info(f"📝 Creando cliente: {cliente.id} por vendedor {cliente.vendedor_id}")
+    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) por vendedor {cliente.vendedor_id}")
     started = time.perf_counter_ns()
     
     try:
         from app.models.client_model import Cliente
+        from uuid import UUID
         
-        # Verificar si el cliente ya existe por ID
-        existing_by_id = (await session.execute(
-            select(Cliente).where(Cliente.id == cliente.id)
-        )).scalar_one_or_none()
-        
-        if existing_by_id:
+        # Convertir vendedor_id de string a UUID
+        try:
+            vendedor_uuid = UUID(cliente.vendedor_id)
+        except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
-                    "error": "CLIENT_ALREADY_EXISTS",
-                    "message": f"Cliente con id {cliente.id} ya existe",
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    "error": "INVALID_VENDEDOR_UUID",
+                    "message": f"vendedor_id '{cliente.vendedor_id}' no es un UUID válido"
                 }
             )
         
@@ -160,9 +158,8 @@ async def crear_cliente(
                 }
             )
         
-        # Crear nuevo cliente
+        # Crear nuevo cliente (id se genera automáticamente con UUID)
         new_cliente = Cliente(
-            id=cliente.id,
             nit=cliente.nit,
             nombre=cliente.nombre,
             codigo_unico=cliente.codigo_unico,
@@ -171,7 +168,8 @@ async def crear_cliente(
             direccion=cliente.direccion,
             ciudad=cliente.ciudad,
             pais=cliente.pais,
-            activo=cliente.activo
+            activo=cliente.activo,
+            vendedor_id=vendedor_uuid
         )
         
         session.add(new_cliente)
@@ -179,7 +177,7 @@ async def crear_cliente(
         await session.refresh(new_cliente)
         
         took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
-        logger.info(f"✅ Cliente creado: {cliente.id} en {took_ms}ms")
+        logger.info(f"✅ Cliente creado: {new_cliente.id} ({cliente.nombre}) en {took_ms}ms")
         
         # Retornar el cliente creado
         return ClienteBasicoResponse.model_validate(new_cliente)

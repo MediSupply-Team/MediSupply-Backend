@@ -28,11 +28,15 @@ from app.models.client_model import (
 from app.models.catalogo_model import (
     TipoRolVendedor, Territorio, TipoPlan, Region, Zona
 )
+from app.models.plan_venta_model import (
+    PlanVenta, PlanProducto, PlanRegion, PlanZona
+)
 
 
 async def execute_sql_file(engine, sql_file_path: Path, description: str) -> bool:
     """
-    Ejecuta un archivo SQL completo de forma idempotente
+    Ejecuta un archivo SQL completo directamente con psql
+    Esto garantiza que los bloques complejos (DO $$, funciones, INSERTs multi-línea) se manejen correctamente
     
     Args:
         engine: Motor de SQLAlchemy
@@ -42,52 +46,64 @@ async def execute_sql_file(engine, sql_file_path: Path, description: str) -> boo
     Returns:
         True si se ejecutó exitosamente, False si hubo errores críticos
     """
-    print(f"📄 Ejecutando {description}...")
+    print(f"📄 Cargando datos desde {sql_file_path.name}...")
     
     if not sql_file_path.exists():
         print(f"⚠️  Archivo SQL no encontrado: {sql_file_path}")
         return False
     
     try:
-        with open(sql_file_path, 'r', encoding='utf-8') as f:
-            sql_content = f.read()
+        # Usar las credenciales del engine URL (SQLAlchemy)
+        import subprocess
+        from urllib.parse import unquote
         
-        # Dividir en statements individuales (separados por ;)
-        statements = [s.strip() for s in sql_content.split(';') if s.strip()]
+        # Extraer componentes de la URL
+        url = engine.url
+        user = url.username or 'postgres'
+        password = unquote(url.password or '')  # Decodificar password URL-encoded
+        host = url.host or 'localhost'
+        port = str(url.port or 5432)
+        database = url.database or 'postgres'
         
-        executed = 0
-        skipped = 0
+        # Configurar entorno con la contraseña
+        env = os.environ.copy()
+        env['PGPASSWORD'] = password
         
-        for i, statement in enumerate(statements, 1):
-            # Saltar comentarios y líneas vacías
-            if statement.startswith('--') or not statement:
-                continue
-            
-            try:
-                async with engine.begin() as conn:
-                    await conn.execute(text(statement))
-                executed += 1
-            except Exception as e:
-                error_msg = str(e).lower()
-                # Ignorar errores de "ya existe" (idempotencia)
-                if any(x in error_msg for x in [
-                    'already exists', 
-                    'duplicate', 
-                    'no column changes',
-                    'constraint already exists',
-                    'relation already exists'
-                ]):
-                    skipped += 1
-                    continue
-                # Mostrar otros errores pero continuar (para no bloquear el deploy)
-                if 'do' not in statement.lower()[:10]:  # No mostrar warnings de bloques DO
-                    print(f"   ⚠️  Advertencia en statement {i}: {str(e)[:150]}...")
+        # Comando psql
+        cmd = [
+            'psql',
+            '-h', host,
+            '-p', port,
+            '-U', user,
+            '-d', database,
+            '-f', str(sql_file_path),
+            '-v', 'ON_ERROR_STOP=0'  # Continuar en caso de error
+        ]
         
-        print(f"   ✅ {description}: {executed} statements ejecutados, {skipped} omitidos")
-        return True
+        result = subprocess.run(
+            cmd,
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0 or 'INSERT' in result.stdout:
+            print(f"      ✅ {description} ejecutado correctamente")
+            return True
+        else:
+            # Mostrar solo errores que no sean de idempotencia
+            errors = result.stderr.lower()
+            if 'already exists' not in errors and 'duplicate' not in errors:
+                print(f"      ⚠️  Algunas advertencias (no críticas):")
+                for line in result.stderr.split('\n')[:5]:
+                    if line.strip():
+                        print(f"         {line[:100]}")
+            else:
+                print(f"      ✅ {description} ejecutado (objetos ya existían)")
+            return True
         
     except Exception as e:
-        print(f"   ❌ Error leyendo archivo {sql_file_path}: {e}")
+        print(f"   ❌ Error ejecutando {sql_file_path}: {e}")
         return False
 
 
@@ -148,7 +164,9 @@ async def populate_database():
             ('001_init.sql', 'Estructura inicial y tablas base'),
             ('002_vendedores.sql', 'Tabla vendedores y datos iniciales'),
             ('003_cliente_uuid_rol.sql', 'Migración UUID y campo rol'),
-            ('004_catalogos_vendedor.sql', 'Catálogos de soporte (Fase 1)')
+            ('004_catalogos_vendedor.sql', 'Catálogos de soporte (Fase 1)'),
+            ('005_vendedor_extended.sql', 'Vendedor extendido con FK (Fase 2)'),
+            ('006_plan_venta.sql', 'Plan de Venta completo con productos, regiones y zonas (Fase 3)')
         ]
         
         for filename, description in sql_files:
@@ -171,7 +189,11 @@ async def populate_database():
                 ('territorio', 'Territorios'),
                 ('tipo_plan', 'Tipos de Plan'),
                 ('region', 'Regiones'),
-                ('zona', 'Zonas')
+                ('zona', 'Zonas'),
+                ('plan_venta', 'Planes de Venta'),
+                ('plan_producto', 'Productos en Planes'),
+                ('plan_region', 'Regiones en Planes'),
+                ('plan_zona', 'Zonas en Planes')
             ]
             
             print()

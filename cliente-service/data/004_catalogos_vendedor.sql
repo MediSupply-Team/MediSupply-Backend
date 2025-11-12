@@ -26,6 +26,11 @@ CREATE INDEX IF NOT EXISTS idx_tipo_rol_vendedor_codigo ON tipo_rol_vendedor(cod
 CREATE INDEX IF NOT EXISTS idx_tipo_rol_vendedor_activo ON tipo_rol_vendedor(activo);
 CREATE INDEX IF NOT EXISTS idx_tipo_rol_vendedor_nivel ON tipo_rol_vendedor(nivel_jerarquia);
 
+-- Asegurar que los DEFAULTs estén configurados (por si la tabla fue creada por SQLAlchemy)
+ALTER TABLE tipo_rol_vendedor ALTER COLUMN id SET DEFAULT gen_random_uuid();
+ALTER TABLE tipo_rol_vendedor ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE tipo_rol_vendedor ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
+
 COMMENT ON TABLE tipo_rol_vendedor IS 'Catálogo de tipos de rol para vendedores con jerarquía';
 COMMENT ON COLUMN tipo_rol_vendedor.codigo IS 'Código único del rol (ej: GERENTE_REG, VENDEDOR_SR)';
 COMMENT ON COLUMN tipo_rol_vendedor.nivel_jerarquia IS 'Nivel jerárquico: 1=más alto, 10=más bajo';
@@ -50,6 +55,11 @@ CREATE INDEX IF NOT EXISTS idx_territorio_pais ON territorio(pais);
 CREATE INDEX IF NOT EXISTS idx_territorio_activo ON territorio(activo);
 CREATE INDEX IF NOT EXISTS idx_territorio_nombre ON territorio(nombre);
 
+-- Asegurar que los DEFAULTs estén configurados
+ALTER TABLE territorio ALTER COLUMN id SET DEFAULT gen_random_uuid();
+ALTER TABLE territorio ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE territorio ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
+
 COMMENT ON TABLE territorio IS 'Catálogo de territorios geográficos para asignación de vendedores';
 COMMENT ON COLUMN territorio.codigo IS 'Código único del territorio (ej: BOG-NORTE, MED-CENTRO)';
 COMMENT ON COLUMN territorio.pais IS 'Código ISO 3166-1 alpha-2 del país';
@@ -70,6 +80,11 @@ CREATE TABLE IF NOT EXISTS tipo_plan (
 
 CREATE INDEX IF NOT EXISTS idx_tipo_plan_codigo ON tipo_plan(codigo);
 CREATE INDEX IF NOT EXISTS idx_tipo_plan_activo ON tipo_plan(activo);
+
+-- Asegurar que los DEFAULTs estén configurados
+ALTER TABLE tipo_plan ALTER COLUMN id SET DEFAULT gen_random_uuid();
+ALTER TABLE tipo_plan ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE tipo_plan ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
 
 COMMENT ON TABLE tipo_plan IS 'Catálogo de tipos de plan de venta';
 COMMENT ON COLUMN tipo_plan.codigo IS 'Código único del tipo de plan (ej: PREMIUM, ESTANDAR, BASICO)';
@@ -94,6 +109,11 @@ CREATE INDEX IF NOT EXISTS idx_region_pais ON region(pais);
 CREATE INDEX IF NOT EXISTS idx_region_activo ON region(activo);
 CREATE INDEX IF NOT EXISTS idx_region_nombre ON region(nombre);
 
+-- Asegurar que los DEFAULTs estén configurados
+ALTER TABLE region ALTER COLUMN id SET DEFAULT gen_random_uuid();
+ALTER TABLE region ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE region ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
+
 COMMENT ON TABLE region IS 'Catálogo de regiones geográficas principales para planes de venta';
 COMMENT ON COLUMN region.codigo IS 'Código único de la región (ej: REG-NORTE, REG-SUR)';
 COMMENT ON COLUMN region.pais IS 'Código ISO 3166-1 alpha-2 del país';
@@ -116,6 +136,11 @@ CREATE INDEX IF NOT EXISTS idx_zona_codigo ON zona(codigo);
 CREATE INDEX IF NOT EXISTS idx_zona_tipo ON zona(tipo);
 CREATE INDEX IF NOT EXISTS idx_zona_activo ON zona(activo);
 CREATE INDEX IF NOT EXISTS idx_zona_nombre ON zona(nombre);
+
+-- Asegurar que los DEFAULTs estén configurados
+ALTER TABLE zona ALTER COLUMN id SET DEFAULT gen_random_uuid();
+ALTER TABLE zona ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE zona ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
 
 COMMENT ON TABLE zona IS 'Catálogo de zonas especiales por tipo de mercado';
 COMMENT ON COLUMN zona.codigo IS 'Código único de la zona (ej: ZONA-IND, ZONA-HOSP, ZONA-RURAL)';
