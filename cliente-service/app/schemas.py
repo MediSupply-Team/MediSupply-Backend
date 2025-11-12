@@ -472,3 +472,235 @@ class VendedorListResponse(BaseModel):
     page: int = Field(..., description="Página actual")
     size: int = Field(..., description="Tamaño de página")
     took_ms: int = Field(..., description="Tiempo de respuesta en ms")
+
+
+# ============================================================================
+# SCHEMAS PARA CATÁLOGOS DE SOPORTE (HU: Registrar Vendedor - Extensión)
+# ============================================================================
+
+# ---------- TipoRolVendedor ----------
+class TipoRolVendedorCreate(BaseModel):
+    """Schema para crear un tipo de rol de vendedor"""
+    codigo: str = Field(..., min_length=2, max_length=64, description="Código único del rol")
+    nombre: str = Field(..., min_length=3, max_length=255, description="Nombre del rol")
+    descripcion: Optional[str] = Field(None, description="Descripción del rol")
+    nivel_jerarquia: int = Field(..., ge=1, le=10, description="Nivel jerárquico (1=más alto)")
+    permisos: Optional[dict] = Field(None, description="Permisos del rol en formato JSON")
+    activo: bool = Field(default=True, description="Estado del rol")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "codigo": "GERENTE_REG",
+                "nombre": "Gerente Regional",
+                "descripcion": "Gerente responsable de una región completa",
+                "nivel_jerarquia": 1,
+                "permisos": {"ver_reportes": True, "aprobar_descuentos": True, "gestionar_vendedores": True},
+                "activo": True
+            }
+        }
+    )
+
+
+class TipoRolVendedorResponse(BaseModel):
+    """Schema de respuesta de un tipo de rol de vendedor"""
+    id: UUID = Field(..., description="ID único del rol")
+    codigo: str
+    nombre: str
+    descripcion: Optional[str] = None
+    nivel_jerarquia: int
+    permisos: Optional[dict] = None
+    activo: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TipoRolVendedorListResponse(BaseModel):
+    """Schema de respuesta de lista paginada de tipos de rol"""
+    tipos_rol: List[TipoRolVendedorResponse] = Field(default_factory=list)
+    total: int = Field(..., ge=0)
+    page: int = Field(..., ge=1)
+    size: int = Field(..., ge=1)
+    total_pages: int = Field(..., ge=0)
+
+
+# ---------- Territorio ----------
+class TerritorioCreate(BaseModel):
+    """Schema para crear un territorio"""
+    codigo: str = Field(..., min_length=2, max_length=64, description="Código único del territorio")
+    nombre: str = Field(..., min_length=3, max_length=255, description="Nombre del territorio")
+    pais: str = Field(..., min_length=2, max_length=2, description="Código ISO del país")
+    descripcion: Optional[str] = Field(None, description="Descripción del territorio")
+    activo: bool = Field(default=True, description="Estado del territorio")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "codigo": "BOG-NORTE",
+                "nombre": "Bogotá Norte",
+                "pais": "CO",
+                "descripcion": "Zona norte de Bogotá",
+                "activo": True
+            }
+        }
+    )
+
+
+class TerritorioResponse(BaseModel):
+    """Schema de respuesta de un territorio"""
+    id: UUID = Field(..., description="ID único del territorio")
+    codigo: str
+    nombre: str
+    pais: str
+    descripcion: Optional[str] = None
+    activo: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TerritorioListResponse(BaseModel):
+    """Schema de respuesta de lista paginada de territorios"""
+    territorios: List[TerritorioResponse] = Field(default_factory=list)
+    total: int = Field(..., ge=0)
+    page: int = Field(..., ge=1)
+    size: int = Field(..., ge=1)
+    total_pages: int = Field(..., ge=0)
+
+
+# ---------- TipoPlan ----------
+class TipoPlanCreate(BaseModel):
+    """Schema para crear un tipo de plan"""
+    codigo: str = Field(..., min_length=2, max_length=64, description="Código único del tipo de plan")
+    nombre: str = Field(..., min_length=3, max_length=255, description="Nombre del tipo de plan")
+    descripcion: Optional[str] = Field(None, description="Descripción del tipo de plan")
+    comision_base_defecto: Decimal = Field(..., ge=0, le=100, description="Comisión base en porcentaje")
+    activo: bool = Field(default=True, description="Estado del tipo de plan")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "codigo": "PREMIUM",
+                "nombre": "Plan Premium",
+                "descripcion": "Plan para vendedores de alto rendimiento",
+                "comision_base_defecto": 10.0,
+                "activo": True
+            }
+        }
+    )
+
+
+class TipoPlanResponse(BaseModel):
+    """Schema de respuesta de un tipo de plan"""
+    id: UUID = Field(..., description="ID único del tipo de plan")
+    codigo: str
+    nombre: str
+    descripcion: Optional[str] = None
+    comision_base_defecto: Decimal
+    activo: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TipoPlanListResponse(BaseModel):
+    """Schema de respuesta de lista paginada de tipos de plan"""
+    tipos_plan: List[TipoPlanResponse] = Field(default_factory=list)
+    total: int = Field(..., ge=0)
+    page: int = Field(..., ge=1)
+    size: int = Field(..., ge=1)
+    total_pages: int = Field(..., ge=0)
+
+
+# ---------- Region ----------
+class RegionCreate(BaseModel):
+    """Schema para crear una región"""
+    codigo: str = Field(..., min_length=2, max_length=64, description="Código único de la región")
+    nombre: str = Field(..., min_length=3, max_length=255, description="Nombre de la región")
+    pais: str = Field(..., min_length=2, max_length=2, description="Código ISO del país")
+    descripcion: Optional[str] = Field(None, description="Descripción de la región")
+    activo: bool = Field(default=True, description="Estado de la región")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "codigo": "REG-NORTE",
+                "nombre": "Región Norte",
+                "pais": "CO",
+                "descripcion": "Región norte del país",
+                "activo": True
+            }
+        }
+    )
+
+
+class RegionResponse(BaseModel):
+    """Schema de respuesta de una región"""
+    id: UUID = Field(..., description="ID único de la región")
+    codigo: str
+    nombre: str
+    pais: str
+    descripcion: Optional[str] = None
+    activo: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RegionListResponse(BaseModel):
+    """Schema de respuesta de lista paginada de regiones"""
+    regiones: List[RegionResponse] = Field(default_factory=list)
+    total: int = Field(..., ge=0)
+    page: int = Field(..., ge=1)
+    size: int = Field(..., ge=1)
+    total_pages: int = Field(..., ge=0)
+
+
+# ---------- Zona ----------
+class ZonaCreate(BaseModel):
+    """Schema para crear una zona"""
+    codigo: str = Field(..., min_length=2, max_length=64, description="Código único de la zona")
+    nombre: str = Field(..., min_length=3, max_length=255, description="Nombre de la zona")
+    tipo: str = Field(..., min_length=3, max_length=64, description="Tipo de zona")
+    descripcion: Optional[str] = Field(None, description="Descripción de la zona")
+    activo: bool = Field(default=True, description="Estado de la zona")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "codigo": "ZONA-IND",
+                "nombre": "Zona Industrial",
+                "tipo": "industrial",
+                "descripcion": "Zona industrial con empresas manufactureras",
+                "activo": True
+            }
+        }
+    )
+
+
+class ZonaResponse(BaseModel):
+    """Schema de respuesta de una zona"""
+    id: UUID = Field(..., description="ID único de la zona")
+    codigo: str
+    nombre: str
+    tipo: str
+    descripcion: Optional[str] = None
+    activo: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ZonaListResponse(BaseModel):
+    """Schema de respuesta de lista paginada de zonas"""
+    zonas: List[ZonaResponse] = Field(default_factory=list)
+    total: int = Field(..., ge=0)
+    page: int = Field(..., ge=1)
+    size: int = Field(..., ge=1)
+    total_pages: int = Field(..., ge=0)
