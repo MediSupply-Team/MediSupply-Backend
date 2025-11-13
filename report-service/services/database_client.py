@@ -1,5 +1,5 @@
 """
-Cliente de base de datos para acceder directamente a la BD de Orders
+Cliente de base de datos para acceder directamente a la BD de Orders y Catalogo
 """
 import os
 from typing import List, Dict, Any, Optional
@@ -22,6 +22,16 @@ class DatabaseClient:
             self.database_url = self.database_url.replace("postgresql+asyncpg://", "postgresql://")
         
         self.pool: Optional[asyncpg.Pool] = None
+        
+        # Conexión al catálogo
+        self.catalog_database_url = os.getenv("CATALOG_DB_URL")
+        if not self.catalog_database_url:
+            raise ValueError("CATALOG_DB_URL environment variable is required")
+        
+        if self.catalog_database_url.startswith("postgresql+asyncpg://"):
+            self.catalog_database_url = self.catalog_database_url.replace("postgresql+asyncpg://", "postgresql://")
+        
+        self.catalog_pool: Optional[asyncpg.Pool] = None
     
     async def connect(self):
         """Establece el pool de conexiones a la base de datos"""
@@ -32,12 +42,24 @@ class DatabaseClient:
                 max_size=10,
                 command_timeout=60
             )
+        
+        if not self.catalog_pool:
+            self.catalog_pool = await asyncpg.create_pool(
+                self.catalog_database_url,
+                min_size=2,
+                max_size=10,
+                command_timeout=60
+            )
     
     async def disconnect(self):
         """Cierra el pool de conexiones"""
         if self.pool:
             await self.pool.close()
             self.pool = None
+        
+        if self.catalog_pool:
+            await self.catalog_pool.close()
+            self.catalog_pool = None
     
     async def get_orders(
         self,
@@ -338,6 +360,54 @@ class DatabaseClient:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
             return [dict(row) for row in rows]
+    
+    async def get_products_by_skus(self, skus: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Obtiene productos del catálogo por sus códigos (SKUs)
+        
+        Args:
+            skus: Lista de códigos de productos
+            
+        Returns:
+            Diccionario con código como clave y datos del producto como valor
+        """
+        if not self.catalog_pool:
+            await self.connect()
+        
+        if not skus:
+            return {}
+        
+        # Crear placeholders para la consulta
+        placeholders = ', '.join(f'${i+1}' for i in range(len(skus)))
+        
+        query = f"""
+            SELECT 
+                codigo,
+                nombre,
+                categoria_id,
+                presentacion,
+                precio_unitario,
+                stock_minimo,
+                stock_critico,
+                activo,
+                proveedor_id
+            FROM producto
+            WHERE codigo IN ({placeholders})
+        """
+        
+        async with self.catalog_pool.acquire() as conn:
+            rows = await conn.fetch(query, *skus)
+            
+            products = {}
+            for row in rows:
+                product = dict(row)
+                # Convertir decimal a float para precio_unitario
+                if product.get('precio_unitario'):
+                    product['precio_unitario'] = float(product['precio_unitario'])
+                
+                products[product['codigo']] = product
+            
+            return products
 
 
 # Instancia global del cliente

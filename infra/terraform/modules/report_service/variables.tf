@@ -107,6 +107,11 @@ variable "s3_bucket_name" {
 }
 
 variable "db_url_secret_arn" {
-  description = "ARN del secreto que contiene la URL de la base de datos"
+  description = "ARN del secreto que contiene la URL de la base de datos de Orders"
+  type        = string
+}
+
+variable "catalog_db_url_secret_arn" {
+  description = "ARN del secreto que contiene la URL de la base de datos del Catálogo"
   type        = string
 }

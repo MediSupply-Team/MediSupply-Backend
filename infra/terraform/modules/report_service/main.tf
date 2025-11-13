@@ -80,7 +80,10 @@ data "aws_iam_policy_document" "secrets_policy" {
     actions = [
       "secretsmanager:GetSecretValue"
     ]
-    resources = [var.db_url_secret_arn]
+    resources = [
+      var.db_url_secret_arn,
+      var.catalog_db_url_secret_arn
+    ]
   }
 }
 
@@ -257,6 +260,10 @@ resource "aws_ecs_task_definition" "this" {
         {
           name      = "DB_URL"
           valueFrom = var.db_url_secret_arn
+        },
+        {
+          name      = "CATALOG_DB_URL"
+          valueFrom = "${var.catalog_db_url_secret_arn}:database_url::"
         }
       ]
 
