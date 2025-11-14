@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from .config import Config
 from .routes.health import bp as health_bp
 from .routes.client import bp as client_bp
+from .routes.vendedor import bp as vendedor_bp
 from .routes.orders import bp as orders_bp
 from flasgger import Swagger
 from .services.sqs_client import SQSService
@@ -32,6 +33,7 @@ def create_app():
     # Registrar blueprints
     app.register_blueprint(health_bp)
     app.register_blueprint(client_bp)  # Rutas de cliente
+    app.register_blueprint(vendedor_bp)  # Rutas de vendedor
     app.register_blueprint(orders_bp)
 
     # Inicializar servicio SQS
