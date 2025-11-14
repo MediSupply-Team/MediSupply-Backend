@@ -18,6 +18,9 @@ while True:
 print("✅ DB lista")
 EOF
 
+echo "🔄 Ejecutando migración de base de datos..."
+python migrate_db.py
+
 echo "🌱 Generando visitas dinámicas desde cliente-service..."
 python seed.py
 
