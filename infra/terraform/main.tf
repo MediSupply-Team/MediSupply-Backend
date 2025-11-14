@@ -818,6 +818,7 @@ module "rutas_service" {
 
   ecs_cluster_arn   = aws_ecs_cluster.orders.arn
   db_url_secret_arn = aws_secretsmanager_secret.rutas_db_url.arn
+  cliente_db_url_secret_arn = module.cliente_service.db_url_secret_arn
 
   app_port      = 8000
   image_tag     = "latest"
