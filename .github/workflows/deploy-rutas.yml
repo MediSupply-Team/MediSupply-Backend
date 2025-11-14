@@ -2,7 +2,7 @@ name: Deploy Rutas Service
 
 on:
   push:
-    branches: [ "develop" ]
+    branches: [ "develop","feature/HU08-consultar-ruta-de-visita-por-fecha" ]
     paths:
       - "ruta-service/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-rutas.yml"
