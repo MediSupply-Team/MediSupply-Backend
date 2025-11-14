@@ -9,15 +9,519 @@ def get_rutas_service_url():
     """Obtener la URL del servicio de rutas desde variables de entorno"""
     url = os.getenv("RUTAS_SERVICE_URL")
     if not url:
-        current_app.logger.error("RUTAS_SERVICE_URL no está configurada")
+        current_app.logger.error("RUTAS_SERVICE_URL no esta configurada")
         return None
     return url.rstrip('/')  # Remover trailing slash si existe
 
 
+# ==================== GESTION DE RUTAS ====================
+
+@bp.post("/api/v1/rutas")
+def create_ruta():
+    """
+    Crear una nueva ruta optimizada
+    ---
+    tags:
+      - Rutas
+    parameters:
+      - in: body
+        name: body
+        required: true
+        description: Datos de la ruta optimizada (del servicio optimizador)
+        schema:
+          type: object
+          required:
+            - secuencia_entregas
+            - resumen
+          properties:
+            secuencia_entregas:
+              type: array
+              items:
+                type: object
+                properties:
+                  orden:
+                    type: integer
+                  id_pedido:
+                    type: string
+                  cliente:
+                    type: string
+                  direccion:
+                    type: string
+                  lat:
+                    type: number
+                  lon:
+                    type: number
+                  hora_estimada:
+                    type: string
+                  cajas:
+                    type: integer
+                  urgencia:
+                    type: string
+            resumen:
+              type: object
+              properties:
+                distancia_total_km:
+                  type: number
+                tiempo_total_min:
+                  type: integer
+                total_entregas:
+                  type: integer
+                costo_estimado:
+                  type: number
+            geometria:
+              type: object
+              description: GeoJSON opcional
+            alertas:
+              type: array
+            optimized_by:
+              type: string
+            notes:
+              type: string
+    responses:
+      201:
+        description: Ruta creada exitosamente
+        schema:
+          type: object
+          properties:
+            id:
+              type: string
+            created_at:
+              type: string
+            message:
+              type: string
+      400:
+        description: Datos invalidos
+      503:
+        description: Servicio no disponible
+    """
+    rutas_url = get_rutas_service_url()
+    if not rutas_url:
+        return jsonify(error="Servicio de rutas no disponible"), 503
+    
+    try:
+        # Obtener datos del body
+        data = request.get_json()
+        if not data:
+            return jsonify(error="Datos requeridos"), 400
+        
+        # Validar campos minimos
+        if 'secuencia_entregas' not in data or 'resumen' not in data:
+            return jsonify(error="secuencia_entregas y resumen son requeridos"), 400
+        
+        # Enviar al ruta-service
+        url = f"{rutas_url}/rutas"
+        current_app.logger.info(f"Creating route at: {url}")
+        
+        response = requests.post(
+            url,
+            json=data,
+            timeout=10,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Rutas service error: {response.status_code} - {response.text[:200]}"
+            )
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al crear ruta",
+                details=error_data
+            ), response.status_code
+        
+        # Respuesta exitosa
+        current_app.logger.info(f"Route created successfully: {response.status_code}")
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout al conectar con servicio de rutas: {rutas_url}")
+        return jsonify(error="Timeout al crear ruta"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error conectando con servicio de rutas: {e}")
+        return jsonify(error="Error de conexion con servicio de rutas"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado al crear ruta: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
+
+
+@bp.get("/api/v1/rutas")
+def list_rutas():
+    """
+    Listar rutas con paginacion y filtros
+    ---
+    tags:
+      - Rutas
+    parameters:
+      - in: query
+        name: skip
+        type: integer
+        required: false
+        description: Registros a saltar
+        default: 0
+      - in: query
+        name: limit
+        type: integer
+        required: false
+        description: Cantidad maxima a retornar
+        default: 10
+      - in: query
+        name: status
+        type: string
+        required: false
+        description: Filtrar por estado (pending, in_progress, completed, cancelled)
+    responses:
+      200:
+        description: Lista de rutas
+        schema:
+          type: object
+          properties:
+            total:
+              type: integer
+            routes:
+              type: array
+      503:
+        description: Servicio no disponible
+    """
+    rutas_url = get_rutas_service_url()
+    if not rutas_url:
+        return jsonify(error="Servicio de rutas no disponible"), 503
+    
+    try:
+        # Construir query params
+        params = {
+            'skip': request.args.get('skip', 0, type=int),
+            'limit': request.args.get('limit', 10, type=int)
+        }
+        
+        status = request.args.get('status')
+        if status:
+            params['status'] = status
+        
+        url = f"{rutas_url}/rutas"
+        current_app.logger.info(f"Listing routes: {url}")
+        
+        response = requests.get(
+            url,
+            params=params,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        if response.status_code >= 400:
+            current_app.logger.warning(f"Rutas service error: {response.status_code}")
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(error="Error al listar rutas", details=error_data), response.status_code
+        
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        return jsonify(error="Timeout al listar rutas"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error al listar rutas: {e}")
+        return jsonify(error="Error de conexion"), 503
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado: {e}", exc_info=True)
+        return jsonify(error="Error interno"), 500
+
+
+@bp.get("/api/v1/rutas/<ruta_id>")
+def get_ruta(ruta_id):
+    """
+    Obtener ruta por ID
+    ---
+    tags:
+      - Rutas
+    parameters:
+      - in: path
+        name: ruta_id
+        type: string
+        required: true
+        description: ID de la ruta
+    responses:
+      200:
+        description: Ruta encontrada
+      404:
+        description: Ruta no encontrada
+      503:
+        description: Servicio no disponible
+    """
+    rutas_url = get_rutas_service_url()
+    if not rutas_url:
+        return jsonify(error="Servicio de rutas no disponible"), 503
+    
+    try:
+        url = f"{rutas_url}/rutas/{ruta_id}"
+        current_app.logger.info(f"Getting route: {url}")
+        
+        response = requests.get(
+            url,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        if response.status_code >= 400:
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(error="Error al obtener ruta", details=error_data), response.status_code
+        
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        return jsonify(error="Timeout"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error de conexion"), 503
+    except Exception as e:
+        current_app.logger.error(f"Error: {e}", exc_info=True)
+        return jsonify(error="Error interno"), 500
+
+
+@bp.patch("/api/v1/rutas/<ruta_id>/assign-driver")
+def assign_driver(ruta_id):
+    """
+    Asignar conductor a una ruta
+    ---
+    tags:
+      - Rutas
+    parameters:
+      - in: path
+        name: ruta_id
+        type: string
+        required: true
+        description: ID de la ruta
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - driver_id
+            - driver_name
+          properties:
+            driver_id:
+              type: string
+            driver_name:
+              type: string
+    responses:
+      200:
+        description: Conductor asignado
+      404:
+        description: Ruta no encontrada
+      503:
+        description: Servicio no disponible
+    """
+    rutas_url = get_rutas_service_url()
+    if not rutas_url:
+        return jsonify(error="Servicio de rutas no disponible"), 503
+    
+    try:
+        data = request.get_json()
+        if not data or 'driver_id' not in data or 'driver_name' not in data:
+            return jsonify(error="driver_id y driver_name son requeridos"), 400
+        
+        url = f"{rutas_url}/rutas/{ruta_id}/assign-driver"
+        current_app.logger.info(f"Assigning driver: {url}")
+        
+        response = requests.patch(
+            url,
+            json=data,
+            timeout=10,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "BFF-Venta/1.0",
+            }
+        )
+        
+        if response.status_code >= 400:
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(error="Error al asignar conductor", details=error_data), response.status_code
+        
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        return jsonify(error="Timeout"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error de conexion"), 503
+    except Exception as e:
+        current_app.logger.error(f"Error: {e}", exc_info=True)
+        return jsonify(error="Error interno"), 500
+
+
+@bp.patch("/api/v1/rutas/<ruta_id>/status")
+def update_status(ruta_id):
+    """
+    Actualizar estado de una ruta
+    ---
+    tags:
+      - Rutas
+    parameters:
+      - in: path
+        name: ruta_id
+        type: string
+        required: true
+        description: ID de la ruta
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - status
+          properties:
+            status:
+              type: string
+              enum: [pending, in_progress, completed, cancelled]
+    responses:
+      200:
+        description: Estado actualizado
+      404:
+        description: Ruta no encontrada
+      503:
+        description: Servicio no disponible
+    """
+    rutas_url = get_rutas_service_url()
+    if not rutas_url:
+        return jsonify(error="Servicio de rutas no disponible"), 503
+    
+    try:
+        data = request.get_json()
+        if not data or 'status' not in data:
+            return jsonify(error="status es requerido"), 400
+        
+        # Validar estado
+        valid_statuses = ['pending', 'in_progress', 'completed', 'cancelled']
+        if data['status'] not in valid_statuses:
+            return jsonify(error=f"status debe ser uno de: {', '.join(valid_statuses)}"), 400
+        
+        url = f"{rutas_url}/rutas/{ruta_id}/status"
+        current_app.logger.info(f"Updating status: {url}")
+        
+        response = requests.patch(
+            url,
+            json=data,
+            timeout=10,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "BFF-Venta/1.0",
+            }
+        )
+        
+        if response.status_code >= 400:
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(error="Error al actualizar estado", details=error_data), response.status_code
+        
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        return jsonify(error="Timeout"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error de conexion"), 503
+    except Exception as e:
+        current_app.logger.error(f"Error: {e}", exc_info=True)
+        return jsonify(error="Error interno"), 500
+
+
+@bp.get("/api/v1/rutas/driver/<driver_id>")
+def get_rutas_by_driver(driver_id):
+    """
+    Obtener todas las rutas de un conductor
+    ---
+    tags:
+      - Rutas
+    parameters:
+      - in: path
+        name: driver_id
+        type: string
+        required: true
+        description: ID del conductor
+    responses:
+      200:
+        description: Rutas del conductor
+        schema:
+          type: object
+          properties:
+            total:
+              type: integer
+            routes:
+              type: array
+      503:
+        description: Servicio no disponible
+    """
+    rutas_url = get_rutas_service_url()
+    if not rutas_url:
+        return jsonify(error="Servicio de rutas no disponible"), 503
+    
+    try:
+        url = f"{rutas_url}/rutas/driver/{driver_id}"
+        current_app.logger.info(f"Getting driver routes: {url}")
+        
+        response = requests.get(
+            url,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+            }
+        )
+        
+        if response.status_code >= 400:
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(error="Error al obtener rutas del conductor", details=error_data), response.status_code
+        
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        return jsonify(error="Timeout"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error de conexion"), 503
+    except Exception as e:
+        current_app.logger.error(f"Error: {e}", exc_info=True)
+        return jsonify(error="Error interno"), 500
+
+
+# ==================== RUTAS DE VISITA (legacy) ====================
+
 @bp.get("/api/v1/rutas/visita/<fecha>")
 def get_ruta_by_fecha(fecha):
     """
-    Obtener ruta de visita por fecha
+    Obtener ruta de visita por fecha (legacy endpoint)
     ---
     tags:
       - Rutas
@@ -37,53 +541,17 @@ def get_ruta_by_fecha(fecha):
     responses:
       200:
         description: Ruta encontrada exitosamente
-        schema:
-          type: object
-          properties:
-            fecha:
-              type: string
-              example: "2025-10-10"
-            visitas:
-              type: array
-              items:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                  vendedor_id:
-                    type: integer
-                  cliente:
-                    type: string
-                  direccion:
-                    type: string
-                  fecha:
-                    type: string
-                  hora:
-                    type: string
-                  lat:
-                    type: number
-                  lng:
-                    type: number
-                  tiempo_desde_anterior:
-                    type: string
-                    nullable: true
       404:
         description: Ruta no encontrada
       503:
         description: Servicio no disponible
-      504:
-        description: Timeout al consultar servicio
     """
     rutas_url = get_rutas_service_url()
     if not rutas_url:
         return jsonify(error="Servicio de rutas no disponible"), 503
     
     try:
-        # ✅ CAMBIO: Usar query parameters en lugar de path
-        # Obtener vendedor_id del request (o usar default)
         vendedor_id = request.args.get('vendedor_id', 1, type=int)
-        
-        # Construir URL con query parameters
         url = f"{rutas_url}/api/ruta?fecha={fecha}&vendedor_id={vendedor_id}"
         
         current_app.logger.info(f"Calling rutas service: {url}")
@@ -97,7 +565,6 @@ def get_ruta_by_fecha(fecha):
             }
         )
         
-        # Si el servicio responde con error, propagar el error
         if response.status_code >= 400:
             current_app.logger.warning(
                 f"Rutas service error: {response.status_code} - {response.text[:200]}"
@@ -113,7 +580,6 @@ def get_ruta_by_fecha(fecha):
                 details=error_data
             ), response.status_code
         
-        # Respuesta exitosa
         current_app.logger.info(f"Rutas service success: {response.status_code}")
         
         try:
@@ -127,12 +593,14 @@ def get_ruta_by_fecha(fecha):
     
     except RequestException as e:
         current_app.logger.error(f"Error conectando con servicio de rutas: {e}")
-        return jsonify(error="Error de conexión con servicio de rutas"), 503
+        return jsonify(error="Error de conexion con servicio de rutas"), 503
     
     except Exception as e:
         current_app.logger.error(f"Error inesperado en rutas endpoint: {e}", exc_info=True)
         return jsonify(error="Error interno del servidor"), 500
 
+
+# ==================== HEALTH CHECK ====================
 
 @bp.get("/api/v1/rutas/health")
 def rutas_health_check():
