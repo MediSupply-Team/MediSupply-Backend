@@ -53,14 +53,84 @@ async def listar_clientes(
         None,
         min_length=1,
         max_length=64,
-        description="ID del vendedor que realiza la consulta (para trazabilidad - opcional)"
+        description="ID del vendedor para filtrar clientes (opcional)"
     ),
     session: AsyncSession = Depends(get_session)
 ):
-    """Listar todos los clientes disponibles con paginación y filtros"""
+    """
+    Listar todos los clientes disponibles con paginación y filtros
+    
+    Si se proporciona vendedor_id, filtra solo los clientes de ese vendedor
+    """
     started = time.perf_counter_ns()
     
     try:
+        # Si se proporciona vendedor_id, filtrar por ese vendedor
+        if vendedor_id:
+            from app.models.client_model import Cliente
+            from uuid import UUID
+            
+            # Validar UUID
+            try:
+                vendedor_uuid = UUID(vendedor_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "error": "INVALID_VENDEDOR_UUID",
+                        "message": f"vendedor_id '{vendedor_id}' no es un UUID válido"
+                    }
+                )
+            
+            # Construir query con filtro de vendedor
+            query = select(Cliente).where(Cliente.vendedor_id == vendedor_uuid)
+            
+            if activos_solo:
+                query = query.where(Cliente.activo == True)
+            
+            # Ordenar
+            if ordenar_por == "nombre":
+                query = query.order_by(Cliente.nombre)
+            elif ordenar_por == "nit":
+                query = query.order_by(Cliente.nit)
+            elif ordenar_por == "codigo_unico":
+                query = query.order_by(Cliente.codigo_unico)
+            elif ordenar_por == "created_at":
+                query = query.order_by(Cliente.created_at.desc())
+            
+            # Aplicar paginación
+            query = query.offset(offset).limit(limite)
+            
+            # Ejecutar query
+            result = await session.execute(query)
+            clientes_filtrados = result.scalars().all()
+            
+            # Medir performance
+            took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+            logger.info(f"📋 Listados {len(clientes_filtrados)} clientes del vendedor {vendedor_id} en {took_ms}ms")
+            
+            # Formatear respuesta (mismo formato que el listado sin filtro)
+            return [
+                {
+                    "id": str(c.id),
+                    "nit": c.nit,
+                    "nombre": c.nombre,
+                    "codigo_unico": c.codigo_unico,
+                    "email": c.email,
+                    "telefono": c.telefono,
+                    "direccion": c.direccion,
+                    "ciudad": c.ciudad,
+                    "pais": c.pais,
+                    "activo": c.activo,
+                    "vendedor_id": str(c.vendedor_id),
+                    "rol": c.rol if hasattr(c, 'rol') else None,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                    "updated_at": c.updated_at.isoformat() if c.updated_at else None
+                }
+                for c in clientes_filtrados
+            ]
+        
+        # Si no hay vendedor_id, usar el servicio normal
         service = ClienteService(session, settings)
         clientes = await service.listar_clientes(
             limite=limite,

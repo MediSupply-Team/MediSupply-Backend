@@ -895,3 +895,121 @@ def listar_productos_proveedor(proveedor_id):
     except RequestException as e:
         current_app.logger.error(f"Error al listar productos del proveedor: {str(e)}")
         return jsonify(error="Error al conectar con servicio de catálogo"), 503
+
+
+# ============================================================================
+# ENDPOINTS DE CARGA MASIVA DE PROVEEDORES
+# ============================================================================
+
+@bp.route('/api/v1/catalog/proveedores/bulk-upload', methods=['POST'])
+def bulk_upload_proveedores():
+    """
+    Carga masiva de proveedores desde Excel o CSV
+    Proxy hacia catalogo-service
+    
+    Permite registrar proveedores de manera masiva desde un archivo.
+    
+    Query params:
+    - reemplazar_duplicados: Si es true, reemplaza proveedores duplicados (default: false)
+    
+    Body:
+    - file: Archivo Excel (.xlsx) o CSV (.csv)
+    
+    Expected columns:
+    - nombre: Nombre del proveedor (requerido)
+    - nit: NIT del proveedor (requerido, único)
+    - email: Email de contacto (requerido)
+    - telefono: Teléfono de contacto
+    - direccion: Dirección física
+    - pais: País de origen (código ISO)
+    - ciudad: Ciudad
+    - activo: Estado activo (true/false, default: true)
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Verificar que se envió un archivo
+        if 'file' not in request.files:
+            return jsonify(error="No se envió ningún archivo"), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify(error="No se seleccionó ningún archivo"), 400
+        
+        # Verificar extensión del archivo
+        import os as os_module
+        allowed_extensions = {'.xlsx', '.xls', '.csv'}
+        file_ext = os_module.path.splitext(file.filename)[1].lower()
+        
+        if file_ext not in allowed_extensions:
+            return jsonify(
+                error="Formato de archivo no válido",
+                message="Use archivos Excel (.xlsx, .xls) o CSV (.csv)"
+            ), 400
+        
+        # Obtener parámetros de query
+        reemplazar_duplicados = request.args.get('reemplazar_duplicados', 'false').lower() == 'true'
+        
+        # Construir URL con parámetros
+        url = f"{catalogo_url}/catalog/api/proveedores/bulk-upload"
+        params = {
+            'reemplazar_duplicados': reemplazar_duplicados
+        }
+        
+        current_app.logger.info(f"📤 Bulk upload proveedores: {url}")
+        current_app.logger.info(f"   Archivo: {file.filename}, Reemplazar: {reemplazar_duplicados}")
+        
+        # Reenviar archivo al servicio de catálogo
+        files = {
+            'file': (file.filename, file.stream, file.content_type)
+        }
+        
+        response = requests.post(
+            url,
+            params=params,
+            files=files,
+            timeout=60,  # 60 segundos para carga masiva
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Bulk upload error: {response.status_code} - {response.text[:200]}"
+            )
+            
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error en carga masiva de proveedores",
+                details=error_data
+            ), response.status_code
+        
+        # Respuesta exitosa
+        current_app.logger.info(f"✅ Bulk upload proveedores success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout en bulk upload proveedores: {catalogo_url}")
+        return jsonify(error="Timeout en carga masiva"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error en bulk upload proveedores: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado en bulk upload proveedores: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500

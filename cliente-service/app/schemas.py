@@ -109,6 +109,7 @@ class ClienteBasicoResponse(BaseModel):
     pais: Optional[str] = Field(None, description="País del cliente")
     rol: str = Field(default="cliente", description="Rol del cliente")
     activo: bool = Field(default=True, description="Si el cliente está activo")
+    vendedor_id: UUID = Field(..., description="ID del vendedor asignado al cliente")
     created_at: Optional[datetime] = Field(None, description="Fecha de creación")
     updated_at: Optional[datetime] = Field(None, description="Fecha de última actualización")
     
@@ -126,6 +127,7 @@ class ClienteBasicoResponse(BaseModel):
                 "ciudad": "Bogotá",
                 "pais": "CO",
                 "activo": True,
+                "vendedor_id": "550e8400-e29b-41d4-a716-446655440000",
                 "created_at": "2023-06-15T10:30:00Z",
                 "updated_at": "2024-09-15T10:30:00Z"
             }
