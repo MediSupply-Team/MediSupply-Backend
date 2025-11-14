@@ -407,8 +407,8 @@ resource "aws_db_instance" "postgres" {
   vpc_security_group_ids = [aws_security_group.postgres_sg.id]
   publicly_accessible    = local.is_local ? true : false
 
-  # Backup
-  backup_retention_period = var.db_backup_retention_period
+  # Backup (set to 0 for free tier)
+  backup_retention_period = 0
   backup_window           = var.db_backup_window
   maintenance_window      = var.db_maintenance_window
 
