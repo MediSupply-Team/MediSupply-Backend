@@ -33,6 +33,11 @@ output "db_credentials_secret_arn" {
   value       = aws_secretsmanager_secret.cliente_db_credentials.arn
 }
 
+output "db_url_secret_arn" {
+  description = "Database URL secret ARN (for other services to access cliente DB)"
+  value       = aws_secretsmanager_secret.cliente_db_credentials.arn
+}
+
 # ============================================================
 # DEPRECATED OUTPUTS - ALB eliminado para reducir costos
 # ============================================================

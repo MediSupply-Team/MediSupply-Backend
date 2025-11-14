@@ -407,8 +407,8 @@ resource "aws_db_instance" "postgres" {
   vpc_security_group_ids = [aws_security_group.postgres_sg.id]
   publicly_accessible    = local.is_local ? true : false
 
-  # Backup
-  backup_retention_period = var.db_backup_retention_period
+  # Backup (set to 0 for free tier)
+  backup_retention_period = 0
   backup_window           = var.db_backup_window
   maintenance_window      = var.db_maintenance_window
 
@@ -818,6 +818,7 @@ module "rutas_service" {
 
   ecs_cluster_arn   = aws_ecs_cluster.orders.arn
   db_url_secret_arn = aws_secretsmanager_secret.rutas_db_url.arn
+  cliente_db_url_secret_arn = module.cliente_service.db_url_secret_arn
 
   app_port      = 8000
   image_tag     = "latest"

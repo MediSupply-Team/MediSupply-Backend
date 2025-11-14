@@ -18,22 +18,11 @@ while True:
 print("✅ DB lista")
 EOF
 
-echo "🌱 Ejecutando seed si la tabla está vacía..."
-python - <<'EOF'
-from sqlmodel import Session, select
-from database import engine
-from models import Visita
-from seed import visitas
+echo "🔄 Ejecutando migración de base de datos..."
+python migrate_db.py
 
-with Session(engine) as session:
-    existe = session.exec(select(Visita).limit(1)).first()
-    if not existe:
-        session.add_all(visitas)
-        session.commit()
-        print("✅ Datos iniciales cargados.")
-    else:
-        print("➡️  Datos ya existen. Seed omitido.")
-EOF
+echo "🌱 Generando visitas dinámicas desde cliente-service..."
+python seed.py
 
 echo "🚀 Iniciando FastAPI..."
 exec uvicorn main:app --host 0.0.0.0 --port 8000
