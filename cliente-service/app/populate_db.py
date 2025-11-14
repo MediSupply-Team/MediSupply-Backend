@@ -163,7 +163,7 @@ async def populate_database():
         sql_files = [
             ('001_init.sql', 'Estructura inicial y tablas base'),
             ('002_vendedores.sql', 'Tabla vendedores y datos iniciales'),
-            ('003_cliente_uuid_rol.sql', 'Migración UUID y campo rol'),
+            ('003_asignar_vendedores_clientes.sql', 'Asignar vendedores a clientes existentes'),
             ('004_catalogos_vendedor.sql', 'Catálogos de soporte (Fase 1)'),
             ('005_vendedor_extended.sql', 'Vendedor extendido con FK (Fase 2)'),
             ('006_plan_venta.sql', 'Plan de Venta completo con productos, regiones y zonas (Fase 3)')
