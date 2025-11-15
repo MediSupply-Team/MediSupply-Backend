@@ -671,6 +671,9 @@ module "cliente_service" {
   db_instance_class        = "db.t3.micro"
   db_allocated_storage     = 20
   db_backup_retention_days = 7
+  
+  # Allow rutas service to access cliente DB
+  additional_db_access_security_groups = [module.rutas_service.security_group_id]
 }
 
 # BFF Cliente

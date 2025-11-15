@@ -15,7 +15,7 @@ output "service_connect_port" {
 
 output "service_connect_url" {
   description = "Full Service Connect URL for internal communication"
-  value       = "http://cliente.svc.local:${var.container_port}"
+  value       = "http://cliente:${var.container_port}"
 }
 
 output "service_name" {

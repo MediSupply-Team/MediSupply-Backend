@@ -78,3 +78,9 @@ variable "service_connect_namespace_name" {
   description = "Service Connect namespace for internal service discovery"
   type        = string
 }
+
+variable "additional_db_access_security_groups" {
+  description = "Additional security groups that can access the cliente DB"
+  type        = list(string)
+  default     = []
+}
