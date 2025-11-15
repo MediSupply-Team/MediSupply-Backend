@@ -672,8 +672,8 @@ module "cliente_service" {
   db_allocated_storage     = 20
   db_backup_retention_days = 7
   
-  # Allow rutas service to access cliente DB
-  additional_db_access_security_groups = [module.rutas_service.security_group_id]
+  # Allow rutas service to access cliente DB - removed to avoid circular dependency
+  additional_db_access_security_groups = []
 }
 
 # BFF Cliente
@@ -833,6 +833,19 @@ module "rutas_service" {
 
   shared_http_listener_arn = module.bff_venta.alb_listener_arn
   shared_alb_sg_id         = module.bff_venta.alb_sg_id
+}
+
+# ============================================================
+# Security Group Rule: Allow rutas-service to access cliente DB
+# ============================================================
+resource "aws_security_group_rule" "rutas_to_cliente_db" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = module.cliente_service.db_security_group_id
+  source_security_group_id = module.rutas_service.security_group_id
+  description              = "Allow rutas-service to access cliente database"
 }
 
 # Reports Service

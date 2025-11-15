@@ -38,6 +38,11 @@ output "db_url_secret_arn" {
   value       = aws_secretsmanager_secret.cliente_db_credentials.arn
 }
 
+output "db_security_group_id" {
+  description = "Security group ID of the cliente database"
+  value       = aws_security_group.cliente_db_sg.id
+}
+
 # ============================================================
 # DEPRECATED OUTPUTS - ALB eliminado para reducir costos
 # ============================================================
