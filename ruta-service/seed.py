@@ -59,7 +59,7 @@ def generar_visitas_desde_cliente_service():
             # Query para obtener clientes (ajustado a la estructura real)
             from sqlalchemy import text
             result = cliente_session.execute(text("""
-                SELECT id::text, nombre, direccion, ciudad, latitud, longitud
+                SELECT id::text, nombre, direccion, ciudad
                 FROM cliente 
                 WHERE activo = true 
                 ORDER BY nombre
@@ -97,9 +97,9 @@ def generar_visitas_desde_cliente_service():
         clientes_del_dia = clientes[inicio:fin] if inicio < len(clientes) else clientes[:clientes_por_dia]
         
         for idx, cliente in enumerate(clientes_del_dia):
-            # Usar coordenadas reales del cliente si están disponibles
-            lat = float(cliente[4]) if cliente[4] else BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][0]
-            lng = float(cliente[5]) if cliente[5] else BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][1]
+            # Usar coordenadas de Bogotá
+            lat = BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][0]
+            lng = BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][1]
             
             # Asignar horario
             horario = HORARIOS[idx % len(HORARIOS)]
