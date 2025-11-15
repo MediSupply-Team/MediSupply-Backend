@@ -5,6 +5,7 @@ psycopg2-binary
 python-dotenv
 requests
 psycopg[binary]>=3.0
+asyncpg
 pytest
 pydantic>=2.0
 pydantic-settings>=2.0
