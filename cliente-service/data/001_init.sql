@@ -119,16 +119,24 @@ CREATE INDEX IF NOT EXISTS idx_consulta_fecha ON consulta_cliente_log(fecha_cons
 -- DATOS DE CLIENTES DE EJEMPLO
 -- ====================================================
 
--- Limpiar clientes de ejemplo si existen (idempotente)
-DELETE FROM cliente WHERE nit IN ('900123456-7', '800987654-3', '700456789-1', '600345678-9', '500234567-5');
-
 -- Los IDs se generan automáticamente con UUID
-INSERT INTO cliente (nit, nombre, codigo_unico, email, telefono, direccion, ciudad, pais, rol, activo, created_at) VALUES
-('900123456-7', 'Farmacia San José', 'FSJ001', 'contacto@farmaciasanjose.com', '+57-1-2345678', 'Calle 45 #12-34', 'Bogotá', 'CO', 'cliente', true, NOW()),
-('800987654-3', 'Droguería El Buen Pastor', 'DBP002', 'ventas@elbunpastor.com', '+57-2-9876543', 'Carrera 15 #67-89', 'Medellín', 'CO', 'cliente', true, NOW()),
-('700456789-1', 'Farmatodo Zona Norte', 'FZN003', 'info@farmatodo.com', '+57-5-4567890', 'Avenida Norte #23-45', 'Barranquilla', 'CO', 'cliente', true, NOW()),
-('600345678-9', 'Centro Médico Salud Total', 'CST004', 'compras@saludtotal.com', '+57-1-3456789', 'Calle 85 #34-56', 'Bogotá', 'CO', 'cliente', true, NOW()),
-('500234567-5', 'Farmacia Popular', 'FPO005', 'pedidos@farmapopular.com', '+57-4-2345678', 'Carrera 70 #45-67', 'Medellín', 'CO', 'cliente', true, NOW());
+-- Insertar solo si no existen (idempotente)
+DO $$
+BEGIN
+    -- Insertar clientes de ejemplo solo si la tabla está vacía
+    IF NOT EXISTS (SELECT 1 FROM cliente LIMIT 1) THEN
+        INSERT INTO cliente (nit, nombre, codigo_unico, email, telefono, direccion, ciudad, pais, rol, activo, created_at) VALUES
+        ('900123456-7', 'Farmacia San José', 'FSJ001', 'contacto@farmaciasanjose.com', '+57-1-2345678', 'Calle 45 #12-34', 'Bogotá', 'CO', 'cliente', true, NOW()),
+        ('800987654-3', 'Droguería El Buen Pastor', 'DBP002', 'ventas@elbunpastor.com', '+57-2-9876543', 'Carrera 15 #67-89', 'Medellín', 'CO', 'cliente', true, NOW()),
+        ('700456789-1', 'Farmatodo Zona Norte', 'FZN003', 'info@farmatodo.com', '+57-5-4567890', 'Avenida Norte #23-45', 'Barranquilla', 'CO', 'cliente', true, NOW()),
+        ('600345678-9', 'Centro Médico Salud Total', 'CST004', 'compras@saludtotal.com', '+57-1-3456789', 'Calle 85 #34-56', 'Bogotá', 'CO', 'cliente', true, NOW()),
+        ('500234567-5', 'Farmacia Popular', 'FPO005', 'pedidos@farmapopular.com', '+57-4-2345678', 'Carrera 70 #45-67', 'Medellín', 'CO', 'cliente', true, NOW());
+        
+        RAISE NOTICE 'Inserted 5 example clients';
+    ELSE
+        RAISE NOTICE 'Clients table already has data, skipping inserts';
+    END IF;
+END $$;
 
 -- ====================================================
 -- HISTÓRICO DE COMPRAS DE EJEMPLO
