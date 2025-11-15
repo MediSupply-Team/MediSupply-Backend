@@ -109,7 +109,7 @@ resource "aws_db_instance" "cliente_postgres" {
   vpc_security_group_ids = [aws_security_group.cliente_db_sg.id]
   db_subnet_group_name   = aws_db_subnet_group.cliente_postgres.name
 
-  backup_retention_period = var.db_backup_retention_days
+  backup_retention_period = 0  # Set to 0 for free tier
   backup_window          = "03:00-04:00"
   maintenance_window     = "Sun:04:00-Sun:05:00"
 

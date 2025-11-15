@@ -657,3 +657,359 @@ def get_bulk_upload_status(task_id: str):
     except Exception as e:
         current_app.logger.error(f"Error inesperado consultando estado: {e}", exc_info=True)
         return jsonify(error="Error interno del servidor"), 500
+
+
+# ============================================================================
+# ENDPOINTS DE PROVEEDORES (CRUD)
+# ============================================================================
+
+@bp.route('/api/v1/catalog/proveedores', methods=['GET'])
+def listar_proveedores():
+    """
+    Lista todos los proveedores
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Construir parámetros de query
+        params = {}
+        if request.args.get('page'):
+            params['page'] = request.args.get('page')
+        if request.args.get('size'):
+            params['size'] = request.args.get('size')
+        if request.args.get('activo'):
+            params['activo'] = request.args.get('activo')
+        
+        # Construir URL
+        url = f"{catalogo_url}/catalog/api/proveedores/"
+        
+        current_app.logger.info(f"Calling catalog service: {url}")
+        
+        # Hacer request al servicio
+        response = requests.get(
+            url,
+            params=params,
+            timeout=10,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        # Retornar respuesta del servicio
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        current_app.logger.error("Timeout al listar proveedores")
+        return jsonify(error="Timeout al conectar con servicio de catálogo"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error al listar proveedores: {str(e)}")
+        return jsonify(error="Error al conectar con servicio de catálogo"), 503
+
+
+@bp.route('/api/v1/catalog/proveedores', methods=['POST'])
+def crear_proveedor():
+    """
+    Crea un nuevo proveedor
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Obtener datos del body
+        data = request.get_json()
+        if not data:
+            return jsonify(error="Body vacío"), 400
+        
+        # Construir URL
+        url = f"{catalogo_url}/catalog/api/proveedores/"
+        
+        current_app.logger.info(f"Creating proveedor at: {url}")
+        
+        # Hacer request al servicio
+        response = requests.post(
+            url,
+            json=data,
+            timeout=10,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        # Retornar respuesta del servicio
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        current_app.logger.error("Timeout al crear proveedor")
+        return jsonify(error="Timeout al conectar con servicio de catálogo"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error al crear proveedor: {str(e)}")
+        return jsonify(error="Error al conectar con servicio de catálogo"), 503
+
+
+@bp.route('/api/v1/catalog/proveedores/<string:proveedor_id>', methods=['GET'])
+def obtener_proveedor(proveedor_id):
+    """
+    Obtiene un proveedor por ID
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Construir URL
+        url = f"{catalogo_url}/catalog/api/proveedores/{proveedor_id}"
+        
+        current_app.logger.info(f"Getting proveedor: {url}")
+        
+        # Hacer request al servicio
+        response = requests.get(
+            url,
+            timeout=10,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        # Retornar respuesta del servicio
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        current_app.logger.error("Timeout al obtener proveedor")
+        return jsonify(error="Timeout al conectar con servicio de catálogo"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error al obtener proveedor: {str(e)}")
+        return jsonify(error="Error al conectar con servicio de catálogo"), 503
+
+
+@bp.route('/api/v1/catalog/proveedores/<string:proveedor_id>', methods=['PUT'])
+def actualizar_proveedor(proveedor_id):
+    """
+    Actualiza un proveedor existente
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Obtener datos del body
+        data = request.get_json()
+        if not data:
+            return jsonify(error="Body vacío"), 400
+        
+        # Construir URL
+        url = f"{catalogo_url}/catalog/api/proveedores/{proveedor_id}"
+        
+        current_app.logger.info(f"Updating proveedor: {url}")
+        
+        # Hacer request al servicio
+        response = requests.put(
+            url,
+            json=data,
+            timeout=10,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        # Retornar respuesta del servicio
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        current_app.logger.error("Timeout al actualizar proveedor")
+        return jsonify(error="Timeout al conectar con servicio de catálogo"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error al actualizar proveedor: {str(e)}")
+        return jsonify(error="Error al conectar con servicio de catálogo"), 503
+
+
+@bp.route('/api/v1/catalog/proveedores/<string:proveedor_id>', methods=['DELETE'])
+def eliminar_proveedor(proveedor_id):
+    """
+    Elimina (soft delete) un proveedor
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Construir URL
+        url = f"{catalogo_url}/catalog/api/proveedores/{proveedor_id}"
+        
+        current_app.logger.info(f"Deleting proveedor: {url}")
+        
+        # Hacer request al servicio
+        response = requests.delete(
+            url,
+            timeout=10,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        # Retornar respuesta del servicio
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        current_app.logger.error("Timeout al eliminar proveedor")
+        return jsonify(error="Timeout al conectar con servicio de catálogo"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error al eliminar proveedor: {str(e)}")
+        return jsonify(error="Error al conectar con servicio de catálogo"), 503
+
+
+@bp.route('/api/v1/catalog/proveedores/<string:proveedor_id>/productos', methods=['GET'])
+def listar_productos_proveedor(proveedor_id):
+    """
+    Lista los productos de un proveedor
+    Proxy hacia catalogo-service
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Construir parámetros de query
+        params = {}
+        if request.args.get('page'):
+            params['page'] = request.args.get('page')
+        if request.args.get('size'):
+            params['size'] = request.args.get('size')
+        
+        # Construir URL
+        url = f"{catalogo_url}/catalog/api/proveedores/{proveedor_id}/productos"
+        
+        current_app.logger.info(f"Getting productos for proveedor: {url}")
+        
+        # Hacer request al servicio
+        response = requests.get(
+            url,
+            params=params,
+            timeout=10,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        # Retornar respuesta del servicio
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        current_app.logger.error("Timeout al listar productos del proveedor")
+        return jsonify(error="Timeout al conectar con servicio de catálogo"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error al listar productos del proveedor: {str(e)}")
+        return jsonify(error="Error al conectar con servicio de catálogo"), 503
+
+
+# ============================================================================
+# ENDPOINTS DE CARGA MASIVA DE PROVEEDORES
+# ============================================================================
+
+@bp.route('/api/v1/catalog/proveedores/bulk-upload', methods=['POST'])
+def bulk_upload_proveedores():
+    """
+    Carga masiva de proveedores desde Excel o CSV
+    Proxy hacia catalogo-service
+    
+    Permite registrar proveedores de manera masiva desde un archivo.
+    
+    Query params:
+    - reemplazar_duplicados: Si es true, reemplaza proveedores duplicados (default: false)
+    
+    Body:
+    - file: Archivo Excel (.xlsx) o CSV (.csv)
+    
+    Expected columns:
+    - nombre: Nombre del proveedor (requerido)
+    - nit: NIT del proveedor (requerido, único)
+    - email: Email de contacto (requerido)
+    - telefono: Teléfono de contacto
+    - direccion: Dirección física
+    - pais: País de origen (código ISO)
+    - ciudad: Ciudad
+    - activo: Estado activo (true/false, default: true)
+    """
+    catalogo_url = get_catalogo_service_url()
+    if not catalogo_url:
+        return jsonify(error="Servicio de catálogo no disponible"), 503
+    
+    try:
+        # Verificar que se envió un archivo
+        if 'file' not in request.files:
+            return jsonify(error="No se envió ningún archivo"), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify(error="No se seleccionó ningún archivo"), 400
+        
+        # Verificar extensión del archivo
+        import os as os_module
+        allowed_extensions = {'.xlsx', '.xls', '.csv'}
+        file_ext = os_module.path.splitext(file.filename)[1].lower()
+        
+        if file_ext not in allowed_extensions:
+            return jsonify(
+                error="Formato de archivo no válido",
+                message="Use archivos Excel (.xlsx, .xls) o CSV (.csv)"
+            ), 400
+        
+        # Obtener parámetros de query
+        reemplazar_duplicados = request.args.get('reemplazar_duplicados', 'false').lower() == 'true'
+        
+        # Construir URL con parámetros
+        url = f"{catalogo_url}/catalog/api/proveedores/bulk-upload"
+        params = {
+            'reemplazar_duplicados': reemplazar_duplicados
+        }
+        
+        current_app.logger.info(f"📤 Bulk upload proveedores: {url}")
+        current_app.logger.info(f"   Archivo: {file.filename}, Reemplazar: {reemplazar_duplicados}")
+        
+        # Reenviar archivo al servicio de catálogo
+        files = {
+            'file': (file.filename, file.stream, file.content_type)
+        }
+        
+        response = requests.post(
+            url,
+            params=params,
+            files=files,
+            timeout=60,  # 60 segundos para carga masiva
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Bulk upload error: {response.status_code} - {response.text[:200]}"
+            )
+            
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error en carga masiva de proveedores",
+                details=error_data
+            ), response.status_code
+        
+        # Respuesta exitosa
+        current_app.logger.info(f"✅ Bulk upload proveedores success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout en bulk upload proveedores: {catalogo_url}")
+        return jsonify(error="Timeout en carga masiva"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error en bulk upload proveedores: {e}")
+        return jsonify(error="Error de conexión con servicio de catálogo"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado en bulk upload proveedores: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500

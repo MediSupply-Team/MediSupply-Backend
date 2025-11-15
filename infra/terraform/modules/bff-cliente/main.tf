@@ -174,6 +174,7 @@ resource "aws_ecs_task_definition" "td" {
       
       portMappings = [
         { 
+          name          = "bff-cliente-http",  # ✅ REQUERIDO para Service Connect
           containerPort = var.bff_app_port, 
           hostPort      = var.bff_app_port, 
           protocol      = "tcp" 

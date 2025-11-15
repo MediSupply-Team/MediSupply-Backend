@@ -1,7 +1,33 @@
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Integer, Boolean, Date, ForeignKey, DECIMAL
+from sqlalchemy import String, Integer, Boolean, Date, ForeignKey, DECIMAL, DateTime, Text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from app.db import Base
 from typing import Optional
+from datetime import datetime
+from uuid import UUID, uuid4
+
+class Proveedor(Base):
+    """
+    Modelo de Proveedor para HU: Registrar Proveedor
+    Representa los proveedores de productos médicos
+    """
+    __tablename__ = "proveedor"
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    nit: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, index=True)
+    empresa: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    contacto_nombre: Mapped[str] = mapped_column(String(255), nullable=False)
+    contacto_email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    contacto_telefono: Mapped[Optional[str]] = mapped_column(String(32))
+    contacto_cargo: Mapped[Optional[str]] = mapped_column(String(128))
+    direccion: Mapped[Optional[str]] = mapped_column(String(512))
+    pais: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    notas: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_user_id: Mapped[Optional[str]] = mapped_column(String(64))
+
 
 class Producto(Base):
     __tablename__ = "producto"
@@ -23,7 +49,7 @@ class Producto(Base):
     # Campos para HU021 - Carga masiva y gestión de proveedores
     certificado_sanitario: Mapped[Optional[str]] = mapped_column(String(255))
     tiempo_entrega_dias: Mapped[Optional[int]] = mapped_column(Integer)
-    proveedor_id: Mapped[Optional[str]] = mapped_column(String(64))
+    proveedor_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), nullable=True)  # FK a proveedor
 
 class Inventario(Base):
     __tablename__ = "inventario"

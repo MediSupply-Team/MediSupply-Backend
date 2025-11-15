@@ -1,11 +1,15 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from app.routes.client import router as cliente_router
+from app.routes.vendedor import router as vendedor_router
+from app.routes.catalogos import router as catalogos_router
 from app.config import settings
 from app.db import engine, Base
 
-app = FastAPI(title="MediSupply Cliente API")
+app = FastAPI(title="MediSupply Cliente API", description="API para gestión de clientes y vendedores", version="2.0.0")
 app.include_router(cliente_router, prefix=settings.api_prefix)
+app.include_router(vendedor_router, prefix=f"{settings.api_prefix}/vendedores")
+app.include_router(catalogos_router, prefix=f"{settings.api_prefix}/catalogos")
 
 @app.get("/health")
 async def health_check():
