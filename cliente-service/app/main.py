@@ -26,8 +26,23 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
     """
     Endpoint auxiliar para cargar datos de clientes de prueba iniciales
     Idempotente: Solo inserta si no existen clientes con esos NITs
+    Requiere que exista al menos un vendedor en la base de datos
     """
     from sqlalchemy import select
+    from app.models.client_model import Vendedor
+    
+    # Obtener el primer vendedor disponible para asignarlo a los clientes
+    stmt_vendedor = select(Vendedor).limit(1)
+    result_vendedor = await session.execute(stmt_vendedor)
+    vendedor = result_vendedor.scalar_one_or_none()
+    
+    if not vendedor:
+        return {
+            "error": "No hay vendedores en la base de datos. Debe crear al menos un vendedor primero.",
+            "created": 0,
+            "skipped": 0,
+            "total": 0
+        }, 400
     
     # Datos de clientes de ejemplo
     sample_clients = [
@@ -41,7 +56,8 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
             "ciudad": "Bogotá",
             "pais": "CO",
             "rol": "cliente",
-            "activo": True
+            "activo": True,
+            "vendedor_id": vendedor.id
         },
         {
             "nit": "800987654-3",
@@ -53,7 +69,8 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
             "ciudad": "Medellín",
             "pais": "CO",
             "rol": "cliente",
-            "activo": True
+            "activo": True,
+            "vendedor_id": vendedor.id
         },
         {
             "nit": "700456789-1",
@@ -65,7 +82,8 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
             "ciudad": "Barranquilla",
             "pais": "CO",
             "rol": "cliente",
-            "activo": True
+            "activo": True,
+            "vendedor_id": vendedor.id
         },
         {
             "nit": "600345678-9",
@@ -77,7 +95,8 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
             "ciudad": "Bogotá",
             "pais": "CO",
             "rol": "cliente",
-            "activo": True
+            "activo": True,
+            "vendedor_id": vendedor.id
         },
         {
             "nit": "500234567-5",
@@ -89,7 +108,8 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
             "ciudad": "Medellín",
             "pais": "CO",
             "rol": "cliente",
-            "activo": True
+            "activo": True,
+            "vendedor_id": vendedor.id
         }
     ]
     
