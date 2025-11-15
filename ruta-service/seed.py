@@ -43,8 +43,9 @@ def generar_visitas_desde_cliente_service():
     cliente_db_url = os.getenv("CLIENTE_DB_URL")
     
     if not cliente_db_url:
-        print("⚠️  CLIENTE_DB_URL no configurada, usando datos de ejemplo")
-        return generar_visitas_ejemplo()
+        print("❌ ERROR: CLIENTE_DB_URL no configurada")
+        print("   No se pueden cargar datos sin conexión a cliente-service")
+        raise Exception("CLIENTE_DB_URL environment variable is required")
     
     print(f"📡 Conectando a cliente-service...")
     
@@ -56,16 +57,17 @@ def generar_visitas_desde_cliente_service():
             # Query para obtener clientes (ajustado a la estructura real)
             from sqlalchemy import text
             result = cliente_session.execute(text("""
-                SELECT id::text, nombre, direccion, ciudad 
+                SELECT id::text, nombre, direccion, ciudad, latitud, longitud
                 FROM cliente 
                 WHERE activo = true 
-                LIMIT 20
+                ORDER BY nombre
+                LIMIT 50
             """))
             clientes = result.fetchall()
             
             if not clientes:
-                print("⚠️  No se encontraron clientes en cliente-service, usando datos de ejemplo")
-                return generar_visitas_ejemplo()
+                print("❌ ERROR: No se encontraron clientes activos en cliente-service")
+                raise Exception("No active clients found in cliente-service database")
             
             print(f"✅ Encontrados {len(clientes)} clientes activos")
         
@@ -74,9 +76,8 @@ def generar_visitas_desde_cliente_service():
         print(f"👤 Usando vendedor_id: {vendedor_id}")
         
     except Exception as e:
-        print(f"⚠️  Error conectando a cliente-service: {e}")
-        print("   Usando datos de ejemplo...")
-        return generar_visitas_ejemplo()
+        print(f"❌ ERROR conectando a cliente-service: {e}")
+        raise
     
     # Generar visitas para 7 días (3 antes, hoy, 3 después)
     hoy = date.today()
