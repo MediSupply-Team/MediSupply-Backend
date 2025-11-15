@@ -60,3 +60,20 @@ output "rutas_db_password" {
   value       = random_password.rutas_db_password.result
   sensitive   = true
 }
+
+# Cliente database outputs
+output "cliente_db_url_secret_arn" {
+  description = "ARN of Cliente DB URL secret"
+  value       = aws_secretsmanager_secret.cliente_db_url.arn
+}
+
+output "cliente_db_password_secret_arn" {
+  description = "ARN of Cliente DB password secret"
+  value       = aws_secretsmanager_secret.cliente_db_password.arn
+}
+
+output "cliente_db_password" {
+  description = "Cliente database password (sensitive)"
+  value       = random_password.cliente_db_password.result
+  sensitive   = true
+}

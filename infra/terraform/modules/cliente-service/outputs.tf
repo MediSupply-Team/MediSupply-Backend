@@ -28,19 +28,14 @@ output "cloudwatch_log_group_name" {
   value       = length(aws_cloudwatch_log_group.cliente) > 0 ? aws_cloudwatch_log_group.cliente[0].name : ""
 }
 
-output "db_credentials_secret_arn" {
-  description = "Database credentials secret ARN"
-  value       = aws_secretsmanager_secret.cliente_db_credentials.arn
-}
-
 output "db_url_secret_arn" {
   description = "Database URL secret ARN (for other services to access cliente DB)"
-  value       = aws_secretsmanager_secret.cliente_db_credentials.arn
+  value       = var.db_url_secret_arn
 }
 
-output "db_security_group_id" {
-  description = "Security group ID of the cliente database"
-  value       = aws_security_group.cliente_db_sg.id
+output "security_group_id" {
+  description = "Security group ID of the cliente ECS service"
+  value       = aws_security_group.cliente_ecs_sg.id
 }
 
 # ============================================================
@@ -49,5 +44,7 @@ output "db_security_group_id" {
 # Los siguientes outputs han sido eliminados:
 # - alb_dns_name
 # - alb_url
+# - db_credentials_secret_arn (ya no se crea RDS propio)
+# - db_security_group_id (ya no se crea RDS propio)
 #
 # Usar service_connect_url en su lugar

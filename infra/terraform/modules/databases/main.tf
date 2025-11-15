@@ -182,3 +182,38 @@ resource "aws_secretsmanager_secret_version" "rutas_db_password_v" {
   secret_id     = aws_secretsmanager_secret.rutas_db_password.id
   secret_string = random_password.rutas_db_password.result
 }
+
+# ============================================================
+# CLIENTE DATABASE (misma instancia, diferente DB)
+# ============================================================
+
+resource "random_password" "cliente_db_password" {
+  length           = 24
+  special          = true
+  override_special = "-_."
+}
+
+resource "aws_secretsmanager_secret" "cliente_db_url" {
+  name                    = "cliente/DB_URL"
+  description             = "DB URL for Cliente service"
+  recovery_window_in_days = 0
+  tags                    = { Project = var.project, Env = var.env, Service = "cliente" }
+}
+
+resource "aws_secretsmanager_secret_version" "cliente_db_url_v" {
+  secret_id = aws_secretsmanager_secret.cliente_db_url.id
+  # Misma instancia RDS, diferente base de datos
+  secret_string = "postgresql://cliente_user:${urlencode(random_password.cliente_db_password.result)}@${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/cliente"
+}
+
+resource "aws_secretsmanager_secret" "cliente_db_password" {
+  name                    = "cliente/DB_PASSWORD"
+  description             = "Password for cliente DB user"
+  recovery_window_in_days = 0
+  tags                    = { Project = var.project, Env = var.env, Service = "cliente" }
+}
+
+resource "aws_secretsmanager_secret_version" "cliente_db_password_v" {
+  secret_id     = aws_secretsmanager_secret.cliente_db_password.id
+  secret_string = random_password.cliente_db_password.result
+}

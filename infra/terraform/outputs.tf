@@ -189,9 +189,9 @@ output "cliente_service_log_group" {
   value       = module.cliente_service.cloudwatch_log_group_name
 }
 
-output "cliente_db_credentials_secret_arn" {
-  description = "Cliente service database credentials secret ARN"
-  value       = module.cliente_service.db_credentials_secret_arn
+output "cliente_db_url_secret_arn" {
+  description = "Cliente service database URL secret ARN (shared from orders instance)"
+  value       = module.cliente_service.db_url_secret_arn
 }
 
 # ============================================================

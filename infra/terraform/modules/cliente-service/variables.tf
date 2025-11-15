@@ -84,3 +84,8 @@ variable "additional_db_access_security_groups" {
   type        = list(string)
   default     = []
 }
+
+variable "db_url_secret_arn" {
+  description = "Database URL secret ARN (from shared orders RDS instance)"
+  type        = string
+}

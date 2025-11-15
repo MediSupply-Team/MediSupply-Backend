@@ -47,123 +47,6 @@ resource "aws_cloudwatch_log_group" "cliente" {
 }
 
 # ============================================================
-# DATABASE RESOURCES
-# ============================================================
-resource "random_password" "cliente_db_password" {
-  length  = 24
-  special = true
-  override_special = ".-_"
-}
-
-resource "aws_db_subnet_group" "cliente_postgres" {
-  name       = "${local.service_id}-db-subnet-group"
-  subnet_ids = var.private_subnets
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = "cliente-service"
-  }
-}
-
-resource "aws_security_group" "cliente_db_sg" {
-  name        = "${local.service_id}-db-sg"
-  description = "Security group for cliente-service database"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.cliente_ecs_sg.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = "cliente-service"
-  }
-}
-
-# Additional security group rules for cliente DB access
-resource "aws_security_group_rule" "cliente_db_additional_access" {
-  count                    = length(var.additional_db_access_security_groups)
-  type                     = "ingress"
-  from_port                = 5432
-  to_port                  = 5432
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.cliente_db_sg.id
-  source_security_group_id = var.additional_db_access_security_groups[count.index]
-  description              = "Allow PostgreSQL from additional service ${count.index + 1}"
-}
-
-resource "aws_db_instance" "cliente_postgres" {
-  identifier     = "${local.service_id}-db"
-  engine         = "postgres"
-  engine_version = "16.3"
-  instance_class = var.db_instance_class
-
-  allocated_storage     = var.db_allocated_storage
-  max_allocated_storage = var.db_allocated_storage * 2
-  storage_encrypted     = true
-
-  db_name  = "cliente_db"
-  username = "cliente_user"
-  password = random_password.cliente_db_password.result
-
-  vpc_security_group_ids = [aws_security_group.cliente_db_sg.id]
-  db_subnet_group_name   = aws_db_subnet_group.cliente_postgres.name
-
-  backup_retention_period = 0  # Set to 0 for free tier
-  backup_window          = "03:00-04:00"
-  maintenance_window     = "Sun:04:00-Sun:05:00"
-
-  skip_final_snapshot = true
-  deletion_protection = false
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = "cliente-service"
-  }
-}
-
-# ============================================================
-# SECRETS MANAGER
-# ============================================================
-resource "aws_secretsmanager_secret" "cliente_db_credentials" {
-  #name        = "${local.service_id}-db-credentials"
-  name        = "${local.service_id}-db-credentials-cuentasergio"
-  description = "Database credentials for cliente-service"
-  recovery_window_in_days = 0
-
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Service = "cliente-service"
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "cliente_db_credentials" {
-  secret_id = aws_secretsmanager_secret.cliente_db_credentials.id
-  secret_string = jsonencode({
-    username     = aws_db_instance.cliente_postgres.username
-    password     = random_password.cliente_db_password.result
-    endpoint     = aws_db_instance.cliente_postgres.endpoint
-    port         = aws_db_instance.cliente_postgres.port
-    dbname       = aws_db_instance.cliente_postgres.db_name
-    database_url = "postgresql+asyncpg://${aws_db_instance.cliente_postgres.username}:${urlencode(random_password.cliente_db_password.result)}@${split(":", aws_db_instance.cliente_postgres.endpoint)[0]}:${aws_db_instance.cliente_postgres.port}/${aws_db_instance.cliente_postgres.db_name}"
-  })
-}
-
-# ============================================================
 # IAM ROLES
 # ============================================================
 resource "aws_iam_role" "cliente_ecs_execution_role" {
@@ -207,7 +90,7 @@ resource "aws_iam_role_policy" "cliente_secrets_policy" {
           "secretsmanager:GetSecretValue"
         ]
         Resource = [
-          aws_secretsmanager_secret.cliente_db_credentials.arn
+          var.db_url_secret_arn
         ]
       }
     ]
@@ -360,7 +243,7 @@ resource "aws_ecs_task_definition" "cliente" {
       secrets = [
         {
           name      = "DATABASE_URL"
-          valueFrom = "${aws_secretsmanager_secret.cliente_db_credentials.arn}:database_url::"
+          valueFrom = var.db_url_secret_arn
         }
       ]
 
