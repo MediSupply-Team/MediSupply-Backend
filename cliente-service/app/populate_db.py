@@ -87,19 +87,22 @@ async def execute_sql_file(engine, sql_file_path: Path, description: str) -> boo
             text=True
         )
         
+        # Siempre mostrar output para debugging
+        if result.stdout:
+            for line in result.stdout.split('\n'):
+                if line.strip() and ('NOTICE' in line or 'INSERT' in line or 'DELETE' in line):
+                    print(f"         📝 {line.strip()}")
+        
         if result.returncode == 0 or 'INSERT' in result.stdout:
             print(f"      ✅ {description} ejecutado correctamente")
             return True
         else:
-            # Mostrar solo errores que no sean de idempotencia
-            errors = result.stderr.lower()
-            if 'already exists' not in errors and 'duplicate' not in errors:
-                print(f"      ⚠️  Algunas advertencias (no críticas):")
-                for line in result.stderr.split('\n')[:5]:
+            # Mostrar errores
+            print(f"      ⚠️  Algunas advertencias:")
+            if result.stderr:
+                for line in result.stderr.split('\n')[:10]:
                     if line.strip():
-                        print(f"         {line[:100]}")
-            else:
-                print(f"      ✅ {description} ejecutado (objetos ya existían)")
+                        print(f"         {line[:150]}")
             return True
         
     except Exception as e:
