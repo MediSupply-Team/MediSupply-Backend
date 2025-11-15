@@ -69,7 +69,7 @@ async def execute_sql_file(engine, sql_file_path: Path, description: str) -> boo
         env = os.environ.copy()
         env['PGPASSWORD'] = password
         
-        # Comando psql
+        # Comando psql con timeout
         cmd = [
             'psql',
             '-h', host,
@@ -77,14 +77,16 @@ async def execute_sql_file(engine, sql_file_path: Path, description: str) -> boo
             '-U', user,
             '-d', database,
             '-f', str(sql_file_path),
-            '-v', 'ON_ERROR_STOP=0'  # Continuar en caso de error
+            '-v', 'ON_ERROR_STOP=0',  # Continuar en caso de error
+            '--set=statement_timeout=30000'  # Timeout de 30 segundos por statement
         ]
         
         result = subprocess.run(
             cmd,
             env=env,
             capture_output=True,
-            text=True
+            text=True,
+            timeout=60  # Timeout total de 60 segundos para el archivo completo
         )
         
         if result.returncode == 0 or 'INSERT' in result.stdout:
@@ -102,6 +104,9 @@ async def execute_sql_file(engine, sql_file_path: Path, description: str) -> boo
                 print(f"      ✅ {description} ejecutado (objetos ya existían)")
             return True
         
+    except subprocess.TimeoutExpired:
+        print(f"   ⚠️  Timeout ejecutando {sql_file_path.name} (continuando...)")
+        return True  # No es crítico, continuar con el siguiente
     except Exception as e:
         print(f"   ❌ Error ejecutando {sql_file_path}: {e}")
         return False
@@ -114,10 +119,16 @@ async def crear_tablas_con_sqlalchemy(engine) -> bool:
     print("🔧 Creando/verificando tablas con SQLAlchemy...")
     
     try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        # Timeout más corto para evitar que se quede esperando
+        import asyncio
+        async with asyncio.timeout(10):  # 10 segundos máximo
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
         print("   ✅ Tablas verificadas con SQLAlchemy")
         return True
+    except asyncio.TimeoutError:
+        print(f"   ⚠️  Timeout en SQLAlchemy (continuando...)")
+        return True  # No es crítico, los SQL files crearán las tablas
     except Exception as e:
         print(f"   ⚠️  Error en SQLAlchemy (no crítico): {e}")
         return True  # No es crítico, los SQL files crearán las tablas
@@ -178,32 +189,39 @@ async def populate_database():
         
         print()
         
-        # Paso 3: Verificar resultado final
+        # Paso 3: Verificar resultado final (con timeout corto)
         print("3️⃣ Paso 3: Verificando resultado final...")
-        async with engine.begin() as conn:
-            # Verificar tablas principales
-            tables_to_check = [
-                ('cliente', 'Clientes'),
-                ('vendedor', 'Vendedores'),
-                ('tipo_rol_vendedor', 'Tipos de Rol'),
-                ('territorio', 'Territorios'),
-                ('tipo_plan', 'Tipos de Plan'),
-                ('region', 'Regiones'),
-                ('zona', 'Zonas'),
-                ('plan_venta', 'Planes de Venta'),
-                ('plan_producto', 'Productos en Planes'),
-                ('plan_region', 'Regiones en Planes'),
-                ('plan_zona', 'Zonas en Planes')
-            ]
-            
-            print()
-            for table_name, description in tables_to_check:
-                try:
-                    result = await conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
-                    count = result.scalar()
-                    print(f"   ✅ {description:20} : {count:4} registros")
-                except Exception as e:
-                    print(f"   ⚠️  {description:20} : No disponible")
+        try:
+            import asyncio
+            async with asyncio.timeout(10):  # 10 segundos máximo
+                async with engine.begin() as conn:
+                    # Verificar tablas principales
+                    tables_to_check = [
+                        ('cliente', 'Clientes'),
+                        ('vendedor', 'Vendedores'),
+                        ('tipo_rol_vendedor', 'Tipos de Rol'),
+                        ('territorio', 'Territorios'),
+                        ('tipo_plan', 'Tipos de Plan'),
+                        ('region', 'Regiones'),
+                        ('zona', 'Zonas'),
+                        ('plan_venta', 'Planes de Venta'),
+                        ('plan_producto', 'Productos en Planes'),
+                        ('plan_region', 'Regiones en Planes'),
+                        ('plan_zona', 'Zonas en Planes')
+                    ]
+                    
+                    print()
+                    for table_name, description in tables_to_check:
+                        try:
+                            result = await conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
+                            count = result.scalar()
+                            print(f"   ✅ {description:20} : {count:4} registros")
+                        except Exception as e:
+                            print(f"   ⚠️  {description:20} : No disponible")
+        except asyncio.TimeoutError:
+            print("   ⚠️  Timeout en verificación (continuando...)")
+        except Exception as e:
+            print(f"   ⚠️  Error en verificación (continuando...): {e}")
         
         print()
         print("="*70)
