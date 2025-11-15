@@ -50,7 +50,9 @@ def generar_visitas_desde_cliente_service():
     print(f"📡 Conectando a cliente-service...")
     
     try:
-        cliente_engine = create_engine(cliente_db_url)
+        # Convertir asyncpg URL a psycopg2 para uso síncrono
+        cliente_db_url_sync = cliente_db_url.replace("postgresql+asyncpg://", "postgresql://")
+        cliente_engine = create_engine(cliente_db_url_sync)
         
         # Obtener clientes activos de cliente-service
         with Session(cliente_engine) as cliente_session:
