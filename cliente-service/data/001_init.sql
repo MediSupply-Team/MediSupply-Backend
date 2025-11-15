@@ -120,13 +120,22 @@ CREATE INDEX IF NOT EXISTS idx_consulta_fecha ON consulta_cliente_log(fecha_cons
 -- ====================================================
 
 -- Los IDs se generan automáticamente con UUID
+-- Se usa DO UPDATE SET para forzar la inserción de datos incluso si hay conflicto
 INSERT INTO cliente (nit, nombre, codigo_unico, email, telefono, direccion, ciudad, pais, rol, activo, created_at) VALUES
 ('900123456-7', 'Farmacia San José', 'FSJ001', 'contacto@farmaciasanjose.com', '+57-1-2345678', 'Calle 45 #12-34', 'Bogotá', 'CO', 'cliente', true, NOW()),
 ('800987654-3', 'Droguería El Buen Pastor', 'DBP002', 'ventas@elbunpastor.com', '+57-2-9876543', 'Carrera 15 #67-89', 'Medellín', 'CO', 'cliente', true, NOW()),
 ('700456789-1', 'Farmatodo Zona Norte', 'FZN003', 'info@farmatodo.com', '+57-5-4567890', 'Avenida Norte #23-45', 'Barranquilla', 'CO', 'cliente', true, NOW()),
 ('600345678-9', 'Centro Médico Salud Total', 'CST004', 'compras@saludtotal.com', '+57-1-3456789', 'Calle 85 #34-56', 'Bogotá', 'CO', 'cliente', true, NOW()),
 ('500234567-5', 'Farmacia Popular', 'FPO005', 'pedidos@farmapopular.com', '+57-4-2345678', 'Carrera 70 #45-67', 'Medellín', 'CO', 'cliente', true, NOW())
-ON CONFLICT (nit) DO NOTHING;
+ON CONFLICT (nit) DO UPDATE SET
+    nombre = EXCLUDED.nombre,
+    codigo_unico = EXCLUDED.codigo_unico,
+    email = EXCLUDED.email,
+    telefono = EXCLUDED.telefono,
+    direccion = EXCLUDED.direccion,
+    ciudad = EXCLUDED.ciudad,
+    activo = EXCLUDED.activo,
+    updated_at = NOW();
 
 -- ====================================================
 -- HISTÓRICO DE COMPRAS DE EJEMPLO
