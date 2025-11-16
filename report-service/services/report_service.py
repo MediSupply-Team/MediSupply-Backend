@@ -257,7 +257,7 @@ async def get_sales_performance(
         # -------- TABLE: Rows (órdenes individuales) --------
         table_rows: List[TableRow] = []
         for order in orders:
-            vendor_name = order.get("user_name", "N/A")
+            vendor_name = order.get("user_name") or "Vendedor desconocido"
             items = order.get("items", [])
             status = order.get("status", "COMPLETED")
             
