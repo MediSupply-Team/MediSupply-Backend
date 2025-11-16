@@ -10,9 +10,9 @@ from app.models import Role, Permission, User, role_permissions
 app = FastAPI(
     title="MediSupply Auth Service",
     version="1.0.0",
-    description="Servicio de autenticación y autorización para MediSupply"
+    description="Servicio de autenticación y autorización para MediSupply",
+    root_path="/auth"
 )
-
 # CORS
 app.add_middleware(
     CORSMiddleware,

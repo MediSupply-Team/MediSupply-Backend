@@ -967,3 +967,49 @@ module "optimizador_rutas" {
 
   health_check_path = "/optimizer/health"
 }
+
+# Auth Service
+module "auth_service" {
+  source = "./modules/auth-service"
+  
+  project     = var.project
+  env         = var.env
+  environment = var.environment
+  aws_region  = var.aws_region
+  
+  vpc_id          = module.vpc.vpc_id
+  private_subnets = module.vpc.private_subnets
+  
+  ecs_cluster_name = aws_ecs_cluster.orders.name
+  
+  # ALB compartido de BFF-Venta
+  alb_listener_arn = module.bff_venta.alb_listener_arn  # ← Pasa referencia
+  shared_alb_sg_id = module.bff_venta.alb_sg_id
+  
+  # Service Connect
+  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
+  
+  # Database compartida (orders-postgres)
+  shared_db_url_secret_arn      = aws_secretsmanager_secret.db_url.arn
+  shared_db_password_secret_arn = aws_secretsmanager_secret.db_password.arn
+  
+  # Container config
+  container_port = 8004
+  desired_count  = var.env == "prod" ? 2 : 1
+  cpu            = "256"
+  memory         = "512"
+}
+
+# ============================================================
+# SECURITY GROUP RULE: AUTH-SERVICE → RDS
+# ============================================================
+
+resource "aws_security_group_rule" "auth_to_rds" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = module.auth_service.security_group_id
+  security_group_id        = aws_security_group.postgres_sg.id
+  description              = "Allow auth-service to access PostgreSQL"
+}

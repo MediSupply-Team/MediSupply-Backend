@@ -1,5 +1,5 @@
 # app/routes/auth.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -10,7 +10,7 @@ from app.models.role import Role
 from app.services.password_service import password_service
 from app.services.jwt_service import jwt_service
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 @router.post("/login", response_model=LoginResponse)
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
@@ -156,3 +156,63 @@ async def refresh_token(request: RefreshTokenRequest):
     )
     
     return {"token": new_access_token}
+
+# ============================================================
+# ENDPOINT NUEVO: VERIFICAR TOKEN (para BFFs)
+# ============================================================
+
+@router.post("/verify")
+async def verify_token(
+    authorization: str = Header(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verificar token JWT y retornar información del usuario
+    
+    Este endpoint es llamado por los BFFs para validar tokens
+    en cada request protegido
+    """
+    
+    # Validar formato del header
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header"
+        )
+    
+    # Extraer token
+    token = authorization.replace("Bearer ", "")
+    
+    # Validar token JWT
+    payload = jwt_service.verify_token(token)
+    
+    if not payload or payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado"
+        )
+    
+    # Obtener usuario de la base de datos
+    user_id = payload.get("user_id")
+    
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.role).selectinload(Role.permissions))
+        .where(User.id == user_id, User.is_active == True)
+    )
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario no encontrado o inactivo"
+        )
+    
+    # Retornar información del usuario
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role.name,
+        "permissions": [p.name for p in user.role.permissions]
+    }
