@@ -97,8 +97,12 @@ async def get_sales_performance(
             end_date=end_datetime
         )
         
-        # Filtrar por fechas (validación adicional)
-        orders = _filter_orders_by_date(all_orders, period_from, period_to)
+        # Filtrar solo órdenes de vendedores (seller) y por fechas
+        orders = [
+            order for order in all_orders 
+            if order.get("created_by_role", "").lower() == "seller"
+        ]
+        orders = _filter_orders_by_date(orders, period_from, period_to)
         
         # Obtener todos los SKUs únicos de las órdenes
         all_skus = set()
@@ -155,6 +159,11 @@ async def get_sales_performance(
             start_date=prev_start_datetime,
             end_date=prev_end_datetime
         )
+        # Filtrar solo órdenes de vendedores (seller)
+        prev_orders = [
+            order for order in prev_orders 
+            if order.get("created_by_role", "").lower() == "seller"
+        ]
         prev_orders = _filter_orders_by_date(prev_orders, prev_from, prev_to)
         prev_total = sum(_calculate_order_revenue(order, products) for order in prev_orders)
         
