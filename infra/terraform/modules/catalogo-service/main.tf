@@ -180,7 +180,7 @@ resource "aws_db_subnet_group" "catalogo_postgres" {
 # ============================================================
 # S3 BUCKET - COMPARTIDO CON VISITA-SERVICE
 # ============================================================
-# Usamos el bucket existente: medisupply-dev-visita-uploads
+# Usamos el bucket existente: medisupply-dev-uploads
 # Los archivos de carga masiva se guardarán con prefijo: bulk-uploads/
 # Las fotos de visitas usan prefijo: visitas/
 

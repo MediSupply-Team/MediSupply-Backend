@@ -10,7 +10,7 @@ terraform {
 locals {
   is_local   = var.environment == "local"
   service_id = "${var.project}-${var.env}-${var.service_name}"
-  bucket_name = var.s3_bucket_name != "" ? var.s3_bucket_name : "${var.project}-${var.env}-visita-uploads"
+  bucket_name = var.s3_bucket_name != "" ? var.s3_bucket_name : "${var.project}-${var.env}-uploads"
 }
 
 # ============================================================
@@ -24,7 +24,7 @@ resource "aws_s3_bucket" "uploads" {
     Project = var.project
     Env     = var.env
     Service = var.service_name
-    Purpose = "visita-uploads"
+    Purpose = "uploads"
   }
 }
 
