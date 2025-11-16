@@ -2,6 +2,7 @@
 Script de inicialización de visitas
 Genera visitas dinámicas para 3 días antes, hoy, y 3 días después
 Conecta con la BD de cliente-service para obtener clientes reales
+Usa Mapbox para geocodificar direcciones reales
 """
 from sqlmodel import Session, delete, create_engine, select
 from database import engine, init_db
@@ -9,6 +10,7 @@ from models import Visita
 from datetime import date, timedelta
 import os
 import random
+from geocoder_service import geocoder_service
 
 # Coordenadas de Bogotá para clientes sin geolocalización
 BOGOTA_COORDS = [
@@ -97,16 +99,24 @@ def generar_visitas_desde_cliente_service():
         clientes_del_dia = clientes[inicio:fin] if inicio < len(clientes) else clientes[:clientes_por_dia]
         
         for idx, cliente in enumerate(clientes_del_dia):
-            # Usar coordenadas de Bogotá
-            lat = BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][0]
-            lng = BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][1]
+            # Geocodificar dirección real del cliente usando Mapbox
+            direccion = cliente[2] if cliente[2] else "Dirección no disponible"
+            ciudad = cliente[3] if cliente[3] else "Bogotá"
+            
+            # Intentar geocodificar la dirección real
+            try:
+                geocode_result = geocoder_service.geocodificar(direccion, ciudad)
+                lat = geocode_result["lat"]
+                lng = geocode_result["lon"]
+                print(f"✅ Geocodificado: {cliente[1]} - {direccion} -> ({lat}, {lng})")
+            except Exception as e:
+                # Si falla, usar coordenadas de respaldo de Bogotá
+                print(f"⚠️  Error geocodificando {direccion}: {e}. Usando coordenadas de respaldo.")
+                lat = BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][0]
+                lng = BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][1]
             
             # Asignar horario
             horario = HORARIOS[idx % len(HORARIOS)]
-            
-            # Crear visita con datos reales del cliente
-            direccion = cliente[2] if cliente[2] else "Dirección no disponible"
-            ciudad = cliente[3] if cliente[3] else "Bogotá"
             
             visita = Visita(
                 vendedor_id=vendedor_id,
