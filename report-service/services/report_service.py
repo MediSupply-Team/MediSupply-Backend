@@ -97,12 +97,16 @@ async def get_sales_performance(
             end_date=end_datetime
         )
         
+        logger.info(f"Roles en órdenes: {[order.get('created_by_role') for order in all_orders]}")
+        
         # Filtrar solo órdenes de vendedores (seller) y por fechas
         orders = [
             order for order in all_orders 
             if order.get("created_by_role", "").lower() == "seller"
         ]
         orders = _filter_orders_by_date(orders, period_from, period_to)
+        
+        logger.info(f"Órdenes de seller después de filtrar: {len(orders)}")
         
         # Obtener todos los SKUs únicos de las órdenes
         all_skus = set()
