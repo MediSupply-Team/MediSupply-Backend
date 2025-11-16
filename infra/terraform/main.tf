@@ -173,7 +173,8 @@ resource "aws_security_group" "postgres_sg" {
       module.orders.security_group_id,
       module.rutas_service.security_group_id,
       module.report_service.security_group_id,
-      module.visita_service.security_group_id
+      module.visita_service.security_group_id,
+      module.catalogo_service.ecs_security_group_id
     ]
     description = local.is_local ? "Allow from VPC (LocalStack)" : "Allow from services"
   }
@@ -671,6 +672,9 @@ module "cliente_service" {
   db_instance_class        = "db.t3.micro"
   db_allocated_storage     = 20
   db_backup_retention_days = 7
+  
+  # Allow rutas service to access cliente DB - removed to avoid circular dependency
+  additional_db_access_security_groups = []
 }
 
 # BFF Cliente
@@ -767,6 +771,10 @@ module "catalogo_service" {
   # Security groups adicionales que necesitan acceso a la DB del catálogo
   additional_db_security_group_ids = [module.report_service.security_group_id]
 
+  # Shared database configuration (usando orders-postgres)
+  shared_db_url_secret_arn      = aws_secretsmanager_secret.db_url.arn
+  shared_db_password_secret_arn = aws_secretsmanager_secret.db_password.arn
+
   # Additional tags
   additional_tags = var.additional_tags
 }
@@ -832,6 +840,19 @@ module "rutas_service" {
   shared_alb_sg_id         = module.bff_venta.alb_sg_id
 }
 
+# ============================================================
+# Security Group Rule: Allow rutas-service to access cliente DB
+# ============================================================
+resource "aws_security_group_rule" "rutas_to_cliente_db" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = module.cliente_service.db_security_group_id
+  source_security_group_id = module.rutas_service.security_group_id
+  description              = "Allow rutas-service to access cliente database"
+}
+
 # Reports Service
 module "report_service" {
   source = "./modules/report_service"
@@ -866,9 +887,9 @@ module "report_service" {
   s3_bucket_arn  = module.visita_service.s3_bucket_arn
   s3_bucket_name = module.visita_service.s3_bucket_name
   
-  # Database URL secrets
+  # Database URL secrets (usando la base de datos compartida para catalogo también)
   db_url_secret_arn         = aws_secretsmanager_secret.db_url.arn
-  catalog_db_url_secret_arn = module.catalogo_service.db_credentials_secret_arn
+  catalog_db_url_secret_arn = aws_secretsmanager_secret.db_url.arn  # Catalogo usa la misma DB compartida
 }
 
 # Visita Service

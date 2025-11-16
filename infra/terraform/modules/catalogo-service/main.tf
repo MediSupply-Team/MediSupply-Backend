@@ -130,50 +130,52 @@ resource "aws_db_subnet_group" "catalogo_postgres" {
   }
 }
 
-resource "aws_db_instance" "catalogo_postgres" {
-  identifier = "${var.project}-${var.env}-catalogo-db"
+# NOTA: Base de datos deshabilitada - catalogo-service usa la base de datos compartida orders-postgres
+# debido a las limitaciones del free tier de AWS RDS
+# resource "aws_db_instance" "catalogo_postgres" {
+#   identifier = "${var.project}-${var.env}-catalogo-db"
 
-  # Engine configuration
-  engine         = "postgres"
-  engine_version = "15.14" # Usar versión disponible
-  instance_class = var.db_instance_class
+#   # Engine configuration
+#   engine         = "postgres"
+#   engine_version = "15.14" # Usar versión disponible
+#   instance_class = var.db_instance_class
 
-  # Database configuration
-  db_name  = "catalogo_db"
-  username = "catalogo_user"
-  password = random_password.catalogo_db_password.result
+#   # Database configuration
+#   db_name  = "catalogo_db"
+#   username = "catalogo_user"
+#   password = random_password.catalogo_db_password.result
 
-  # Storage configuration
-  allocated_storage     = 20
-  max_allocated_storage = 100
-  storage_type          = "gp2"
-  storage_encrypted     = true
+#   # Storage configuration
+#   allocated_storage     = 20
+#   max_allocated_storage = 100
+#   storage_type          = "gp2"
+#   storage_encrypted     = true
 
-  # Network & Security
-  vpc_security_group_ids = [aws_security_group.catalogo_postgres_sg.id]
-  db_subnet_group_name   = aws_db_subnet_group.catalogo_postgres.name
-  publicly_accessible    = false
+#   # Network & Security
+#   vpc_security_group_ids = [aws_security_group.catalogo_postgres_sg.id]
+#   db_subnet_group_name   = aws_db_subnet_group.catalogo_postgres.name
+#   publicly_accessible    = false
 
-  # Backup configuration (set to 0 for free tier)
-  backup_retention_period = 0
-  backup_window           = "03:00-04:00"
-  maintenance_window      = "sun:04:00-sun:05:00"
+#   # Backup configuration (set to 0 for free tier)
+#   backup_retention_period = 0
+#   backup_window           = "03:00-04:00"
+#   maintenance_window      = "sun:04:00-sun:05:00"
 
-  # Monitoring (disabled for free tier)
-  monitoring_interval = 0
-  monitoring_role_arn = null
+#   # Monitoring (disabled for free tier)
+#   monitoring_interval = 0
+#   monitoring_role_arn = null
 
-  # Protection
-  deletion_protection = false
-  skip_final_snapshot = true
+#   # Protection
+#   deletion_protection = false
+#   skip_final_snapshot = true
 
-  tags = {
-    Name    = "${var.project}-${var.env}-catalogo-db"
-    Service = "catalogo-service"
-    Project = var.project
-    Env     = var.env
-  }
-}
+#   tags = {
+#     Name    = "${var.project}-${var.env}-catalogo-db"
+#     Service = "catalogo-service"
+#     Project = var.project
+#     Env     = var.env
+#   }
+# }
 
 # ============================================================
 # S3 BUCKET - COMPARTIDO CON VISITA-SERVICE
@@ -318,7 +320,7 @@ resource "aws_iam_role" "catalogo_ecs_execution_role" {
   }
 }
 
-# Permiso para acceder al secreto de la base de datos en Secrets Manager
+# Permiso para acceder a los secretos de la base de datos compartida en Secrets Manager
 resource "aws_iam_role_policy" "catalogo_ecs_execution_secrets_policy" {
   name = "catalogo-ecs-execution-secrets-policy"
   role = aws_iam_role.catalogo_ecs_execution_role.id
@@ -330,7 +332,10 @@ resource "aws_iam_role_policy" "catalogo_ecs_execution_secrets_policy" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = aws_secretsmanager_secret.catalogo_db_credentials.arn
+        Resource = [
+          var.shared_db_url_secret_arn,
+          var.shared_db_password_secret_arn
+        ]
       }
     ]
   })
@@ -404,7 +409,10 @@ resource "aws_iam_role_policy" "catalogo_task_policy" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = aws_secretsmanager_secret.catalogo_db_credentials.arn
+        Resource = [
+          var.shared_db_url_secret_arn,
+          var.shared_db_password_secret_arn
+        ]
       }
     ]
   })
@@ -435,30 +443,31 @@ resource "aws_iam_role_policy" "catalogo_ecs_exec_policy" {
 # ============================================================
 # SECRETS MANAGER
 # ============================================================
+# NOTA: catalogo-service ahora usa los secrets de la base de datos compartida (orders-postgres)
+# en lugar de crear sus propios secrets. Los secrets compartidos se pasan a través de las
+# variables shared_db_url_secret_arn y shared_db_password_secret_arn
 
-resource "aws_secretsmanager_secret" "catalogo_db_credentials" {
-  #name = "${var.project}-${var.env}-catalogo-db-credentials-v2" # Cambiar nombre
-  name                    = "${var.project}-${var.env}-catalogo-db-credentials-v2-cuentasergio" # Cambiar nombre
-  recovery_window_in_days = 0
+# resource "aws_secretsmanager_secret" "catalogo_db_credentials" {
+#   name                    = "${var.project}-${var.env}-catalogo-db-credentials-v2-cuentasergio"
+#   recovery_window_in_days = 0
+#   tags = {
+#     Service = "catalogo-service"
+#     Project = var.project
+#     Env     = var.env
+#   }
+# }
 
-  tags = {
-    Service = "catalogo-service"
-    Project = var.project
-    Env     = var.env
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "catalogo_db_credentials" {
-  secret_id = aws_secretsmanager_secret.catalogo_db_credentials.id
-  secret_string = jsonencode({
-    username     = aws_db_instance.catalogo_postgres.username
-    password     = random_password.catalogo_db_password.result
-    endpoint     = aws_db_instance.catalogo_postgres.endpoint
-    port         = aws_db_instance.catalogo_postgres.port
-    dbname       = aws_db_instance.catalogo_postgres.db_name
-    database_url = "postgresql+asyncpg://${aws_db_instance.catalogo_postgres.username}:${urlencode(random_password.catalogo_db_password.result)}@${aws_db_instance.catalogo_postgres.address}:${aws_db_instance.catalogo_postgres.port}/${aws_db_instance.catalogo_postgres.db_name}"
-  })
-}
+# resource "aws_secretsmanager_secret_version" "catalogo_db_credentials" {
+#   secret_id = aws_secretsmanager_secret.catalogo_db_credentials.id
+#   secret_string = jsonencode({
+#     username     = aws_db_instance.catalogo_postgres.username
+#     password     = random_password.catalogo_db_password.result
+#     endpoint     = aws_db_instance.catalogo_postgres.endpoint
+#     port         = aws_db_instance.catalogo_postgres.port
+#     dbname       = aws_db_instance.catalogo_postgres.db_name
+#     database_url = "postgresql+asyncpg://${aws_db_instance.catalogo_postgres.username}:${urlencode(random_password.catalogo_db_password.result)}@${aws_db_instance.catalogo_postgres.address}:${aws_db_instance.catalogo_postgres.port}/${aws_db_instance.catalogo_postgres.db_name}"
+#   })
+# }
 
 # ============================================================
 # CLOUDWATCH LOGS
@@ -530,33 +539,17 @@ resource "aws_ecs_task_definition" "catalogo" {
         {
           name  = "REDIS_URL"
           value = var.redis_url
-        },
-        {
-          name  = "DB_HOST"
-          value = aws_db_instance.catalogo_postgres.address
-        },
-        {
-          name  = "DB_PORT"
-          value = tostring(aws_db_instance.catalogo_postgres.port)
-        },
-        {
-          name  = "DB_NAME"
-          value = aws_db_instance.catalogo_postgres.db_name
-        },
-        {
-          name  = "DB_USER"
-          value = aws_db_instance.catalogo_postgres.username
         }
       ]
 
       secrets = [
         {
           name      = "DB_PASSWORD"
-          valueFrom = "${aws_secretsmanager_secret.catalogo_db_credentials.arn}:password::"
+          valueFrom = var.shared_db_password_secret_arn
         },
         {
           name      = "DATABASE_URL"
-          valueFrom = "${aws_secretsmanager_secret.catalogo_db_credentials.arn}:database_url::"
+          valueFrom = var.shared_db_url_secret_arn
         }
       ]
 

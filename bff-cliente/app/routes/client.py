@@ -474,3 +474,43 @@ def obtener_metricas():
     except Exception as e:
         current_app.logger.error(f"Error inesperado obteniendo métricas: {e}", exc_info=True)
         return jsonify(error="Error interno del servidor"), 500
+
+
+@bp.route('/api/v1/client/seed-data', methods=['POST'])
+def seed_clientes():
+    """
+    Carga datos de clientes de ejemplo
+    Proxy hacia cliente-service /seed-data
+    """
+    cliente_url = get_cliente_service_url()
+    if not cliente_url:
+        return jsonify(error="Servicio de clientes no disponible"), 503
+    
+    try:
+        url = f"{cliente_url}/seed-data"
+        
+        current_app.logger.info(f"Cargando datos de ejemplo en clientes: POST {url}")
+        
+        response = requests.post(
+            url,
+            timeout=30
+        )
+        
+        current_app.logger.info(f"Respuesta de seed-data: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout al cargar datos de ejemplo")
+        return jsonify(error="Timeout al cargar datos"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error conectando con servicio de clientes: {e}")
+        return jsonify(error="Error de conexión"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado cargando datos: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500

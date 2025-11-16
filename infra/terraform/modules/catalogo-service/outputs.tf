@@ -14,26 +14,26 @@ output "ecr_repository_arn" {
   value       = aws_ecr_repository.catalogo.arn
 }
 
-# RDS Database
-output "db_instance_endpoint" {
-  description = "Endpoint de la base de datos RDS para catalogo-service"
-  value       = aws_db_instance.catalogo_postgres.endpoint
-}
+# RDS Database - COMENTADO: catalogo ahora usa la base de datos compartida
+# output "db_instance_endpoint" {
+#   description = "Endpoint de la base de datos RDS para catalogo-service"
+#   value       = aws_db_instance.catalogo_postgres.endpoint
+# }
 
-output "db_instance_identifier" {
-  description = "Identificador de la instancia RDS para catalogo-service"
-  value       = aws_db_instance.catalogo_postgres.identifier
-}
+# output "db_instance_identifier" {
+#   description = "Identificador de la instancia RDS para catalogo-service"
+#   value       = aws_db_instance.catalogo_postgres.identifier
+# }
 
-output "db_name" {
-  description = "Nombre de la base de datos"
-  value       = aws_db_instance.catalogo_postgres.db_name
-}
+# output "db_name" {
+#   description = "Nombre de la base de datos"
+#   value       = aws_db_instance.catalogo_postgres.db_name
+# }
 
-output "db_port" {
-  description = "Puerto de la base de datos"
-  value       = aws_db_instance.catalogo_postgres.port
-}
+# output "db_port" {
+#   description = "Puerto de la base de datos"
+#   value       = aws_db_instance.catalogo_postgres.port
+# }
 
 # S3 Bucket (compartido con visita-service)
 output "s3_bucket_name" {
@@ -101,11 +101,11 @@ output "cloudwatch_log_group_name" {
   value       = length(aws_cloudwatch_log_group.catalogo) > 0 ? aws_cloudwatch_log_group.catalogo[0].name : ""
 }
 
-# Secrets Manager
-output "db_credentials_secret_arn" {
-  description = "ARN del secret de Secrets Manager con credenciales de DB"
-  value       = aws_secretsmanager_secret.catalogo_db_credentials.arn
-}
+# Secrets Manager - COMENTADO: catalogo ahora usa los secrets compartidos
+# output "db_credentials_secret_arn" {
+#   description = "ARN del secret de Secrets Manager con credenciales de DB"
+#   value       = aws_secretsmanager_secret.catalogo_db_credentials.arn
+# }
 
 # IAM Roles
 output "ecs_task_role_arn" {

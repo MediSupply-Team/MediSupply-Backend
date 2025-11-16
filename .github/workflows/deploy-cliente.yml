@@ -3,7 +3,7 @@ name: Deploy Cliente Service
 
 on:
   push:
-    branches: [ "develop", "fix-carga-masiva" ]
+    branches: [ "develop", "ajuste_cliente_service" ]
     paths:
       - "cliente-service/**"
       - ".github/workflows/deploy-cliente.yml"
