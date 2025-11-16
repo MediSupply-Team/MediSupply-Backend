@@ -34,7 +34,7 @@ variable "environment" {
 variable "s3_bucket_name" {
   description = "Nombre del bucket S3 compartido para uploads (visitas y bulk-uploads)"
   type        = string
-  default     = "medisupply-dev-visita-uploads"
+  default     = "medisupply-dev-uploads"
 }
 
 # ============================================================

@@ -923,7 +923,7 @@ module "visita_service" {
   shared_alb_sg_id         = module.bff_cliente.alb_sg_id
 
   # S3 bucket para uploads (fotos/videos)
-  s3_bucket_name = "${var.project}-${var.env}-visita-uploads"
+  s3_bucket_name = "${var.project}-${var.env}-uploads"
   
   # Gemini API para análisis de video - usando Secrets Manager
   google_api_key_secret_name = var.google_api_key_secret_name
