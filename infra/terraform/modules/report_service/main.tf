@@ -263,7 +263,7 @@ resource "aws_ecs_task_definition" "this" {
         },
         {
           name      = "CATALOG_DB_URL"
-          valueFrom = "${var.catalog_db_url_secret_arn}:database_url::"
+          valueFrom = var.catalog_db_url_secret_arn
         }
       ]
 
