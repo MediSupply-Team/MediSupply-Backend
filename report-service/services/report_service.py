@@ -42,9 +42,11 @@ def _calculate_order_revenue(order: Dict[str, Any], products: Dict[str, Dict[str
         price = 0.0
         if codigo and codigo in products:
             price = products[codigo].get("precio_unitario", 0.0)
+            logger.info(f"Producto {codigo}: qty={quantity}, precio={price}, subtotal={quantity * price}")
         else:
             # Fallback al precio en el item
             price = item.get("price", 0.0)
+            logger.warning(f"Producto {codigo} no encontrado en catálogo, usando precio del item: {price}")
         
         total += quantity * price
     return round(total, 2)
@@ -138,6 +140,7 @@ async def get_sales_performance(
         
         # -------- SUMMARY: Total Sales --------
         total_sales = sum(_calculate_order_revenue(order, products) for order in orders)
+        logger.info(f"Total sales calculado: {total_sales}, de {len(orders)} órdenes")
         
         # -------- SUMMARY: Pending Orders --------
         pending_orders = sum(
