@@ -41,6 +41,13 @@ class Config:
         "ORDERS_SERVICE_URL",
         "http://orders-service:8000"  # Fallback para desarrollo local
     )
+
+    # Auth Service
+    AUTH_SERVICE_URL = os.getenv(
+        "AUTH_SERVICE_URL",
+        "http://auth:8004"  # Fallback para desarrollo local con Service Connect
+    )
+    
     
     # Timeouts
     HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "30"))
