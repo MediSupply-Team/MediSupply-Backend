@@ -182,6 +182,15 @@ jobs:
     secrets: inherit
     with:
       ref: ${{ github.event.inputs.branch || github.ref }}
+
+  deploy-auth:
+    name: 🔐 Deploy Auth
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-auth.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
   
   update-nginx-oracle:
     name: 🛰️ Update Nginx (Oracle Cloud)
@@ -208,7 +217,8 @@ jobs:
       deploy-rutas,
       deploy-reports,
       deploy-visita,
-      deploy-optimizer
+      deploy-optimizer,
+      deploy-auth
     ]
     if: always()
     runs-on: ubuntu-latest
@@ -217,7 +227,7 @@ jobs:
       - name: 📊 Generate Summary
         run: |
           # Count successes
-          TOTAL=10
+          TOTAL=11
           SUCCESS=0
           
           [[ "${{ needs.deploy-catalogo.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
@@ -230,6 +240,7 @@ jobs:
           [[ "${{ needs.deploy-reports.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
           [[ "${{ needs.deploy-visita.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
           [[ "${{ needs.deploy-optimizer.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-auth.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
           
           if [ "$SUCCESS" -eq "$TOTAL" ]; then
             STATUS="✅ ALL SERVICES DEPLOYED"
@@ -257,6 +268,7 @@ jobs:
           | 📊 Reports | ${{ needs.deploy-reports.result }} |
           | 📍 Visita | ${{ needs.deploy-visita.result }} |
           | 🔧 Optimizer | ${{ needs.deploy-optimizer.result }} |
+          | 🔐 Auth | ${{ needs.deploy-auth.result }} |
           
           ## 🌐 Endpoints
 
