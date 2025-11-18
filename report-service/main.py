@@ -40,9 +40,15 @@ app = FastAPI(
 )
 
 # Configurar CORS
+origins = [
+    "http://localhost:3000",
+    "http://localhost:5173", 
+    "https://medi-supply-frontend-web.vercel.app"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permitir todos los orígenes
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

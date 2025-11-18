@@ -16,16 +16,14 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Configurar CORS
-    CORS(app, resources={
-        r"/*": {
-            "origins": "*",
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": "*",
-            "expose_headers": "*",
-            "supports_credentials": True
-        }
-    })
+    # Configurar CORS - solo con origins="*" para evitar duplicados
+    CORS(app, 
+         origins="*",
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+         expose_headers=["Content-Type"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    )
 
     # ===== SWAGGER =====
     swagger_config = {
