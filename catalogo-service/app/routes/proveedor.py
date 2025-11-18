@@ -29,7 +29,7 @@ async def crear_proveedor(
     session: AsyncSession = Depends(get_session)
 ):
     """
-    Crear un nuevo proveedor (ID se genera automáticamente)
+    Crear un nuevo proveedor (ID se genera automáticamente) 
     
     **Criterios de aceptación:**
     - NIT debe ser único ✅

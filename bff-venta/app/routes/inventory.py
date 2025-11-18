@@ -36,7 +36,7 @@ def create_inventory_movement():
             return jsonify(error="Request body required"), 400
         
         # Construir URL
-        url = f"{catalogo_url}/api/inventory/movements"
+        url = f"{catalogo_url}/catalog/api/inventory/movements"
         
         current_app.logger.info(f"📦 Creating inventory movement: {url}")
         current_app.logger.info(f"   Producto: {movement_data.get('producto_id')}, Tipo: {movement_data.get('tipo_movimiento')}")
@@ -106,7 +106,7 @@ def create_inventory_transfer():
             return jsonify(error="Request body required"), 400
         
         # Construir URL
-        url = f"{catalogo_url}/api/inventory/transfers"
+        url = f"{catalogo_url}/catalog/api/inventory/transfers"
         
         current_app.logger.info(f"🔄 Creating inventory transfer: {url}")
         current_app.logger.info(
@@ -194,7 +194,7 @@ def get_kardex():
             params['size'] = request.args.get('size')
         
         # Construir URL
-        url = f"{catalogo_url}/api/inventory/movements/kardex"
+        url = f"{catalogo_url}/catalog/api/inventory/movements/kardex"
         
         current_app.logger.info(f"📊 Getting kardex: {url} with params: {params}")
         
@@ -262,7 +262,7 @@ def cancel_movement(movimiento_id: int):
             return jsonify(error="Request body required (usuario_id, motivo_anulacion)"), 400
         
         # Construir URL
-        url = f"{catalogo_url}/api/inventory/movements/{movimiento_id}/anular"
+        url = f"{catalogo_url}/catalog/api/inventory/movements/{movimiento_id}/anular"
         
         current_app.logger.info(f"🚫 Cancelling movement {movimiento_id}: {url}")
         
@@ -346,7 +346,7 @@ def get_alerts():
             params['size'] = request.args.get('size')
         
         # Construir URL
-        url = f"{catalogo_url}/api/inventory/alerts"
+        url = f"{catalogo_url}/catalog/api/inventory/alerts"
         
         current_app.logger.info(f"⚠️  Getting alerts: {url} with params: {params}")
         
@@ -414,7 +414,7 @@ def mark_alert_read(alerta_id: int):
             return jsonify(error="usuario_id query parameter required"), 400
         
         # Construir URL con query params
-        url = f"{catalogo_url}/api/inventory/alerts/{alerta_id}/marcar-leida"
+        url = f"{catalogo_url}/catalog/api/inventory/alerts/{alerta_id}/marcar-leida"
         
         current_app.logger.info(f"✓ Marking alert {alerta_id} as read: {url}")
         
@@ -493,7 +493,7 @@ def get_stock_report():
             params['size'] = request.args.get('size')
         
         # Construir URL
-        url = f"{catalogo_url}/api/inventory/reports/saldos"
+        url = f"{catalogo_url}/catalog/api/inventory/reports/saldos"
         
         current_app.logger.info(f"📈 Getting stock report: {url} with params: {params}")
         
@@ -574,7 +574,7 @@ def get_productos_en_bodega(bodega_id: str):
             params['size'] = request.args.get('size')
         
         # Construir URL
-        url = f"{catalogo_url}/api/inventory/bodega/{bodega_id}/productos"
+        url = f"{catalogo_url}/catalog/api/inventory/bodega/{bodega_id}/productos"
         
         current_app.logger.info(f"🏢 Getting productos en bodega {bodega_id}: {url}")
         
