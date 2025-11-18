@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 from contextlib import asynccontextmanager
 from routers.reports import router as reports_router
 from services.database_client import db_client
@@ -12,6 +14,27 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Middleware personalizado para limpiar headers CORS duplicados
+class CORSCleanupMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        # Remover cualquier header CORS existente para evitar duplicados
+        if "access-control-allow-origin" in response.headers:
+            del response.headers["access-control-allow-origin"]
+        if "access-control-allow-credentials" in response.headers:
+            del response.headers["access-control-allow-credentials"]
+        if "access-control-allow-methods" in response.headers:
+            del response.headers["access-control-allow-methods"]
+        if "access-control-allow-headers" in response.headers:
+            del response.headers["access-control-allow-headers"]
+        
+        # Agregar headers CORS limpios
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        
+        return response
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,14 +62,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configurar CORS - usar ["*"] en lugar de "*" para evitar duplicados
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,  # Debe ser False cuando se usa "*"
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Aplicar middleware personalizado primero para limpiar headers
+app.add_middleware(CORSCleanupMiddleware)
 
 @app.get("/health")
 def health(): 
