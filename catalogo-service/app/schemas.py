@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import date, datetime
 from enum import Enum
+from uuid import UUID
 
 class InventarioResumen(BaseModel):
     cantidadTotal: int
@@ -336,4 +337,90 @@ class SaldoBodega(BaseModel):
 class ReporteSaldosResponse(BaseModel):
     """Reporte de saldos por bodega"""
     items: List[SaldoBodega]
+    meta: Meta
+
+
+# ==========================================
+# SCHEMAS PARA PROVEEDORES (HU: Registrar Proveedor)
+# ==========================================
+
+class ProveedorCreate(BaseModel):
+    """Schema para crear un proveedor (id se genera automáticamente con UUID)"""
+    nit: str = Field(..., min_length=5, max_length=32, description="NIT o identificación fiscal", example="900123456-7")
+    empresa: str = Field(..., min_length=3, max_length=255, description="Nombre de la empresa", example="Suministros Médicos Global")
+    contacto_nombre: str = Field(..., min_length=3, max_length=255, description="Nombre del contacto", example="Ana López")
+    contacto_email: str = Field(..., min_length=5, max_length=255, description="Email del contacto", example="ana.lopez@suministros.com")
+    contacto_telefono: Optional[str] = Field(None, max_length=32, description="Teléfono del contacto", example="+57-1-3456789")
+    contacto_cargo: Optional[str] = Field(None, max_length=128, description="Cargo del contacto", example="Gerente de Ventas")
+    direccion: Optional[str] = Field(None, max_length=512, description="Dirección del proveedor", example="Calle 45 #12-34, Bogotá")
+    pais: str = Field(..., min_length=2, max_length=2, description="Código ISO del país", example="CO")
+    activo: bool = Field(default=True, description="Si el proveedor está activo")
+    notas: Optional[str] = Field(None, description="Notas adicionales sobre el proveedor")
+    created_by_user_id: Optional[str] = Field(None, max_length=64, description="ID del usuario que crea el proveedor")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "nit": "900123456-7",
+                "empresa": "Suministros Médicos Global",
+                "contacto_nombre": "Ana López",
+                "contacto_email": "ana.lopez@suministros.com",
+                "contacto_telefono": "+57-1-3456789",
+                "contacto_cargo": "Gerente de Ventas",
+                "direccion": "Calle 45 #12-34, Bogotá",
+                "pais": "CO",
+                "activo": True,
+                "notas": "Proveedor principal de antibióticos",
+                "created_by_user_id": "ADMIN001"
+            }
+        }
+
+
+class ProveedorUpdate(BaseModel):
+    """Schema para actualizar un proveedor existente"""
+    nit: Optional[str] = Field(None, min_length=5, max_length=32)
+    empresa: Optional[str] = Field(None, min_length=3, max_length=255)
+    contacto_nombre: Optional[str] = Field(None, min_length=3, max_length=255)
+    contacto_email: Optional[str] = Field(None, min_length=5, max_length=255)
+    contacto_telefono: Optional[str] = Field(None, max_length=32)
+    contacto_cargo: Optional[str] = Field(None, max_length=128)
+    direccion: Optional[str] = Field(None, max_length=512)
+    pais: Optional[str] = Field(None, min_length=2, max_length=2)
+    activo: Optional[bool] = None
+    notas: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "contacto_telefono": "+57-1-9876543",
+                "contacto_cargo": "Director Comercial",
+                "activo": True
+            }
+        }
+
+
+class ProveedorResponse(BaseModel):
+    """Schema de respuesta de un proveedor"""
+    id: UUID  # Pydantic lo serializa como string en JSON automáticamente
+    nit: str
+    empresa: str
+    contacto_nombre: str
+    contacto_email: str
+    contacto_telefono: Optional[str]
+    contacto_cargo: Optional[str]
+    direccion: Optional[str]
+    pais: str
+    activo: bool
+    notas: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    created_by_user_id: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+
+class ProveedorListResponse(BaseModel):
+    """Respuesta con lista de proveedores"""
+    items: List[ProveedorResponse]
     meta: Meta

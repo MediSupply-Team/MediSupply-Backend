@@ -1,38 +1,40 @@
-name: Update Nginx Config (Oracle Cloud)
+name: 🛰️ Update Nginx (Oracle Cloud)
 
 on:
   # Se dispara automáticamente después de deploy exitoso
-  workflow_run:
-    workflows: 
-      - "Deploy BFF Venta Service"
-      - "Deploy Route Optimizer Service"
-    types: [completed]
-    branches: [develop]
+  # workflow_run:
+  #   workflows: 
+  #     - "Deploy BFF Venta Service"
+  #     - "Deploy Route Optimizer Service"
+  #   types: [completed]
+  #   branches: [develop]
   
   # También puedes ejecutarlo manualmente
   workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: false
+        default: "develop"
+  push:
+      branches:
+        - develop
+      paths:
+        - '.github/workflows/update-nginx-oracle.yml'
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: false
+        type: string
+        default: "develop"
 
 env:
   AWS_REGION: us-east-1
 
 jobs:
-  # Solo ejecutar si el deploy fue exitoso
-  check-deploy-success:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
-    outputs:
-      should_update: ${{ steps.check.outputs.result }}
-    steps:
-      - name: Check if deploy was successful
-        id: check
-        run: |
-          echo "result=true" >> $GITHUB_OUTPUT
-          echo "✅ Deploy exitoso, procediendo con actualización de Nginx"
-
   update-nginx:
-    needs: check-deploy-success
     runs-on: ubuntu-latest
-    if: needs.check-deploy-success.outputs.should_update == 'true'
     
     permissions:
       id-token: write
@@ -89,16 +91,23 @@ jobs:
           username: ${{ secrets.ORACLE_SSH_USER }}
           key: ${{ secrets.ORACLE_SSH_KEY }}
           port: 22
-          script_stop: true  # Detener si hay error
+          script_stop: true
           script: |
-            set -e  # Exit on error
+            set -e
             
             echo "================================"
             echo "🔧 Actualizando Nginx en Oracle Cloud"
             echo "================================"
             
-            # Crear backup con timestamp
-            BACKUP_FILE="/etc/nginx/sites-enabled/default.backup.$(date +%Y%m%d_%H%M%S)"
+            # Limpiar backups antiguos de sites-enabled
+            echo "🧹 Limpiando backups antiguos de sites-enabled..."
+            sudo rm -f /etc/nginx/sites-enabled/default.backup.*
+            
+            # Crear directorio para backups si no existe
+            mkdir -p ~/nginx-backups
+            
+            # Crear backup con timestamp en directorio home
+            BACKUP_FILE="$HOME/nginx-backups/default.backup.$(date +%Y%m%d_%H%M%S)"
             echo "📦 Creando backup: $BACKUP_FILE"
             sudo cp /etc/nginx/sites-enabled/default "$BACKUP_FILE"
             
@@ -141,6 +150,11 @@ jobs:
             echo ""
             echo "🔍 Verificando estado de Nginx..."
             sudo systemctl status nginx --no-pager | head -10
+            
+            # Mantener solo últimos 10 backups
+            echo ""
+            echo "🧹 Limpiando backups antiguos..."
+            ls -t ~/nginx-backups/default.backup.* 2>/dev/null | tail -n +11 | xargs -r rm
             
             echo ""
             echo "================================"

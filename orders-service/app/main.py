@@ -159,7 +159,7 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
     sample_orders = [
         Order(
             customer_id="Hospital San José",
-            items=[{"sku": "PROD-A", "qty": 2}, {"sku": "PROD-B", "qty": 1}],
+            items=[{"sku": "ACE500", "qty": 2}, {"sku": "AMX500", "qty": 1}],
             status=OrderStatus.NEW,
             created_by_role="seller",
             source="bff-cliente",
@@ -174,7 +174,7 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
         ),
         Order(
             customer_id="Clínica del Norte",
-            items=[{"sku": "PROD-C", "qty": 5}],
+            items=[{"sku": "AML5", "qty": 5}],
             status=OrderStatus.NEW,
             created_by_role="admin",
             source="bff-admin",
@@ -189,7 +189,7 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
         ),
         Order(
             customer_id="Farmacia Central",
-            items=[{"sku": "PROD-D", "qty": 3}, {"sku": "PROD-E", "qty": 2}],
+            items=[{"sku": "ASP100", "qty": 3}, {"sku": "ATE50", "qty": 2}],
             status=OrderStatus.NEW,
             created_by_role="seller",
             source="bff-cliente",

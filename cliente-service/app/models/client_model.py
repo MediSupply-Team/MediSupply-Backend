@@ -1,12 +1,65 @@
 """
 Modelos SQLAlchemy para cliente-service siguiendo patrón catalogo-service
-Definición de tablas para HU07: Consultar Cliente
+Definición de tablas para HU07: Consultar Cliente y HU: Registrar Vendedor
 """
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Integer, Boolean, Date, DateTime, ForeignKey, DECIMAL, JSON, Text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from datetime import date, datetime
 from decimal import Decimal
 from app.db import Base
+from typing import Optional, TYPE_CHECKING
+from uuid import UUID, uuid4
+
+if TYPE_CHECKING:
+    from app.models.plan_venta_model import PlanVenta
+
+
+class Vendedor(Base):
+    """
+    Modelo de Vendedor para HU: Registrar Vendedor (Extendido - Fase 2)
+    Representa los vendedores del sistema MediSupply con catálogos y jerarquía
+    """
+    __tablename__ = "vendedor"
+    
+    # Campos principales
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    identificacion: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, index=True)
+    nombre_completo: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    telefono: Mapped[str] = mapped_column(String(32), nullable=False)
+    pais: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
+    
+    # Campos de credenciales y acceso
+    username: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True, index=True)  # Para login
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    
+    # Campos de rol y permisos
+    rol: Mapped[str] = mapped_column(String(32), default="seller", nullable=False)  # seller para coincidir con orders
+    rol_vendedor_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("tipo_rol_vendedor.id"), nullable=True, index=True)  # FK a TipoRolVendedor
+    
+    # Campos de asignación geográfica y jerarquía
+    territorio_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("territorio.id"), nullable=True, index=True)  # FK a Territorio
+    supervisor_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("vendedor.id"), nullable=True, index=True)  # FK a Vendedor (auto-referencia)
+    
+    # Campos adicionales
+    fecha_ingreso: Mapped[Optional[date]] = mapped_column(Date, nullable=True)  # Fecha de ingreso al equipo
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Notas adicionales
+    
+    # Campos de auditoría
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_user_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    
+    # Relación 1:1 con Plan de Venta (se carga solo en /vendedores/{id}/detalle)
+    # NO se carga automáticamente para evitar queries innecesarios
+    plan_venta: Mapped[Optional["PlanVenta"]] = relationship(
+        "PlanVenta", 
+        back_populates="vendedor",
+        uselist=False,  # 1:1 relationship
+        lazy="noload"  # NO cargar automáticamente, solo cuando se necesite explícitamente
+    )
 
 
 class Cliente(Base):
@@ -16,7 +69,7 @@ class Cliente(Base):
     """
     __tablename__ = "cliente"
     
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     nit: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, index=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     codigo_unico: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
@@ -25,6 +78,8 @@ class Cliente(Base):
     direccion: Mapped[str] = mapped_column(String(512), nullable=True)
     ciudad: Mapped[str] = mapped_column(String(128), nullable=True, index=True)
     pais: Mapped[str] = mapped_column(String(8), nullable=True, default="CO")
+    vendedor_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), nullable=True)  # FK a vendedor
+    rol: Mapped[str] = mapped_column(String(32), default="cliente", nullable=False)  # Rol del cliente
     # tipo_cliente: Mapped[str] = mapped_column(String(32), nullable=True, default="farmacia")  # Comentado: columna no existe en DB
     activo: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
@@ -38,8 +93,8 @@ class CompraHistorico(Base):
     """
     __tablename__ = "compra_historico"
     
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    cliente_id: Mapped[str] = mapped_column(ForeignKey("cliente.id"), nullable=False, index=True)
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    cliente_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("cliente.id"), nullable=False, index=True)
     orden_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     producto_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     producto_nombre: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -59,8 +114,9 @@ class DevolucionHistorico(Base):
     """
     __tablename__ = "devolucion_historico"
     
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    cliente_id: Mapped[str] = mapped_column(ForeignKey("cliente.id"), nullable=False, index=True)
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    cliente_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("cliente.id"), nullable=False, index=True)
+    compra_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     compra_orden_id: Mapped[str] = mapped_column(String(64), nullable=True, index=True)
     producto_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     producto_nombre: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -79,9 +135,9 @@ class ConsultaClienteLog(Base):
     """
     __tablename__ = "consulta_cliente_log"
     
-    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: f"LOG_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(datetime.now()) % 10000:04d}")
-    vendedor_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    cliente_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)  # BIGSERIAL en SQL
+    vendedor_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), nullable=True, index=True)
+    cliente_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), nullable=True, index=True)
     tipo_consulta: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     tipo_busqueda: Mapped[str] = mapped_column(String(32), nullable=True, index=True)
     termino_busqueda: Mapped[str] = mapped_column(String(255), nullable=True)
@@ -97,8 +153,8 @@ class ProductoPreferido(Base):
     """
     __tablename__ = "producto_preferido"
     
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    cliente_id: Mapped[str] = mapped_column(ForeignKey("cliente.id"), nullable=False, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)  # BIGSERIAL en SQL
+    cliente_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("cliente.id"), nullable=False, index=True)
     producto_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     producto_nombre: Mapped[str] = mapped_column(String(255), nullable=False)
     categoria_producto: Mapped[str] = mapped_column(String(128), nullable=True)
@@ -117,7 +173,8 @@ class EstadisticaCliente(Base):
     """
     __tablename__ = "estadistica_cliente"
     
-    cliente_id: Mapped[str] = mapped_column(ForeignKey("cliente.id"), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)  # BIGSERIAL en SQL
+    cliente_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("cliente.id"), nullable=False, unique=True, index=True)
     total_compras: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_productos_unicos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_devoluciones: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -2,7 +2,7 @@ name: Deploy Rutas Service
 
 on:
   push:
-    branches: [ "develop" ]
+    branches: [ "develop","feature/HU08-consultar-ruta-de-visita-por-fecha", "ajuste_cliente_service" ]
     paths:
       - "ruta-service/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-rutas.yml"
@@ -18,7 +18,7 @@ on:
         description: "Branch/Tag/Commit a desplegar"
         required: false
         type: string
-        default: "main"
+        default: "develop"
 
 env:
   AWS_REGION: us-east-1

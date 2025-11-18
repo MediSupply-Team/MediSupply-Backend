@@ -84,7 +84,7 @@ def post_message():
     
     enriched_body = {
     **body,  # Mantener todos los campos originales
-    "created_by_role": "vendor", 
+    "created_by_role": "seller", 
     "source": "bff-venta"
     }
     event_id = str(uuid.uuid4())

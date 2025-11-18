@@ -173,7 +173,8 @@ resource "aws_security_group" "postgres_sg" {
       module.orders.security_group_id,
       module.rutas_service.security_group_id,
       module.report_service.security_group_id,
-      module.visita_service.security_group_id
+      module.visita_service.security_group_id,
+      module.catalogo_service.ecs_security_group_id
     ]
     description = local.is_local ? "Allow from VPC (LocalStack)" : "Allow from services"
   }
@@ -407,8 +408,8 @@ resource "aws_db_instance" "postgres" {
   vpc_security_group_ids = [aws_security_group.postgres_sg.id]
   publicly_accessible    = local.is_local ? true : false
 
-  # Backup
-  backup_retention_period = var.db_backup_retention_period
+  # Backup (set to 0 for free tier)
+  backup_retention_period = 0
   backup_window           = var.db_backup_window
   maintenance_window      = var.db_maintenance_window
 
@@ -671,6 +672,9 @@ module "cliente_service" {
   db_instance_class        = "db.t3.micro"
   db_allocated_storage     = 20
   db_backup_retention_days = 7
+  
+  # Allow rutas service to access cliente DB - removed to avoid circular dependency
+  additional_db_access_security_groups = []
 }
 
 # BFF Cliente
@@ -764,6 +768,13 @@ module "catalogo_service" {
   # Redis configuration
   redis_url = local.is_local ? "redis://redis:6379/1" : module.redis[0].redis_url
 
+  # Security groups adicionales que necesitan acceso a la DB del catálogo
+  additional_db_security_group_ids = [module.report_service.security_group_id]
+
+  # Shared database configuration (usando orders-postgres)
+  shared_db_url_secret_arn      = aws_secretsmanager_secret.db_url.arn
+  shared_db_password_secret_arn = aws_secretsmanager_secret.db_password.arn
+
   # Additional tags
   additional_tags = var.additional_tags
 }
@@ -815,6 +826,7 @@ module "rutas_service" {
 
   ecs_cluster_arn   = aws_ecs_cluster.orders.arn
   db_url_secret_arn = aws_secretsmanager_secret.rutas_db_url.arn
+  cliente_db_url_secret_arn = module.cliente_service.db_url_secret_arn
 
   app_port      = 8000
   image_tag     = "latest"
@@ -826,6 +838,19 @@ module "rutas_service" {
 
   shared_http_listener_arn = module.bff_venta.alb_listener_arn
   shared_alb_sg_id         = module.bff_venta.alb_sg_id
+}
+
+# ============================================================
+# Security Group Rule: Allow rutas-service to access cliente DB
+# ============================================================
+resource "aws_security_group_rule" "rutas_to_cliente_db" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = module.cliente_service.db_security_group_id
+  source_security_group_id = module.rutas_service.security_group_id
+  description              = "Allow rutas-service to access cliente database"
 }
 
 # Reports Service
@@ -862,10 +887,9 @@ module "report_service" {
   s3_bucket_arn  = module.visita_service.s3_bucket_arn
   s3_bucket_name = module.visita_service.s3_bucket_name
   
-  # Database URL secret (mismo que orders)
-  db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
-  
-  depends_on = [module.visita_service, module.orders]
+  # Database URL secrets (usando la base de datos compartida para catalogo también)
+  db_url_secret_arn         = aws_secretsmanager_secret.db_url.arn
+  catalog_db_url_secret_arn = aws_secretsmanager_secret.db_url.arn  # Catalogo usa la misma DB compartida
 }
 
 # Visita Service
@@ -899,7 +923,7 @@ module "visita_service" {
   shared_alb_sg_id         = module.bff_cliente.alb_sg_id
 
   # S3 bucket para uploads (fotos/videos)
-  s3_bucket_name = "${var.project}-${var.env}-visita-uploads"
+  s3_bucket_name = "${var.project}-${var.env}-uploads"
   
   # Gemini API para análisis de video - usando Secrets Manager
   google_api_key_secret_name = var.google_api_key_secret_name
@@ -942,4 +966,50 @@ module "optimizador_rutas" {
   memory        = var.env == "prod" ? "1024" : "512"
 
   health_check_path = "/optimizer/health"
+}
+
+# Auth Service
+module "auth_service" {
+  source = "./modules/auth-service"
+  
+  project     = var.project
+  env         = var.env
+  environment = var.environment
+  aws_region  = var.aws_region
+  
+  vpc_id          = module.vpc.vpc_id
+  private_subnets = module.vpc.private_subnets
+  
+  ecs_cluster_name = aws_ecs_cluster.orders.name
+  
+  # ALB compartido de BFF-Venta
+  alb_listener_arn = module.bff_venta.alb_listener_arn  # ← Pasa referencia
+  shared_alb_sg_id = module.bff_venta.alb_sg_id
+  
+  # Service Connect
+  service_connect_namespace_name = local.is_local ? "" : aws_service_discovery_private_dns_namespace.svc[0].name
+  
+  # Database compartida (orders-postgres)
+  shared_db_url_secret_arn      = aws_secretsmanager_secret.db_url.arn
+  shared_db_password_secret_arn = aws_secretsmanager_secret.db_password.arn
+  
+  # Container config
+  container_port = 8004
+  desired_count  = var.env == "prod" ? 2 : 1
+  cpu            = "256"
+  memory         = "512"
+}
+
+# ============================================================
+# SECURITY GROUP RULE: AUTH-SERVICE → RDS
+# ============================================================
+
+resource "aws_security_group_rule" "auth_to_rds" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = module.auth_service.security_group_id
+  security_group_id        = aws_security_group.postgres_sg.id
+  description              = "Allow auth-service to access PostgreSQL"
 }

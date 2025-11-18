@@ -7,13 +7,14 @@ on:
         description: "Branch to deploy"
         required: false
         default: "develop"
-  # push:
-  #   branches:
-  #     - main
-  #     - CD
-  #   paths:
-  #     - 'infra/terraform/**'
-  #     - '.github/workflows/CD.yml'
+      confirmation:
+        description: 'Escriba "DEPLOY" para confirmar'
+        required: true
+        type: string
+  push:
+    branches: [ "update-workflow-CD"]
+    paths:
+      - ".github/workflows/CD.yml"
 
 env:
   AWS_REGION: us-east-1
@@ -182,6 +183,24 @@ jobs:
     with:
       ref: ${{ github.event.inputs.branch || github.ref }}
 
+  deploy-auth:
+    name: 🔐 Deploy Auth
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/deploy-auth.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+  
+  update-nginx-oracle:
+    name: 🛰️ Update Nginx (Oracle Cloud)
+    needs: terraform-deploy
+    if: needs.terraform-deploy.outputs.terraform_success == 'true'
+    uses: ./.github/workflows/update-nginx-oracle.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
   # ========================================
   # JOB 12: Deployment Summary
   # ========================================
@@ -198,7 +217,8 @@ jobs:
       deploy-rutas,
       deploy-reports,
       deploy-visita,
-      deploy-optimizer
+      deploy-optimizer,
+      deploy-auth
     ]
     if: always()
     runs-on: ubuntu-latest
@@ -207,7 +227,7 @@ jobs:
       - name: 📊 Generate Summary
         run: |
           # Count successes
-          TOTAL=10
+          TOTAL=11
           SUCCESS=0
           
           [[ "${{ needs.deploy-catalogo.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
@@ -220,6 +240,7 @@ jobs:
           [[ "${{ needs.deploy-reports.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
           [[ "${{ needs.deploy-visita.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
           [[ "${{ needs.deploy-optimizer.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
+          [[ "${{ needs.deploy-auth.result }}" == "success" ]] && SUCCESS=$((SUCCESS + 1))
           
           if [ "$SUCCESS" -eq "$TOTAL" ]; then
             STATUS="✅ ALL SERVICES DEPLOYED"
@@ -247,8 +268,12 @@ jobs:
           | 📊 Reports | ${{ needs.deploy-reports.result }} |
           | 📍 Visita | ${{ needs.deploy-visita.result }} |
           | 🔧 Optimizer | ${{ needs.deploy-optimizer.result }} |
+          | 🔐 Auth | ${{ needs.deploy-auth.result }} |
           
           ## 🌐 Endpoints
+
+          https://medisupply-backend.duckdns.org
+
           - **BFF Venta:** http://${{ needs.terraform-deploy.outputs.bff_venta_alb }}
           - **BFF Cliente:** http://${{ needs.terraform-deploy.outputs.bff_cliente_alb }}
           

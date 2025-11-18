@@ -129,8 +129,8 @@ resource "aws_ecs_task_definition" "td" {
   family                   = "${var.project}-${var.env}-haproxy-consumer"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "512"
-  memory                   = "1024"
+  cpu                      = "256"
+  memory                   = "512"
   task_role_arn            = aws_iam_role.task_role.arn
   execution_role_arn       = aws_iam_role.exec_role.arn
 

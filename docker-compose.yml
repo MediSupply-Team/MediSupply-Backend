@@ -168,7 +168,7 @@ services:
       redis: { condition: service_healthy }
       localstack: { condition: service_healthy }
       db-init-catalog: { condition: service_completed_successfully }
-    ports: ["3001:8000"]
+    ports: ["3001:3000"]
     profiles: ["${APP_PROFILE:-dev}"]
     volumes:
       - type: bind
@@ -337,7 +337,7 @@ services:
       SQS_QUEUE_URL: ${SQS_QUEUE_URL}
       # Servicios internos (usando nombres de contenedor)
       CLIENTE_SERVICE_URL: http://cliente-service:8000
-      CATALOGO_SERVICE_URL: http://catalog-service:8000
+      CATALOGO_SERVICE_URL: http://catalog-service:3000
       ORDERS_SERVICE_URL: http://orders-service:${PORT:-8000}
     volumes:
       - ./bff-cliente:/app
@@ -365,7 +365,7 @@ services:
       AWS_REGION: ${AWS_REGION:-us-east-1}
       SQS_QUEUE_URL: ${SQS_QUEUE_URL}
       # Servicios internos
-      CATALOGO_SERVICE_URL: http://catalog-service:8000
+      CATALOGO_SERVICE_URL: http://catalog-service:3000
       ORDERS_SERVICE_URL: http://orders-service:${PORT:-8000}
       RUTAS_SERVICE_URL: http://backend:8000
       HTTP_TIMEOUT: "30"

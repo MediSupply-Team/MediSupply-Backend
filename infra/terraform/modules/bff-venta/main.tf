@@ -12,10 +12,10 @@ locals {
   # Todos los servicios backend están detrás del mismo ALB con path-based routing
   # ============================================================
   
-  # Catálogo: /catalog/* o /catalogo/*
+  # Catálogo: /api/v1/catalog/*, /api/v1/inventory/*, /api/v1/proveedores/*
   computed_catalogo_url = (
     var.catalogo_service_url == "" || var.catalogo_service_url == "placeholder-will-be-updated-after-deploy"
-    ? "http://${aws_lb.alb.dns_name}/catalog"
+    ? "http://${aws_lb.alb.dns_name}"
     : var.catalogo_service_url
   )
   
@@ -349,7 +349,7 @@ resource "aws_ecs_service" "svc" {
   name            = "${local.bff_id}-svc"
   cluster         = var.ecs_cluster_arn
   task_definition = aws_ecs_task_definition.td.arn
-  desired_count   = 2
+  desired_count   = 1  # Reducido de 2 a 1 para optimizar costos
   launch_type     = "FARGATE"
   enable_execute_command = true
   health_check_grace_period_seconds = 120

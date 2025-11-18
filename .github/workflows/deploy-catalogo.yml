@@ -3,7 +3,7 @@ name: Deploy Catalogo Service
 
 on:
   push:
-    branches: [ "develop", "fix-carga-masiva" ]
+    branches: [ "develop", "fix-carga-masiva" , "fix_catalogo"]
     paths:
       - "catalogo-service/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-catalogo.yml"
@@ -19,7 +19,7 @@ on:
         description: "Branch/Tag/Commit a desplegar"
         required: false
         type: string
-        default: "main"
+        default: "develop"
 
 env:
   AWS_REGION: us-east-1

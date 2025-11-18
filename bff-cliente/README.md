@@ -2,7 +2,7 @@
 
 Backend For Frontend para el módulo de clientes de MediSupply.
 
-## Descripción
+## Descripción 
 
 Este BFF actúa como proxy hacia el cliente-service, proporcionando endpoints optimizados para las necesidades del frontend del módulo de clientes.
 

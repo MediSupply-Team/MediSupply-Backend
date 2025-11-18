@@ -7,7 +7,7 @@
 
 -- Tabla principal de clientes
 CREATE TABLE IF NOT EXISTS cliente (
-    id VARCHAR(64) PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nit VARCHAR(20) UNIQUE NOT NULL,
     nombre VARCHAR(255) NOT NULL,
     codigo_unico VARCHAR(64) UNIQUE NOT NULL,
@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS cliente (
     direccion TEXT,
     ciudad VARCHAR(100),
     pais CHAR(2) DEFAULT 'CO',
+    vendedor_id UUID,  -- FK a vendedor (se agrega constraint después)
+    rol VARCHAR(32) DEFAULT 'cliente' NOT NULL,
     activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -23,8 +25,8 @@ CREATE TABLE IF NOT EXISTS cliente (
 
 -- Tabla de histórico de compras
 CREATE TABLE IF NOT EXISTS compra_historico (
-    id VARCHAR(64) PRIMARY KEY,
-    cliente_id VARCHAR(64) NOT NULL REFERENCES cliente(id),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cliente_id UUID NOT NULL REFERENCES cliente(id),
     orden_id VARCHAR(64) NOT NULL,
     estado_orden VARCHAR(50) DEFAULT 'completada',
     producto_id VARCHAR(64) NOT NULL,
@@ -39,9 +41,9 @@ CREATE TABLE IF NOT EXISTS compra_historico (
 
 -- Tabla de devoluciones
 CREATE TABLE IF NOT EXISTS devolucion_historico (
-    id VARCHAR(64) PRIMARY KEY,
-    cliente_id VARCHAR(64) NOT NULL REFERENCES cliente(id),
-    compra_id VARCHAR(64),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cliente_id UUID NOT NULL REFERENCES cliente(id),
+    compra_id UUID,
     compra_orden_id VARCHAR(64),
     producto_id VARCHAR(64) NOT NULL,
     producto_nombre VARCHAR(255) NOT NULL,
@@ -56,8 +58,8 @@ CREATE TABLE IF NOT EXISTS devolucion_historico (
 -- Tabla de log de consultas (trazabilidad)
 CREATE TABLE IF NOT EXISTS consulta_cliente_log (
     id BIGSERIAL PRIMARY KEY,
-    vendedor_id VARCHAR(64) NOT NULL,
-    cliente_id VARCHAR(64),
+    vendedor_id UUID,
+    cliente_id UUID,
     tipo_consulta VARCHAR(100) NOT NULL,
     tipo_busqueda VARCHAR(50),
     termino_busqueda VARCHAR(255),
@@ -69,7 +71,7 @@ CREATE TABLE IF NOT EXISTS consulta_cliente_log (
 -- Tabla de productos preferidos (calculada)
 CREATE TABLE IF NOT EXISTS producto_preferido (
     id BIGSERIAL PRIMARY KEY,
-    cliente_id VARCHAR(64) NOT NULL REFERENCES cliente(id),
+    cliente_id UUID NOT NULL REFERENCES cliente(id),
     producto_id VARCHAR(64) NOT NULL,
     producto_nombre VARCHAR(255) NOT NULL,
     categoria_producto VARCHAR(100),
@@ -85,7 +87,7 @@ CREATE TABLE IF NOT EXISTS producto_preferido (
 -- Tabla de estadísticas de cliente
 CREATE TABLE IF NOT EXISTS estadistica_cliente (
     id BIGSERIAL PRIMARY KEY,
-    cliente_id VARCHAR(64) NOT NULL REFERENCES cliente(id),
+    cliente_id UUID NOT NULL REFERENCES cliente(id),
     total_compras INTEGER DEFAULT 0,
     total_productos_unicos INTEGER DEFAULT 0,
     total_devoluciones INTEGER DEFAULT 0,
@@ -103,6 +105,7 @@ CREATE TABLE IF NOT EXISTS estadistica_cliente (
 CREATE INDEX IF NOT EXISTS idx_cliente_nit ON cliente(nit);
 CREATE INDEX IF NOT EXISTS idx_cliente_codigo ON cliente(codigo_unico);
 CREATE INDEX IF NOT EXISTS idx_cliente_nombre ON cliente(nombre);
+CREATE INDEX IF NOT EXISTS idx_cliente_vendedor_id ON cliente(vendedor_id);
 CREATE INDEX IF NOT EXISTS idx_compra_cliente ON compra_historico(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_compra_fecha ON compra_historico(fecha_compra);
 CREATE INDEX IF NOT EXISTS idx_compra_producto ON compra_historico(producto_id);
@@ -116,17 +119,36 @@ CREATE INDEX IF NOT EXISTS idx_consulta_fecha ON consulta_cliente_log(fecha_cons
 -- DATOS DE CLIENTES DE EJEMPLO
 -- ====================================================
 
-INSERT INTO cliente (id, nit, nombre, codigo_unico, email, telefono, direccion, ciudad, pais, activo, created_at) VALUES
-('CLI001', '900123456-7', 'Farmacia San José', 'FSJ001', 'contacto@farmaciasanjose.com', '+57-1-2345678', 'Calle 45 #12-34', 'Bogotá', 'CO', true, NOW()),
-('CLI002', '800987654-3', 'Droguería El Buen Pastor', 'DBP002', 'ventas@elbunpastor.com', '+57-2-9876543', 'Carrera 15 #67-89', 'Medellín', 'CO', true, NOW()),
-('CLI003', '700456789-1', 'Farmatodo Zona Norte', 'FZN003', 'info@farmatodo.com', '+57-5-4567890', 'Avenida Norte #23-45', 'Barranquilla', 'CO', true, NOW()),
-('CLI004', '600345678-9', 'Centro Médico Salud Total', 'CST004', 'compras@saludtotal.com', '+57-1-3456789', 'Calle 85 #34-56', 'Bogotá', 'CO', true, NOW()),
-('CLI005', '500234567-5', 'Farmacia Popular', 'FPO005', 'pedidos@farmapopular.com', '+57-4-2345678', 'Carrera 70 #45-67', 'Medellín', 'CO', true, NOW());
+-- Los IDs y vendedor_id están HARDCODEADOS con UUID fijo (no se generan automáticamente)
+-- Se asignan vendedores a cada cliente (2 clientes por vendedor)
+-- 
+-- VENDEDORES:
+-- Vendedor 1 (Carlos Mendoza): UUID = 11111111-1111-1111-1111-111111111111
+-- Vendedor 2 (María Fernández): UUID = 22222222-2222-2222-2222-222222222222
+-- Vendedor 3 (Andrés Ramírez): UUID = 33333333-3333-3333-3333-333333333333
+
+INSERT INTO cliente (id, nit, nombre, codigo_unico, email, telefono, direccion, ciudad, pais, vendedor_id, rol, activo, created_at) VALUES
+-- Clientes del Vendedor 1 (Carlos Mendoza - 11111111-1111-1111-1111-111111111111)
+('aaaaaaaa-aaaa-aaaa-aaaa-000000000001', '900123456-7', 'Farmacia San José', 'FSJ001', 'contacto@farmaciasanjose.com', '+57-1-2345678', 'Calle 45 #12-34', 'Bogotá', 'CO', '11111111-1111-1111-1111-111111111111', 'cliente', true, NOW()),
+('aaaaaaaa-aaaa-aaaa-aaaa-000000000002', '800987654-3', 'Droguería El Buen Pastor', 'DBP002', 'ventas@elbunpastor.com', '+57-2-9876543', 'Carrera 15 #67-89', 'Medellín', 'CO', '11111111-1111-1111-1111-111111111111', 'cliente', true, NOW()),
+
+-- Clientes del Vendedor 2 (María Fernández - 22222222-2222-2222-2222-222222222222)
+('bbbbbbbb-bbbb-bbbb-bbbb-000000000003', '700456789-1', 'Farmatodo Zona Norte', 'FZN003', 'info@farmatodo.com', '+57-5-4567890', 'Avenida Norte #23-45', 'Barranquilla', 'CO', '22222222-2222-2222-2222-222222222222', 'cliente', true, NOW()),
+('bbbbbbbb-bbbb-bbbb-bbbb-000000000004', '600345678-9', 'Centro Médico Salud Total', 'CST004', 'compras@saludtotal.com', '+57-1-3456789', 'Calle 85 #34-56', 'Bogotá', 'CO', '22222222-2222-2222-2222-222222222222', 'cliente', true, NOW()),
+
+-- Clientes del Vendedor 3 (Andrés Ramírez - 33333333-3333-3333-3333-333333333333)
+('cccccccc-cccc-cccc-cccc-000000000005', '500234567-5', 'Farmacia Popular', 'FPO005', 'pedidos@farmapopular.com', '+57-4-2345678', 'Carrera 70 #45-67', 'Medellín', 'CO', '33333333-3333-3333-3333-333333333333', 'cliente', true, NOW()),
+('cccccccc-cccc-cccc-cccc-000000000006', '400123789-2', 'Droguerías MediPlus', 'DMP006', 'ventas@mediplus.com', '+57-1-1237894', 'Carrera 90 #78-90', 'Bogotá', 'CO', '33333333-3333-3333-3333-333333333333', 'cliente', true, NOW())
+ON CONFLICT (nit) DO NOTHING;
 
 -- ====================================================
 -- HISTÓRICO DE COMPRAS DE EJEMPLO
 -- ====================================================
+-- NOTA: Comentado porque los IDs ahora son UUID autogenerados
+-- No se pueden usar IDs fijos tipo 'COMP001' o 'CLI001'
+-- Los datos de ejemplo deberían insertarse dinámicamente con referencias a los UUIDs generados
 
+/*
 INSERT INTO compra_historico (id, cliente_id, orden_id, estado_orden, producto_id, producto_nombre, categoria_producto, cantidad, precio_unitario, precio_total, fecha_compra, created_at) VALUES
 -- Cliente CLI001 - Farmacia San José (comprador frecuente)
 ('COMP001', 'CLI001', 'ORD2024001', 'completada', 'ACETA500', 'Acetaminofén 500mg x 20 tabletas', 'Analgésicos', 50, 1200.00, 60000.00, '2024-09-15', NOW()),
@@ -152,11 +174,14 @@ INSERT INTO compra_historico (id, cliente_id, orden_id, estado_orden, producto_i
 -- Cliente CLI005 - Farmacia Popular
 ('COMP014', 'CLI005', 'ORD2024014', 'completada', 'ACETA500', 'Acetaminofén 500mg x 20 tabletas', 'Analgésicos', 40, 1200.00, 48000.00, '2024-08-10', NOW()),
 ('COMP015', 'CLI005', 'ORD2024015', 'completada', 'DIPIRO500', 'Dipirona 500mg x 20 tabletas', 'Analgésicos', 30, 900.00, 27000.00, '2024-07-25', NOW());
+*/
 
 -- ====================================================
 -- DEVOLUCIONES DE EJEMPLO
 -- ====================================================
+-- NOTA: Comentado - usar UUIDs dinámicos
 
+/*
 INSERT INTO devolucion_historico (id, cliente_id, compra_id, compra_orden_id, producto_id, producto_nombre, cantidad_devuelta, motivo, categoria_motivo, estado, fecha_devolucion, created_at) VALUES
 -- Devoluciones de CLI001
 ('DEV001', 'CLI001', 'COMP002', 'ORD2024002', 'IBUPRO400', 'Ibuprofeno 400mg x 20 cápsulas', 5, 'Producto próximo a vencer - fecha de vencimiento muy cercana', 'vencimiento', 'procesada', '2024-09-18', NOW()),
@@ -167,11 +192,14 @@ INSERT INTO devolucion_historico (id, cliente_id, compra_id, compra_orden_id, pr
 
 -- Devoluciones de CLI003
 ('DEV004', 'CLI003', 'COMP010', 'ORD2024010', 'ACETA500', 'Acetaminofén 500mg x 20 tabletas', 8, 'Producto vencido al momento de la entrega', 'vencimiento', 'procesada', '2024-09-12', NOW());
+*/
 
 -- ====================================================
 -- LOGS DE CONSULTA DE EJEMPLO (para trazabilidad)
 -- ====================================================
+-- NOTA: Comentado - usar UUIDs dinámicos
 
+/*
 INSERT INTO consulta_cliente_log (vendedor_id, cliente_id, tipo_consulta, tipo_busqueda, termino_busqueda, took_ms, metadatos, fecha_consulta) VALUES
 -- Consultas del vendedor VEN001
 ('VEN001', 'CLI001', 'busqueda_cliente', 'nit', '900123456-7', 850, '{"resultado_encontrado": true, "cliente_nombre": "Farmacia San José"}', '2024-10-10 10:30:00'),
@@ -181,6 +209,7 @@ INSERT INTO consulta_cliente_log (vendedor_id, cliente_id, tipo_consulta, tipo_b
 -- Consultas del vendedor VEN002
 ('VEN002', 'CLI003', 'busqueda_cliente', 'codigo', 'FZN003', 400, '{"resultado_encontrado": true, "cliente_nombre": "Farmatodo Zona Norte"}', '2024-10-10 14:20:00'),
 ('VEN002', 'CLI003', 'historico_completo', null, null, 980, '{"limite_meses": 6, "total_compras": 2, "total_devoluciones": 1}', '2024-10-10 14:21:00');
+*/
 
 -- ====================================================
 -- COMENTARIOS EXPLICATIVOS
