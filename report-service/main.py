@@ -39,17 +39,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configurar CORS
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173", 
-    "https://medi-supply-frontend-web.vercel.app"
-]
-
+# Configurar CORS - usar ["*"] en lugar de "*" para evitar duplicados
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,  # Debe ser False cuando se usa "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
