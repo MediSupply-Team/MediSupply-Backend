@@ -109,7 +109,7 @@ class ClienteBasicoResponse(BaseModel):
     pais: Optional[str] = Field(None, description="País del cliente")
     rol: str = Field(default="cliente", description="Rol del cliente")
     activo: bool = Field(default=True, description="Si el cliente está activo")
-    vendedor_id: UUID = Field(..., description="ID del vendedor asignado al cliente")
+    vendedor_id: Optional[UUID] = Field(None, description="ID del vendedor asignado al cliente (opcional)")
     created_at: Optional[datetime] = Field(None, description="Fecha de creación")
     updated_at: Optional[datetime] = Field(None, description="Fecha de última actualización")
     

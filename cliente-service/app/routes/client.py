@@ -123,7 +123,7 @@ async def listar_clientes(
                     "ciudad": c.ciudad,
                     "pais": c.pais,
                     "activo": c.activo,
-                    "vendedor_id": str(c.vendedor_id),
+                    "vendedor_id": str(c.vendedor_id) if c.vendedor_id else None,
                     "rol": c.rol if hasattr(c, 'rol') else None,
                     "created_at": c.created_at.isoformat() if c.created_at else None,
                     "updated_at": c.updated_at.isoformat() if c.updated_at else None
