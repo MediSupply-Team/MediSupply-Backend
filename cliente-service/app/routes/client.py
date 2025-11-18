@@ -4,6 +4,8 @@ Endpoints REST para HU07: Consultar Cliente + CRUD completo
 """
 import time
 import logging
+import random
+import string
 from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Path, HTTPException, status, Request
 from fastapi.responses import JSONResponse
@@ -24,6 +26,51 @@ from app.config import get_settings
 router = APIRouter(prefix="/cliente", tags=["cliente"])
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+async def generar_codigo_unico(session: AsyncSession, max_intentos: int = 10) -> str:
+    """
+    Genera un código único con formato: 3 letras mayúsculas + 3 números (ejemplo: ABC123)
+    Verifica que el código sea único en la base de datos.
+    
+    Args:
+        session: Sesión de base de datos
+        max_intentos: Número máximo de intentos para generar un código único
+        
+    Returns:
+        str: Código único generado
+        
+    Raises:
+        HTTPException: Si no se puede generar un código único después de max_intentos
+    """
+    from app.models.client_model import Cliente
+    
+    for intento in range(max_intentos):
+        # Generar 3 letras mayúsculas aleatorias
+        letras = ''.join(random.choices(string.ascii_uppercase, k=3))
+        # Generar 3 números aleatorios
+        numeros = ''.join(random.choices(string.digits, k=3))
+        # Combinar en el formato XXX999
+        codigo = f"{letras}{numeros}"
+        
+        # Verificar si el código ya existe
+        existing = (await session.execute(
+            select(Cliente).where(Cliente.codigo_unico == codigo)
+        )).scalar_one_or_none()
+        
+        if not existing:
+            logger.info(f"✨ Código único generado: {codigo} (intento {intento + 1})")
+            return codigo
+    
+    # Si llegamos aquí, no se pudo generar un código único
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail={
+            "error": "CODIGO_GENERATION_FAILED",
+            "message": f"No se pudo generar un código único después de {max_intentos} intentos",
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        }
+    )
 
 
 @router.get("/",response_model=List[ClienteBasicoResponse],)
@@ -181,7 +228,8 @@ async def crear_cliente(
     - 500: Error interno
     """
     vendedor_info = f"por vendedor {cliente.vendedor_id}" if cliente.vendedor_id else "sin vendedor asignado"
-    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) {vendedor_info}")
+    codigo_info = f"con código {cliente.codigo_unico}" if cliente.codigo_unico else "con código auto-generado"
+    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) {codigo_info} {vendedor_info}")
     started = time.perf_counter_ns()
     
     # Validar vendedor_id SOLO si se proporciona
@@ -217,26 +265,32 @@ async def crear_cliente(
                 }
             )
         
-        # Verificar si el código único ya existe
-        existing_by_codigo = (await session.execute(
-            select(Cliente).where(Cliente.codigo_unico == cliente.codigo_unico)
-        )).scalar_one_or_none()
-        
-        if existing_by_codigo:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "error": "CODIGO_ALREADY_EXISTS",
-                    "message": f"Cliente con código único {cliente.codigo_unico} ya existe",
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-                }
-            )
+        # Generar código único automáticamente si no se proporciona
+        codigo_unico_final = cliente.codigo_unico
+        if not codigo_unico_final:
+            codigo_unico_final = await generar_codigo_unico(session)
+            logger.info(f"✨ Código único auto-generado: {codigo_unico_final}")
+        else:
+            # Si se proporciona, verificar que no exista
+            existing_by_codigo = (await session.execute(
+                select(Cliente).where(Cliente.codigo_unico == codigo_unico_final)
+            )).scalar_one_or_none()
+            
+            if existing_by_codigo:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": "CODIGO_ALREADY_EXISTS",
+                        "message": f"Cliente con código único {codigo_unico_final} ya existe",
+                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    }
+                )
         
         # Crear nuevo cliente (id se genera automáticamente con UUID)
         new_cliente = Cliente(
             nit=cliente.nit,
             nombre=cliente.nombre,
-            codigo_unico=cliente.codigo_unico,
+            codigo_unico=codigo_unico_final,
             email=cliente.email,
             telefono=cliente.telefono,
             direccion=cliente.direccion,
