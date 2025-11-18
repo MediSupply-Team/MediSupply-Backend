@@ -321,7 +321,12 @@ resource "aws_lb_listener_rule" "rutas_path" {
 
   condition {
     path_pattern {
-      values = ["/api/ruta/*", "/api/ruta"]  
+      values = [
+        "/api/ruta/*", 
+        "/api/ruta",
+        "/rutas/*",
+        "/rutas"
+      ]
     }
   }
 }

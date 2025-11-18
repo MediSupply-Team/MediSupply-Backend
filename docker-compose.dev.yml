@@ -351,6 +351,54 @@ services:
       - ./ruta-service:/app
     restart: unless-stopped
 
+# Agregar después de db-init-rutas en docker-compose.dev.yml
+
+  # ---------- Init de DB auth ----------
+  db-init-auth:
+    image: python:3.11-slim-bookworm
+    profiles: ["local-db"]              # ← Mismo perfil que los demás
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      TARGET_DB: auth_db                # ← Nueva base de datos
+    volumes:
+      - ./auth-service/create_auth_db.py:/app/create_auth_db.py:ro
+    working_dir: /app
+    command: >
+      bash -lc "pip install -q 'psycopg[binary]>=3.1,<4' && python create_auth_db.py"
+    restart: "no"
+
+# Agregar después de ruta-service en docker-compose.dev.yml
+
+  # ---------- Auth Service ----------
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    profiles: ["local-db"]              # ← Mismo perfil
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/auth_db
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production}
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      PORT: 8000
+    working_dir: /app
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init-auth:
+        condition: service_completed_successfully
+    ports:
+      - "8004:8000"                     # ← Puerto local :8004
+    volumes:
+      - ./auth-service:/app
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redis_data:

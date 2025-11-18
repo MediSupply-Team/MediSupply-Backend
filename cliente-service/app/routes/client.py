@@ -64,23 +64,24 @@ async def listar_clientes(
     """
     started = time.perf_counter_ns()
     
+    # Validación de vendedor_id fuera del try principal para manejar correctamente el error
+    if vendedor_id:
+        from uuid import UUID
+        try:
+            vendedor_uuid = UUID(vendedor_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "INVALID_VENDEDOR_UUID",
+                    "message": f"vendedor_id '{vendedor_id}' no es un UUID válido. Debe ser un UUID en formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                }
+            )
+    
     try:
         # Si se proporciona vendedor_id, filtrar por ese vendedor
         if vendedor_id:
             from app.models.client_model import Cliente
-            from uuid import UUID
-            
-            # Validar UUID
-            try:
-                vendedor_uuid = UUID(vendedor_id)
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={
-                        "error": "INVALID_VENDEDOR_UUID",
-                        "message": f"vendedor_id '{vendedor_id}' no es un UUID válido"
-                    }
-                )
             
             # Construir query con filtro de vendedor
             query = select(Cliente).where(Cliente.vendedor_id == vendedor_uuid)
@@ -182,21 +183,21 @@ async def crear_cliente(
     logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) por vendedor {cliente.vendedor_id}")
     started = time.perf_counter_ns()
     
+    # Validar vendedor_id antes del try principal
+    from uuid import UUID
+    try:
+        vendedor_uuid = UUID(cliente.vendedor_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "INVALID_VENDEDOR_UUID",
+                "message": f"vendedor_id '{cliente.vendedor_id}' no es un UUID válido. Debe ser un UUID en formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            }
+        )
+    
     try:
         from app.models.client_model import Cliente
-        from uuid import UUID
-        
-        # Convertir vendedor_id de string a UUID
-        try:
-            vendedor_uuid = UUID(cliente.vendedor_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "error": "INVALID_VENDEDOR_UUID",
-                    "message": f"vendedor_id '{cliente.vendedor_id}' no es un UUID válido"
-                }
-            )
         
         # Verificar si el NIT ya existe
         existing_by_nit = (await session.execute(

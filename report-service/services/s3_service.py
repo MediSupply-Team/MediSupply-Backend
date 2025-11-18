@@ -15,7 +15,7 @@ class S3Service:
             aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
             region_name=os.getenv('AWS_REGION', 'us-east-1')
         )
-        self.bucket_name = os.getenv('S3_BUCKET_NAME', 'medisupply-dev-visita-uploads')
+        self.bucket_name = os.getenv('S3_BUCKET_NAME', 'medisupply-dev-uploads')
     
     def upload_file(self, file_content: bytes, file_name: str, content_type: str) -> str:
         """

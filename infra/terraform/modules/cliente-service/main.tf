@@ -92,6 +92,18 @@ resource "aws_security_group" "cliente_db_sg" {
   }
 }
 
+# Additional security group rules for cliente DB access
+resource "aws_security_group_rule" "cliente_db_additional_access" {
+  count                    = length(var.additional_db_access_security_groups)
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.cliente_db_sg.id
+  source_security_group_id = var.additional_db_access_security_groups[count.index]
+  description              = "Allow PostgreSQL from additional service ${count.index + 1}"
+}
+
 resource "aws_db_instance" "cliente_postgres" {
   identifier     = "${local.service_id}-db"
   engine         = "postgres"
