@@ -35,26 +35,26 @@ async def health_check():
     }
 
 # Registrar routers
-# El ALB rutea /catalog/* al servicio, por lo que el prefix completo debe ser /catalog/api/*
-app.include_router(catalog_router, prefix="/catalog/api/catalog")
-app.include_router(inventario_router, prefix="/catalog/api/inventory")
-app.include_router(proveedor_router, prefix="/catalog/api/proveedores")
-app.include_router(ws_catalog_router, prefix="/catalog/api/catalog") 
+# El ALB rutea /catalog/* al servicio, por lo que solo necesitamos /api/* en el servicio
+app.include_router(catalog_router, prefix="/api/catalog")
+app.include_router(inventario_router, prefix="/api/inventory")
+app.include_router(proveedor_router, prefix="/api/proveedores")
+app.include_router(ws_catalog_router, prefix="/api/catalog") 
 
 # Logs de configuración de rutas para debugging
 logger.info("📦 Catalog API iniciada con gestión de inventario y proveedores")
 logger.info("🔗 Rutas registradas:")
-logger.info("   ├─ Catalog: prefix='/catalog/api/catalog'")
-logger.info("   │  └─ Endpoints: /catalog/api/catalog/items, /catalog/api/catalog/items/{id}")
-logger.info("   ├─ Inventory: prefix='/catalog/api/inventory'")
-logger.info("   │  └─ Endpoints: /catalog/api/inventory/movements, /catalog/api/inventory/transfers, etc.")
-logger.info("   ├─ Proveedores: prefix='/catalog/api/proveedores'")
-logger.info("   │  └─ Endpoints: /catalog/api/proveedores, /catalog/api/proveedores/{id}, /catalog/api/proveedores/bulk")
-logger.info("   └─ WebSocket: /catalog/api/catalog/items/ws")
+logger.info("   ├─ Catalog: prefix='/api/catalog'")
+logger.info("   │  └─ Endpoints: /api/catalog/items, /api/catalog/items/{id}")
+logger.info("   ├─ Inventory: prefix='/api/inventory'")
+logger.info("   │  └─ Endpoints: /api/inventory/movements, /api/inventory/transfers, etc.")
+logger.info("   ├─ Proveedores: prefix='/api/proveedores'")
+logger.info("   │  └─ Endpoints: /api/proveedores, /api/proveedores/{id}, /api/proveedores/bulk")
+logger.info("   └─ WebSocket: /api/catalog/items/ws")
 logger.info(f"⚙️  Configuración:")
 logger.info(f"   ├─ Puerto: 3000")
 logger.info(f"   ├─ Health check: /health")
-logger.info(f"   ├─ ALB path pattern: /catalog/*")
+logger.info(f"   ├─ ALB path pattern: /catalog/* → rutas internas /api/*")
 logger.info(f"   └─ BFF llama: {{ALB_URL}}/catalog/api/catalog/items")
 
 @app.on_event("startup")

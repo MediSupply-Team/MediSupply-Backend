@@ -36,7 +36,7 @@ def create_inventory_movement():
             return jsonify(error="Request body required"), 400
         
         # Construir URL
-        url = f"{catalogo_url}/catalog/api/inventory/movements"
+        url = f"{catalogo_url}/api/inventory/movements"
         
         current_app.logger.info(f"📦 Creating inventory movement: {url}")
         current_app.logger.info(f"   Producto: {movement_data.get('producto_id')}, Tipo: {movement_data.get('tipo_movimiento')}")
@@ -106,7 +106,7 @@ def create_inventory_transfer():
             return jsonify(error="Request body required"), 400
         
         # Construir URL
-        url = f"{catalogo_url}/catalog/api/inventory/transfers"
+        url = f"{catalogo_url}/api/inventory/transfers"
         
         current_app.logger.info(f"🔄 Creating inventory transfer: {url}")
         current_app.logger.info(
@@ -193,8 +193,8 @@ def get_kardex():
         if request.args.get('size'):
             params['size'] = request.args.get('size')
         
-        # Construir URL
-        url = f"{catalogo_url}/catalog/api/inventory/movements/kardex"
+        # Construir URL del kardex
+        url = f"{catalogo_url}/api/inventory/movements/kardex"
         
         current_app.logger.info(f"📊 Getting kardex: {url} with params: {params}")
         
