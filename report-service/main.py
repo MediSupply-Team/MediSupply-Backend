@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from routers.reports import router as reports_router
 from services.database_client import db_client
@@ -36,6 +37,19 @@ app = FastAPI(
     description="Servicio de generación de reportes basado en datos reales de la base de datos de Orders",
     version="2.0.0",
     lifespan=lifespan
+)
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://medi-supply-frontend-web.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/health")
