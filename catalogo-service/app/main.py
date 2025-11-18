@@ -35,27 +35,29 @@ async def health_check():
     }
 
 # Registrar routers
-# El ALB rutea /catalog/* al servicio y preserva el path completo, por lo que necesitamos /catalog/api/*
-app.include_router(catalog_router, prefix="/catalog/api/catalog")
-app.include_router(inventario_router, prefix="/catalog/api/inventory")
-app.include_router(proveedor_router, prefix="/catalog/api/proveedores")
-app.include_router(ws_catalog_router, prefix="/catalog/api/catalog") 
+# El ALB rutea /catalog/* al servicio y preserva el path completo
+# Cliente llama: http://alb/venta/api/v1/catalog/items
+# BFF reenvía a: http://alb/catalog/api/v1/catalog/items
+app.include_router(catalog_router, prefix="/catalog/api/v1/catalog")
+app.include_router(inventario_router, prefix="/catalog/api/v1/inventory")
+app.include_router(proveedor_router, prefix="/catalog/api/v1/proveedores")
+app.include_router(ws_catalog_router, prefix="/catalog/api/v1/catalog") 
 
 # Logs de configuración de rutas para debugging
 logger.info("📦 Catalog API iniciada con gestión de inventario y proveedores")
 logger.info("🔗 Rutas registradas:")
-logger.info("   ├─ Catalog: prefix='/catalog/api/catalog'")
-logger.info("   │  └─ Endpoints: /catalog/api/catalog/items, /catalog/api/catalog/items/{id}")
-logger.info("   ├─ Inventory: prefix='/catalog/api/inventory'")
-logger.info("   │  └─ Endpoints: /catalog/api/inventory/movements, /catalog/api/inventory/transfers, etc.")
-logger.info("   ├─ Proveedores: prefix='/catalog/api/proveedores'")
-logger.info("   │  └─ Endpoints: /catalog/api/proveedores, /catalog/api/proveedores/{id}, /catalog/api/proveedores/bulk")
-logger.info("   └─ WebSocket: /catalog/api/catalog/items/ws")
+logger.info("   ├─ Catalog: prefix='/catalog/api/v1/catalog'")
+logger.info("   │  └─ Endpoints: /catalog/api/v1/catalog/items, /catalog/api/v1/catalog/items/{id}")
+logger.info("   ├─ Inventory: prefix='/catalog/api/v1/inventory'")
+logger.info("   │  └─ Endpoints: /catalog/api/v1/inventory/movements, etc.")
+logger.info("   ├─ Proveedores: prefix='/catalog/api/v1/proveedores'")
+logger.info("   │  └─ Endpoints: /catalog/api/v1/proveedores, /catalog/api/v1/proveedores/{id}")
+logger.info("   └─ WebSocket: /catalog/api/v1/catalog/items/ws")
 logger.info(f"⚙️  Configuración:")
 logger.info(f"   ├─ Puerto: 3000")
 logger.info(f"   ├─ Health check: /health")
 logger.info(f"   ├─ ALB path pattern: /catalog/* → preserva path completo")
-logger.info(f"   └─ BFF llama: {{ALB_URL}}/catalog/api/catalog/items")
+logger.info(f"   └─ BFF llama: {{ALB_URL}}/catalog/api/v1/catalog/items")
 
 @app.on_event("startup")
 async def on_startup():

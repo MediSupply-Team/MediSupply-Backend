@@ -55,7 +55,7 @@ def get_catalog_items():
             params['sort'] = request.args.get('sort')
         
         # Construir URL
-        url = f"{catalogo_url}/api/proveedores/"
+        url = f"{catalogo_url}/api/v1/proveedores/"
         
         current_app.logger.info(f"🔍 Llamando a catalogo-service: {url}")
         
@@ -118,7 +118,7 @@ def get_catalog_item(item_id: str):
     
     try:
         # Construir URL
-        url = f"{catalogo_url}/api/catalog/items/{item_id}"
+        url = f"{catalogo_url}/api/v1/catalog/items/{item_id}"
         
         current_app.logger.info(f"Calling catalog service: {url}")
         
@@ -186,7 +186,7 @@ def get_item_inventory(item_id: str):
         }
         
         # Construir URL
-        url = f"{catalogo_url}/api/catalog/items/{item_id}/inventario"
+        url = f"{catalogo_url}/api/v1/catalog/items/{item_id}/inventario"
         
         current_app.logger.info(f"Calling catalog service: {url} with params: {params}")
         
@@ -254,7 +254,7 @@ def create_catalog_item():
             return jsonify(error="Request body required"), 400
         
         # Construir URL
-        url = f"{catalogo_url}/api/catalog/items"
+        url = f"{catalogo_url}/api/v1/catalog/items"
         
         current_app.logger.info(f"Calling catalog service: {url}")
         
@@ -323,7 +323,7 @@ def update_catalog_item(item_id: str):
             return jsonify(error="Request body required"), 400
         
         # Construir URL
-        url = f"{catalogo_url}/api/catalog/items/{item_id}"
+        url = f"{catalogo_url}/api/v1/catalog/items/{item_id}"
         
         current_app.logger.info(f"Calling catalog service: {url}")
         
@@ -387,7 +387,7 @@ def delete_catalog_item(item_id: str):
     
     try:
         # Construir URL
-        url = f"{catalogo_url}/api/catalog/items/{item_id}"
+        url = f"{catalogo_url}/api/v1/catalog/items/{item_id}"
         
         current_app.logger.info(f"Calling catalog service: {url}")
         
@@ -522,7 +522,7 @@ def bulk_upload_products():
         reemplazar_duplicados = request.args.get('reemplazar_duplicados', 'false').lower() == 'true'
         
         # Construir URL con parámetros
-        url = f"{catalogo_url}/api/catalog/items/bulk-upload"
+        url = f"{catalogo_url}/api/v1/catalog/items/bulk-upload"
         params = {
             'proveedor_id': proveedor_id,
             'reemplazar_duplicados': reemplazar_duplicados
@@ -609,7 +609,7 @@ def get_bulk_upload_status(task_id: str):
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
     try:
-        url = f"{catalogo_url}/api/catalog/bulk-upload/status/{task_id}"
+        url = f"{catalogo_url}/api/v1/catalog/bulk-upload/status/{task_id}"
         
         current_app.logger.info(f"📊 Getting bulk upload status: {task_id}")
         
@@ -684,7 +684,7 @@ def listar_proveedores():
             params['activo'] = request.args.get('activo')
         
         # Construir URL
-        url = f"{catalogo_url}/api/proveedores/"
+        url = f"{catalogo_url}/api/v1/proveedores/"
         
         current_app.logger.info(f"Calling catalog service: {url}")
         
@@ -724,7 +724,7 @@ def crear_proveedor():
             return jsonify(error="Body vacío"), 400
         
         # Construir URL 
-        url = f"{catalogo_url}/api/proveedores/"
+        url = f"{catalogo_url}/api/v1/proveedores/"
         
         current_app.logger.info(f"Creating proveedor at: {url}")
         
@@ -759,7 +759,7 @@ def obtener_proveedor(proveedor_id):
     
     try:
         # Construir URL
-        url = f"{catalogo_url}/api/proveedores/{proveedor_id}"
+        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Getting proveedor: {url}")
         
@@ -798,7 +798,7 @@ def actualizar_proveedor(proveedor_id):
             return jsonify(error="Body vacío"), 400
         
         # Construir URL
-        url = f"{catalogo_url}/api/proveedores/{proveedor_id}"
+        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Updating proveedor: {url}")
         
@@ -833,7 +833,7 @@ def eliminar_proveedor(proveedor_id):
     
     try:
         # Construir URL
-        url = f"{catalogo_url}/api/proveedores/{proveedor_id}"
+        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Deleting proveedor: {url}")
         
@@ -874,7 +874,7 @@ def listar_productos_proveedor(proveedor_id):
             params['size'] = request.args.get('size')
         
         # Construir URL
-        url = f"{catalogo_url}/api/proveedores/{proveedor_id}/productos"
+        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}/productos"
         
         current_app.logger.info(f"Getting productos for proveedor: {url}")
         
@@ -954,7 +954,7 @@ def bulk_upload_proveedores():
         reemplazar_duplicados = request.args.get('reemplazar_duplicados', 'false').lower() == 'true'
         
         # Construir URL con parámetros
-        url = f"{catalogo_url}/api/proveedores/bulk-upload"
+        url = f"{catalogo_url}/api/v1/proveedores/bulk-upload"
         params = {
             'reemplazar_duplicados': reemplazar_duplicados
         }
