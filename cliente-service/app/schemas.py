@@ -39,6 +39,27 @@ class ClienteUpdate(BaseModel):
     vendedor_id: Optional[str] = Field(None, description="ID del vendedor asignado al cliente (UUID) - Opcional", example="550e8400-e29b-41d4-a716-446655440000")
 
 
+class AsociarClientesRequest(BaseModel):
+    """Payload para asociar múltiples clientes a un vendedor"""
+    clientes_ids: List[str] = Field(
+        ...,
+        min_length=1,
+        description="Lista de IDs de clientes (UUIDs) a asociar con el vendedor",
+        example=["550e8400-e29b-41d4-a716-446655440001", "550e8400-e29b-41d4-a716-446655440002"]
+    )
+
+
+class AsociarClientesResponse(BaseModel):
+    """Respuesta al asociar clientes a un vendedor"""
+    vendedor_id: UUID = Field(..., description="ID del vendedor")
+    vendedor_nombre: str = Field(..., description="Nombre del vendedor")
+    clientes_asociados: int = Field(..., description="Cantidad de clientes asociados exitosamente")
+    clientes_no_encontrados: List[str] = Field(default_factory=list, description="IDs de clientes que no fueron encontrados")
+    clientes_inactivos: List[str] = Field(default_factory=list, description="IDs de clientes que están inactivos")
+    clientes_con_vendedor: List[str] = Field(default_factory=list, description="IDs de clientes que ya tenían un vendedor asociado")
+    mensaje: str = Field(..., description="Mensaje de resultado")
+
+
 class ClienteBusquedaRequest(BaseModel):
     """Payload para búsqueda de cliente por NIT, nombre o código único"""
     termino_busqueda: str = Field(

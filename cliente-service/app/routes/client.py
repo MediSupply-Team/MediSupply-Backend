@@ -73,6 +73,97 @@ async def generar_codigo_unico(session: AsyncSession, max_intentos: int = 10) ->
     )
 
 
+@router.get("/sin-vendedor", response_model=List[ClienteBasicoResponse])
+async def listar_clientes_sin_vendedor(
+    request: Request,
+    limite: int = Query(
+        default=50,
+        ge=1,
+        le=500,
+        description="Número máximo de clientes a retornar"
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+        description="Número de registros a saltar (para paginación)"
+    ),
+    activos_solo: bool = Query(
+        default=True,
+        description="Si mostrar solo clientes activos (true) o todos (false)"
+    ),
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Listar todos los clientes que NO tienen vendedor asociado
+    
+    **Útil para:**
+    - Identificar clientes sin asignar
+    - Asignar vendedores a clientes nuevos
+    - Reportes de cobertura de vendedores
+    
+    **Retorna:**
+    - Lista de clientes sin vendedor_id
+    """
+    from app.models.client_model import Cliente
+    
+    started = time.perf_counter_ns()
+    logger.info(f"📋 Listando clientes sin vendedor (activos_solo={activos_solo})")
+    
+    try:
+        # Construir query para clientes sin vendedor
+        query = select(Cliente).where(Cliente.vendedor_id.is_(None))
+        
+        if activos_solo:
+            query = query.where(Cliente.activo == True)
+        
+        # Ordenar por nombre
+        query = query.order_by(Cliente.nombre)
+        
+        # Aplicar paginación
+        query = query.offset(offset).limit(limite)
+        
+        # Ejecutar query
+        result = await session.execute(query)
+        clientes_sin_vendedor = result.scalars().all()
+        
+        # Medir performance
+        took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+        logger.info(f"📋 Encontrados {len(clientes_sin_vendedor)} clientes sin vendedor en {took_ms}ms")
+        
+        # Formatear respuesta
+        return [
+            {
+                "id": str(c.id),
+                "nit": c.nit,
+                "nombre": c.nombre,
+                "codigo_unico": c.codigo_unico,
+                "email": c.email,
+                "telefono": c.telefono,
+                "direccion": c.direccion,
+                "ciudad": c.ciudad,
+                "pais": c.pais,
+                "activo": c.activo,
+                "vendedor_id": None,
+                "rol": c.rol if hasattr(c, 'rol') else None,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+                "updated_at": c.updated_at.isoformat() if c.updated_at else None
+            }
+            for c in clientes_sin_vendedor
+        ]
+        
+    except Exception as e:
+        logger.error(f"❌ Error listando clientes sin vendedor: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "INTERNAL_SERVER_ERROR",
+                "message": "Error interno al listar clientes sin vendedor",
+                "details": {"error_id": f"ERR_{int(time.time())}"},
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            }
+        )
+
+
 @router.get("/",response_model=List[ClienteBasicoResponse],)
 async def listar_clientes(
     request: Request,
