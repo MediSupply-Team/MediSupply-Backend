@@ -212,19 +212,19 @@ INSERT INTO movimiento_inventario (
     usuario_id, referencia_documento, observaciones
 ) VALUES
 -- Movimiento inicial de Amoxicilina en BOG_CENTRAL
-('PROD001', 'BOG_CENTRAL', 'CO', 'AMX001_2024', 'INGRESO', 'INVENTARIO_INICIAL', 
+('11111111-1111-1111-1111-000000000001', 'BOG_CENTRAL', 'CO', 'AMX001_2024', 'INGRESO', 'INVENTARIO_INICIAL', 
  500, '2025-12-31', 0, 500, 'ADMIN001', 'INV-INICIAL-001', 'Inventario inicial al implementar sistema'),
 
 -- Compra de Ibuprofeno
-('PROD006', 'BOG_CENTRAL', 'CO', 'IBU001_2024', 'INGRESO', 'COMPRA', 
+('22222222-2222-2222-2222-000000000006', 'BOG_CENTRAL', 'CO', 'IBU001_2024', 'INGRESO', 'COMPRA', 
  1000, '2026-06-30', 0, 1000, 'COMPRADOR001', 'PO-2024-001', 'Compra proveedor XYZ'),
 
 -- Venta de Acetaminofén
-('PROD007', 'BOG_CENTRAL', 'CO', 'ACE001_2024', 'SALIDA', 'VENTA', 
+('22222222-2222-2222-2222-000000000007', 'BOG_CENTRAL', 'CO', 'ACE001_2024', 'SALIDA', 'VENTA', 
  50, NULL, 1500, 1450, 'VENDEDOR001', 'ORD-2024-100', 'Venta cliente CLI001'),
 
 -- Ajuste por conteo físico
-('PROD011', 'BOG_CENTRAL', 'CO', 'ENL001_2024', 'SALIDA', 'AJUSTE', 
+('33333333-3333-3333-3333-000000000011', 'BOG_CENTRAL', 'CO', 'ENL001_2024', 'SALIDA', 'AJUSTE', 
  10, NULL, 300, 290, 'ADMIN001', 'AJ-2024-005', 'Ajuste por diferencia en conteo físico');
 
 
@@ -232,10 +232,10 @@ INSERT INTO movimiento_inventario (
 INSERT INTO alerta_inventario (
     producto_id, bodega_id, pais, tipo_alerta, nivel, mensaje, stock_actual, stock_minimo
 ) VALUES
-('PROD016', 'LIM_CALLAO', 'PE', 'STOCK_MINIMO', 'WARNING', 
+('44444444-4444-4444-4444-000000000016', 'LIM_CALLAO', 'PE', 'STOCK_MINIMO', 'WARNING', 
  'Stock bajo para Salbutamol 100mcg en Lima Callao: 100 unidades (mínimo: 50)', 100, 50),
  
-('PROD003', 'BOG_CENTRAL', 'CO', 'STOCK_CRITICO', 'CRITICAL', 
+('11111111-1111-1111-1111-000000000003', 'BOG_CENTRAL', 'CO', 'STOCK_CRITICO', 'CRITICAL', 
  'Stock crítico para Azitromicina 500mg en Bogotá Central: 15 unidades (crítico: 20)', 15, 50);
 
 

@@ -24,7 +24,7 @@ class ClienteCreate(BaseModel):
     ciudad: Optional[str] = Field(None, max_length=128, description="Ciudad del cliente", example="Medellín")
     pais: Optional[str] = Field(default="CO", max_length=8, description="País del cliente", example="CO")
     activo: bool = Field(default=True, description="Si el cliente está activo")
-    vendedor_id: str = Field(..., description="ID del vendedor (UUID como string)", example="550e8400-e29b-41d4-a716-446655440000")
+    vendedor_id: Optional[str] = Field(None, description="ID del vendedor (UUID como string) - Opcional", example="550e8400-e29b-41d4-a716-446655440000")
 
 
 class ClienteUpdate(BaseModel):
@@ -36,7 +36,7 @@ class ClienteUpdate(BaseModel):
     ciudad: Optional[str] = Field(None, max_length=128, description="Ciudad del cliente")
     pais: Optional[str] = Field(None, max_length=8, description="País del cliente")
     activo: Optional[bool] = Field(None, description="Si el cliente está activo")
-    vendedor_id: str = Field(..., min_length=1, max_length=64, description="ID del vendedor que actualiza el cliente", example="VEN001")
+    vendedor_id: Optional[str] = Field(None, description="ID del vendedor asignado al cliente (UUID) - Opcional", example="550e8400-e29b-41d4-a716-446655440000")
 
 
 class ClienteBusquedaRequest(BaseModel):

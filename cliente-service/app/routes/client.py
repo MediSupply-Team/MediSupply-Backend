@@ -173,28 +173,31 @@ async def crear_cliente(
     - NIT (debe ser único)
     - Nombre del cliente
     - Código único (debe ser único)
-    - Vendedor ID (para trazabilidad)
+    - Vendedor ID (opcional - para trazabilidad y asignación)
     
     **Retorna:**
     - 201: Cliente creado exitosamente
     - 409: Cliente ya existe (NIT o código único duplicado)
     - 500: Error interno
     """
-    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) por vendedor {cliente.vendedor_id}")
+    vendedor_info = f"por vendedor {cliente.vendedor_id}" if cliente.vendedor_id else "sin vendedor asignado"
+    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) {vendedor_info}")
     started = time.perf_counter_ns()
     
-    # Validar vendedor_id antes del try principal
+    # Validar vendedor_id SOLO si se proporciona
     from uuid import UUID
-    try:
-        vendedor_uuid = UUID(cliente.vendedor_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "INVALID_VENDEDOR_UUID",
-                "message": f"vendedor_id '{cliente.vendedor_id}' no es un UUID válido. Debe ser un UUID en formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            }
-        )
+    vendedor_uuid = None
+    if cliente.vendedor_id:
+        try:
+            vendedor_uuid = UUID(cliente.vendedor_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "INVALID_VENDEDOR_UUID",
+                    "message": f"vendedor_id '{cliente.vendedor_id}' no es un UUID válido. Debe ser un UUID en formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                }
+            )
     
     try:
         from app.models.client_model import Cliente
@@ -278,16 +281,30 @@ async def actualizar_cliente(
     
     **Requiere:**
     - ID del cliente (en la URL)
-    - Vendedor ID (para trazabilidad)
-    - Campos a actualizar (opcionales)
+    - Campos a actualizar (todos opcionales, incluyendo vendedor_id)
     
     **Retorna:**
     - 200: Cliente actualizado exitosamente
     - 404: Cliente no encontrado
     - 500: Error interno
     """
-    logger.info(f"🔄 Actualizando cliente: {cliente_id} por vendedor {cliente_data.vendedor_id if cliente_data else 'unknown'}")
+    logger.info(f"🔄 Actualizando cliente: {cliente_id}")
     started = time.perf_counter_ns()
+    
+    # Validar vendedor_id SOLO si se proporciona
+    from uuid import UUID
+    vendedor_uuid = None
+    if cliente_data and cliente_data.vendedor_id:
+        try:
+            vendedor_uuid = UUID(cliente_data.vendedor_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "INVALID_VENDEDOR_UUID",
+                    "message": f"vendedor_id '{cliente_data.vendedor_id}' no es un UUID válido. Debe ser un UUID en formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                }
+            )
     
     try:
         from app.models.client_model import Cliente
@@ -307,13 +324,19 @@ async def actualizar_cliente(
                 }
             )
         
-        # Actualizar solo los campos proporcionados
+        # Actualizar solo los campos proporcionados (ahora incluye vendedor_id)
         update_data = cliente_data.model_dump(exclude_unset=True, exclude={'vendedor_id'})
         
         if update_data:
             for field, value in update_data.items():
                 setattr(existing, field, value)
-            
+        
+        # Actualizar vendedor_id si se proporcionó
+        if cliente_data.vendedor_id is not None:
+            existing.vendedor_id = vendedor_uuid
+            logger.info(f"  ↳ Actualizando vendedor_id a: {vendedor_uuid}")
+        
+        if update_data or cliente_data.vendedor_id is not None:
             existing.updated_at = datetime.utcnow()
             await session.commit()
             await session.refresh(existing)
