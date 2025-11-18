@@ -55,7 +55,7 @@ def get_catalog_items():
             params['sort'] = request.args.get('sort')
         
         # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/"
+        url = f"{catalogo_url}/api/v1/catalog/items"
         
         current_app.logger.info(f"🔍 Llamando a catalogo-service: {url}")
         
