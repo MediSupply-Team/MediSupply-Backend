@@ -21,8 +21,8 @@ EOF
 echo "🔄 Ejecutando migración de base de datos..."
 python migrate_db.py
 
-echo "🌱 Generando visitas dinámicas desde cliente-service..."
-python seed.py
+echo "🌱 Intentando generar visitas dinámicas desde cliente-service..."
+python seed.py || echo "⚠️  Seed falló, pero el servicio continuará iniciando"
 
 echo "🚀 Iniciando FastAPI..."
 exec uvicorn main:app --host 0.0.0.0 --port 8000

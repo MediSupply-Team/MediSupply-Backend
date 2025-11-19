@@ -14,17 +14,17 @@ from uuid import UUID
 # ==========================================
 
 class ClienteCreate(BaseModel):
-    """Payload para crear un nuevo cliente (id se genera automáticamente con UUID)"""
+    """Payload para crear un nuevo cliente (id y codigo_unico se generan automáticamente)"""
     nit: str = Field(..., min_length=5, max_length=32, description="NIT del cliente", example="900555666-7")
     nombre: str = Field(..., min_length=3, max_length=255, description="Nombre del cliente", example="Farmacia Los Andes")
-    codigo_unico: str = Field(..., min_length=3, max_length=64, description="Código único del cliente", example="FLA001")
+    codigo_unico: Optional[str] = Field(None, min_length=3, max_length=64, description="Código único del cliente (se genera automáticamente si no se proporciona)", example="ABC123")
     email: Optional[str] = Field(None, max_length=255, description="Email del cliente", example="contacto@losandes.com")
     telefono: Optional[str] = Field(None, max_length=32, description="Teléfono del cliente", example="+57-1-3456789")
     direccion: Optional[str] = Field(None, max_length=512, description="Dirección del cliente", example="Calle 45 #12-34")
     ciudad: Optional[str] = Field(None, max_length=128, description="Ciudad del cliente", example="Medellín")
     pais: Optional[str] = Field(default="CO", max_length=8, description="País del cliente", example="CO")
     activo: bool = Field(default=True, description="Si el cliente está activo")
-    vendedor_id: str = Field(..., description="ID del vendedor (UUID como string)", example="550e8400-e29b-41d4-a716-446655440000")
+    vendedor_id: Optional[str] = Field(None, description="ID del vendedor (UUID como string) - Opcional", example="550e8400-e29b-41d4-a716-446655440000")
 
 
 class ClienteUpdate(BaseModel):
@@ -36,7 +36,28 @@ class ClienteUpdate(BaseModel):
     ciudad: Optional[str] = Field(None, max_length=128, description="Ciudad del cliente")
     pais: Optional[str] = Field(None, max_length=8, description="País del cliente")
     activo: Optional[bool] = Field(None, description="Si el cliente está activo")
-    vendedor_id: str = Field(..., min_length=1, max_length=64, description="ID del vendedor que actualiza el cliente", example="VEN001")
+    vendedor_id: Optional[str] = Field(None, description="ID del vendedor asignado al cliente (UUID) - Opcional", example="550e8400-e29b-41d4-a716-446655440000")
+
+
+class AsociarClientesRequest(BaseModel):
+    """Payload para asociar múltiples clientes a un vendedor"""
+    clientes_ids: List[str] = Field(
+        ...,
+        min_length=1,
+        description="Lista de IDs de clientes (UUIDs) a asociar con el vendedor",
+        example=["550e8400-e29b-41d4-a716-446655440001", "550e8400-e29b-41d4-a716-446655440002"]
+    )
+
+
+class AsociarClientesResponse(BaseModel):
+    """Respuesta al asociar clientes a un vendedor"""
+    vendedor_id: UUID = Field(..., description="ID del vendedor")
+    vendedor_nombre: str = Field(..., description="Nombre del vendedor")
+    clientes_asociados: int = Field(..., description="Cantidad de clientes asociados exitosamente")
+    clientes_no_encontrados: List[str] = Field(default_factory=list, description="IDs de clientes que no fueron encontrados")
+    clientes_inactivos: List[str] = Field(default_factory=list, description="IDs de clientes que están inactivos")
+    clientes_con_vendedor: List[str] = Field(default_factory=list, description="IDs de clientes que ya tenían un vendedor asociado")
+    mensaje: str = Field(..., description="Mensaje de resultado")
 
 
 class ClienteBusquedaRequest(BaseModel):
@@ -109,7 +130,7 @@ class ClienteBasicoResponse(BaseModel):
     pais: Optional[str] = Field(None, description="País del cliente")
     rol: str = Field(default="cliente", description="Rol del cliente")
     activo: bool = Field(default=True, description="Si el cliente está activo")
-    vendedor_id: UUID = Field(..., description="ID del vendedor asignado al cliente")
+    vendedor_id: Optional[UUID] = Field(None, description="ID del vendedor asignado al cliente (opcional)")
     created_at: Optional[datetime] = Field(None, description="Fecha de creación")
     updated_at: Optional[datetime] = Field(None, description="Fecha de última actualización")
     

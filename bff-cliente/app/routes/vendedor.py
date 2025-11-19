@@ -289,6 +289,79 @@ def listar_clientes_vendedor(vendedor_id):
         return jsonify(error="Error al conectar con servicio de clientes"), 503
 
 
+@bp.route('/api/v1/vendedores/<string:vendedor_id>/clientes/asociar', methods=['POST'])
+def asociar_clientes_a_vendedor(vendedor_id):
+    """
+    Asocia múltiples clientes a un vendedor
+    Proxy hacia cliente-service POST /api/vendedores/{vendedor_id}/clientes/asociar
+    """
+    cliente_url = get_cliente_service_url()
+    if not cliente_url:
+        return jsonify(error="Servicio de clientes no disponible"), 503
+    
+    try:
+        # Obtener datos del body
+        data = request.get_json()
+        if not data:
+            return jsonify(error="Body vacío"), 400
+        
+        if not data.get('clientes_ids'):
+            return jsonify(error="Campo 'clientes_ids' es requerido"), 400
+        
+        # Construir URL
+        url = f"{cliente_url}/api/vendedores/{vendedor_id}/clientes/asociar"
+        
+        current_app.logger.info(f"Asociando clientes a vendedor: POST {url}")
+        current_app.logger.info(f"Clientes a asociar: {len(data['clientes_ids'])}")
+        
+        # Hacer request al servicio
+        response = requests.post(
+            url,
+            json=data,
+            timeout=15,
+            headers={
+                'Content-Type': 'application/json',
+                'User-Agent': 'BFF-Cliente/1.0',
+                'X-Request-ID': request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        # Propagar respuesta del servicio
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Cliente service error: {response.status_code} - {response.text[:200]}"
+            )
+            
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al asociar clientes",
+                details=error_data
+            ), response.status_code
+        
+        current_app.logger.info(f"Clientes asociados exitosamente: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error("Timeout al asociar clientes")
+        return jsonify(error="Timeout al conectar con servicio de clientes"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error al asociar clientes: {str(e)}")
+        return jsonify(error="Error al conectar con servicio de clientes"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado al asociar clientes: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
+
+
 # ====== ENDPOINTS DE CATÁLOGOS DE SOPORTE ======
 
 @bp.route('/api/v1/catalogos/tipos-rol', methods=['GET', 'POST'])

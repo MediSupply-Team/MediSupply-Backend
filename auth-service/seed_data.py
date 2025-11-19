@@ -1,5 +1,5 @@
 # auth-service/seed_data.py
-"""Inserta datos iniciales: roles, permisos y usuario admin"""
+"""Inserta datos iniciales: roles, permisos y usuarios de ejemplo"""
 import asyncio
 from sqlalchemy import select, func, insert
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
@@ -37,8 +37,8 @@ async def seed():
                 {"id": 2, "name": "HOSPITAL_ADMIN", "description": "Administrador de hospital"},
                 {"id": 3, "name": "WAREHOUSE_STAFF", "description": "Personal de almacén"},
                 {"id": 4, "name": "DRIVER", "description": "Conductor de entregas"},
-                {"id": 5, "name": "VENDOR", "description": "Proveedor/Vendedor"},
-                {"id": 6, "name": "CUSTOMER", "description": "Cliente/Comprador"},  # ← NUEVO
+                {"id": 5, "name": "SELLER", "description": "Proveedor/Vendedor"},
+                {"id": 6, "name": "CUSTOMER", "description": "Cliente/Comprador"},
             ]
             
             for role_data in roles_data:
@@ -100,14 +100,14 @@ async def seed():
                     insert(role_permissions).values(role_id=4, permission_id=perm_map[perm_name])
                 )
             
-            # VENDOR (role_id=5)
+            # SELLER (role_id=5)
             vendor_perms = ["orders:read", "catalog:read"]
             for perm_name in vendor_perms:
                 await db.execute(
                     insert(role_permissions).values(role_id=5, permission_id=perm_map[perm_name])
                 )
             
-            # CUSTOMER (role_id=6) ← NUEVO
+            # CUSTOMER (role_id=6)
             customer_perms = ["orders:create", "orders:read", "catalog:read"]
             for perm_name in customer_perms:
                 await db.execute(
@@ -117,7 +117,9 @@ async def seed():
             await db.commit()
             print("✅ Permisos asignados a roles")
             
-            print("🌱 Creando usuario admin...")
+            print("🌱 Creando usuarios de ejemplo...")
+            
+            # Usuario Admin
             admin_user = User(
                 email="admin@medisupply.com",
                 password_hash=password_service.hash_password("admin123"),
@@ -126,9 +128,66 @@ async def seed():
                 is_active=True
             )
             db.add(admin_user)
+            
+            # Usuario Hospital Admin
+            hospital_admin = User(
+                email="hospital@medisupply.com",
+                password_hash=password_service.hash_password("hospital123"),
+                name="Hospital San José",
+                role_id=2,
+                is_active=True
+            )
+            db.add(hospital_admin)
+            
+            # Usuario Warehouse Staff
+            warehouse_user = User(
+                email="warehouse@medisupply.com",
+                password_hash=password_service.hash_password("warehouse123"),
+                name="Juan Pérez - Almacén",
+                role_id=3,
+                is_active=True
+            )
+            db.add(warehouse_user)
+            
+            # Usuario Driver
+            driver_user = User(
+                email="driver@medisupply.com",
+                password_hash=password_service.hash_password("driver123"),
+                name="Carlos Rodríguez - Conductor",
+                role_id=4,
+                is_active=True
+            )
+            db.add(driver_user)
+            
+            # Usuario Seller
+            seller_user = User(
+                email="seller@medisupply.com",
+                password_hash=password_service.hash_password("seller123"),
+                name="Farmacia Central - Vendedor",
+                role_id=5,
+                is_active=True
+            )
+            db.add(seller_user)
+            
+            # Usuario Customer
+            customer_user = User(
+                email="customer@medisupply.com",
+                password_hash=password_service.hash_password("customer123"),
+                name="Hospital General - Cliente",
+                role_id=6,
+                is_active=True
+            )
+            db.add(customer_user)
+            
             await db.commit()
             
-            print("✅ Usuario admin creado: admin@medisupply.com / admin123")
+            print("\n✅ Usuarios creados exitosamente:")
+            print("  👤 admin@medisupply.com / admin123 (ADMIN)")
+            print("  👤 hospital@medisupply.com / hospital123 (HOSPITAL_ADMIN)")
+            print("  👤 warehouse@medisupply.com / warehouse123 (WAREHOUSE_STAFF)")
+            print("  👤 driver@medisupply.com / driver123 (DRIVER)")
+            print("  👤 seller@medisupply.com / seller123 (SELLER)")
+            print("  👤 customer@medisupply.com / customer123 (CUSTOMER)")
             print("\n✅ Seed completado exitosamente!")
         
         await engine.dispose()

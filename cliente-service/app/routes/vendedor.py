@@ -16,7 +16,9 @@ from app.schemas import (
     VendedorResponse,
     VendedorDetalleResponse,
     VendedorListResponse,
-    ClienteBasicoResponse
+    ClienteBasicoResponse,
+    AsociarClientesRequest,
+    AsociarClientesResponse
 )
 from typing import Optional, List
 from uuid import UUID
@@ -897,4 +899,139 @@ async def obtener_clientes_vendedor(
             for c in clientes
         ]
     }
+
+
+@router.post("/{vendedor_id}/clientes/asociar", response_model=AsociarClientesResponse, status_code=status.HTTP_200_OK)
+async def asociar_clientes_a_vendedor(
+    vendedor_id: str,
+    payload: AsociarClientesRequest,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Asociar múltiples clientes a un vendedor
+    
+    **Validaciones:**
+    - El vendedor debe existir y estar activo
+    - Los clientes deben existir
+    - Solo se asocian clientes activos
+    - Se reportan clientes no encontrados o inactivos
+    
+    **Retorna:**
+    - 200: Clientes asociados exitosamente (con detalles de éxitos y fallos)
+    - 400: ID de vendedor inválido
+    - 404: Vendedor no encontrado o inactivo
+    """
+    logger.info(f"🔗 Asociando {len(payload.clientes_ids)} clientes al vendedor: {vendedor_id}")
+    started = time.perf_counter_ns()
+    
+    # Validar UUID del vendedor
+    try:
+        vendedor_uuid = UUID(vendedor_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "INVALID_VENDEDOR_UUID",
+                "message": f"ID de vendedor '{vendedor_id}' no es un UUID válido"
+            }
+        )
+    
+    # Verificar que el vendedor existe y está activo
+    vendedor = (await session.execute(
+        select(Vendedor).where(Vendedor.id == vendedor_uuid)
+    )).scalar_one_or_none()
+    
+    if not vendedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "VENDEDOR_NOT_FOUND",
+                "message": f"Vendedor {vendedor_id} no encontrado"
+            }
+        )
+    
+    if not vendedor.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "VENDEDOR_INACTIVE",
+                "message": f"Vendedor {vendedor.nombre_completo} está inactivo y no puede tener clientes asociados"
+            }
+        )
+    
+    # Procesar cada cliente
+    clientes_asociados = 0
+    clientes_no_encontrados = []
+    clientes_inactivos = []
+    clientes_con_vendedor = []
+    
+    for cliente_id_str in payload.clientes_ids:
+        try:
+            # Validar UUID del cliente
+            try:
+                cliente_uuid = UUID(cliente_id_str)
+            except ValueError:
+                logger.warning(f"⚠️  Cliente ID inválido: {cliente_id_str}")
+                clientes_no_encontrados.append(cliente_id_str)
+                continue
+            
+            # Buscar el cliente
+            cliente = (await session.execute(
+                select(Cliente).where(Cliente.id == cliente_uuid)
+            )).scalar_one_or_none()
+            
+            if not cliente:
+                logger.warning(f"⚠️  Cliente no encontrado: {cliente_id_str}")
+                clientes_no_encontrados.append(cliente_id_str)
+                continue
+            
+            if not cliente.activo:
+                logger.warning(f"⚠️  Cliente inactivo: {cliente.nombre}")
+                clientes_inactivos.append(cliente_id_str)
+                continue
+            
+            # Verificar que el cliente NO tenga ya un vendedor asociado
+            if cliente.vendedor_id is not None:
+                logger.warning(f"⚠️  Cliente {cliente.nombre} ya tiene un vendedor asociado: {cliente.vendedor_id}")
+                clientes_con_vendedor.append(cliente_id_str)
+                continue
+            
+            # Asociar el cliente al vendedor
+            cliente.vendedor_id = vendedor_uuid
+            clientes_asociados += 1
+            logger.info(f"  ✅ Cliente '{cliente.nombre}' asociado correctamente")
+            
+        except Exception as e:
+            logger.error(f"❌ Error procesando cliente {cliente_id_str}: {e}")
+            clientes_no_encontrados.append(cliente_id_str)
+    
+    # Guardar cambios
+    await session.commit()
+    
+    took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+    
+    # Construir mensaje de resultado
+    mensaje_partes = []
+    if clientes_asociados > 0:
+        mensaje_partes.append(f"{clientes_asociados} cliente(s) asociado(s) exitosamente")
+    if clientes_no_encontrados:
+        mensaje_partes.append(f"{len(clientes_no_encontrados)} cliente(s) no encontrado(s)")
+    if clientes_inactivos:
+        mensaje_partes.append(f"{len(clientes_inactivos)} cliente(s) inactivo(s)")
+    if clientes_con_vendedor:
+        mensaje_partes.append(f"{len(clientes_con_vendedor)} cliente(s) ya tenían vendedor asociado")
+    
+    mensaje = ". ".join(mensaje_partes) if mensaje_partes else "No se realizaron cambios"
+    
+    logger.info(f"✅ Asociación completada en {took_ms}ms: {mensaje}")
+    
+    return AsociarClientesResponse(
+        vendedor_id=vendedor_uuid,
+        vendedor_nombre=vendedor.nombre_completo,
+        clientes_asociados=clientes_asociados,
+        clientes_no_encontrados=clientes_no_encontrados,
+        clientes_inactivos=clientes_inactivos,
+        clientes_con_vendedor=clientes_con_vendedor,
+        mensaje=mensaje
+    )
 

@@ -43,9 +43,30 @@ def obtener_ruta(
 ):
     """
     Endpoint original para obtener visitas de un vendedor en una fecha
+    Si no hay visitas en la BD, intenta generarlas automáticamente
     """
     query = select(Visita).where(Visita.fecha == fecha, Visita.vendedor_id == vendedor_id)
     visitas = session.exec(query).all()
+
+    # Si no hay visitas, intentar generarlas
+    if not visitas:
+        logging.info(f"No se encontraron visitas para fecha={fecha}, vendedor_id={vendedor_id}")
+        logging.info("Intentando generar visitas automáticamente...")
+        
+        try:
+            from seed import generar_visitas_desde_cliente_service
+            generar_visitas_desde_cliente_service()
+            
+            # Volver a buscar después de generar
+            session.expire_all()  # Limpiar caché de la sesión
+            visitas = session.exec(query).all()
+            
+            if visitas:
+                logging.info(f"✅ Visitas generadas exitosamente. Encontradas: {len(visitas)}")
+            else:
+                logging.warning("⚠️ No se generaron visitas para la fecha solicitada")
+        except Exception as e:
+            logging.error(f"❌ Error al generar visitas: {e}")
 
     visitas_ordenadas = sorted(visitas, key=lambda v: v.hora)
     result = []

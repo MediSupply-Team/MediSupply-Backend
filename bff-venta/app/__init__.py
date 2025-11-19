@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_cors import CORS
 from dotenv import load_dotenv
 from .config import Config
 from .services.sqs_client import SQSService
@@ -14,6 +15,15 @@ def create_app():
     load_dotenv()
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # Configurar CORS - solo con origins="*" para evitar duplicados
+    CORS(app, 
+         origins="*",
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+         expose_headers=["Content-Type"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    )
 
     # ===== SWAGGER =====
     swagger_config = {

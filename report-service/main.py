@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 from routers.reports import router as reports_router
 from services.database_client import db_client
@@ -11,6 +11,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
     await db_client.disconnect()
     logger.info("Desconexión completada")
 
+
 app = FastAPI(
     title="MediSupply Reports Service",
     description="Servicio de generación de reportes basado en datos reales de la base de datos de Orders",
@@ -38,9 +40,42 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+
+# Middleware personalizado para manejar CORS sin duplicados
+@app.middleware("http")
+async def cors_middleware(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Limpiar headers CORS existentes
+    headers_to_remove = [
+        "access-control-allow-origin",
+        "access-control-allow-credentials",
+        "access-control-allow-methods",
+        "access-control-allow-headers"
+    ]
+    
+    for header in headers_to_remove:
+        if header in response.headers:
+            del response.headers[header]
+    
+    # Agregar headers CORS limpios
+    origin = request.headers.get("origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    else:
+        response.headers["Access-Control-Allow-Origin"] = "*"
+    
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    
+    return response
+
+
 @app.get("/health")
 def health(): 
     return {"ok": True, "service": "reports"}
+
 
 # Monta el router de reportes 
 app.include_router(reports_router)

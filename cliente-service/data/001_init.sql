@@ -119,13 +119,26 @@ CREATE INDEX IF NOT EXISTS idx_consulta_fecha ON consulta_cliente_log(fecha_cons
 -- DATOS DE CLIENTES DE EJEMPLO
 -- ====================================================
 
--- Los IDs se generan automáticamente con UUID
-INSERT INTO cliente (nit, nombre, codigo_unico, email, telefono, direccion, ciudad, pais, rol, activo, created_at) VALUES
-('900123456-7', 'Farmacia San José', 'FSJ001', 'contacto@farmaciasanjose.com', '+57-1-2345678', 'Calle 45 #12-34', 'Bogotá', 'CO', 'cliente', true, NOW()),
-('800987654-3', 'Droguería El Buen Pastor', 'DBP002', 'ventas@elbunpastor.com', '+57-2-9876543', 'Carrera 15 #67-89', 'Medellín', 'CO', 'cliente', true, NOW()),
-('700456789-1', 'Farmatodo Zona Norte', 'FZN003', 'info@farmatodo.com', '+57-5-4567890', 'Avenida Norte #23-45', 'Barranquilla', 'CO', 'cliente', true, NOW()),
-('600345678-9', 'Centro Médico Salud Total', 'CST004', 'compras@saludtotal.com', '+57-1-3456789', 'Calle 85 #34-56', 'Bogotá', 'CO', 'cliente', true, NOW()),
-('500234567-5', 'Farmacia Popular', 'FPO005', 'pedidos@farmapopular.com', '+57-4-2345678', 'Carrera 70 #45-67', 'Medellín', 'CO', 'cliente', true, NOW())
+-- Los IDs y vendedor_id están HARDCODEADOS con UUID fijo (no se generan automáticamente)
+-- Se asignan vendedores a cada cliente (2 clientes por vendedor)
+-- 
+-- VENDEDORES:
+-- Vendedor 1 (Carlos Mendoza): UUID = 11111111-1111-1111-1111-111111111111
+-- Vendedor 2 (María Fernández): UUID = 22222222-2222-2222-2222-222222222222
+-- Vendedor 3 (Andrés Ramírez): UUID = 33333333-3333-3333-3333-333333333333
+
+INSERT INTO cliente (id, nit, nombre, codigo_unico, email, telefono, direccion, ciudad, pais, vendedor_id, rol, activo, created_at) VALUES
+-- Clientes del Vendedor 1 (Carlos Mendoza - 11111111-1111-1111-1111-111111111111)
+('aaaaaaaa-aaaa-aaaa-aaaa-000000000001', '900123456-7', 'Farmacia San José', 'FSJ001', 'contacto@farmaciasanjose.com', '+57-1-2345678', 'Calle 45 #12-34', 'Bogotá', 'CO', '11111111-1111-1111-1111-111111111111', 'cliente', true, NOW()),
+('aaaaaaaa-aaaa-aaaa-aaaa-000000000002', '800987654-3', 'Droguería El Buen Pastor', 'DBP002', 'ventas@elbunpastor.com', '+57-2-9876543', 'Carrera 15 #67-89', 'Medellín', 'CO', '11111111-1111-1111-1111-111111111111', 'cliente', true, NOW()),
+
+-- Clientes del Vendedor 2 (María Fernández - 22222222-2222-2222-2222-222222222222)
+('bbbbbbbb-bbbb-bbbb-bbbb-000000000003', '700456789-1', 'Farmatodo Zona Norte', 'FZN003', 'info@farmatodo.com', '+57-5-4567890', 'Avenida Norte #23-45', 'Barranquilla', 'CO', '22222222-2222-2222-2222-222222222222', 'cliente', true, NOW()),
+('bbbbbbbb-bbbb-bbbb-bbbb-000000000004', '600345678-9', 'Centro Médico Salud Total', 'CST004', 'compras@saludtotal.com', '+57-1-3456789', 'Calle 85 #34-56', 'Bogotá', 'CO', '22222222-2222-2222-2222-222222222222', 'cliente', true, NOW()),
+
+-- Clientes del Vendedor 3 (Andrés Ramírez - 33333333-3333-3333-3333-333333333333)
+('cccccccc-cccc-cccc-cccc-000000000005', '500234567-5', 'Farmacia Popular', 'FPO005', 'pedidos@farmapopular.com', '+57-4-2345678', 'Carrera 70 #45-67', 'Medellín', 'CO', '33333333-3333-3333-3333-333333333333', 'cliente', true, NOW()),
+('cccccccc-cccc-cccc-cccc-000000000006', '400123789-2', 'Droguerías MediPlus', 'DMP006', 'ventas@mediplus.com', '+57-1-1237894', 'Carrera 90 #78-90', 'Bogotá', 'CO', '33333333-3333-3333-3333-333333333333', 'cliente', true, NOW())
 ON CONFLICT (nit) DO NOTHING;
 
 -- ====================================================

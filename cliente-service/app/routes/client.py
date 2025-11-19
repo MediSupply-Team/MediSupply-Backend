@@ -4,6 +4,8 @@ Endpoints REST para HU07: Consultar Cliente + CRUD completo
 """
 import time
 import logging
+import random
+import string
 from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Path, HTTPException, status, Request
 from fastapi.responses import JSONResponse
@@ -24,6 +26,142 @@ from app.config import get_settings
 router = APIRouter(prefix="/cliente", tags=["cliente"])
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+async def generar_codigo_unico(session: AsyncSession, max_intentos: int = 10) -> str:
+    """
+    Genera un código único con formato: 3 letras mayúsculas + 3 números (ejemplo: ABC123)
+    Verifica que el código sea único en la base de datos.
+    
+    Args:
+        session: Sesión de base de datos
+        max_intentos: Número máximo de intentos para generar un código único
+        
+    Returns:
+        str: Código único generado
+        
+    Raises:
+        HTTPException: Si no se puede generar un código único después de max_intentos
+    """
+    from app.models.client_model import Cliente
+    
+    for intento in range(max_intentos):
+        # Generar 3 letras mayúsculas aleatorias
+        letras = ''.join(random.choices(string.ascii_uppercase, k=3))
+        # Generar 3 números aleatorios
+        numeros = ''.join(random.choices(string.digits, k=3))
+        # Combinar en el formato XXX999
+        codigo = f"{letras}{numeros}"
+        
+        # Verificar si el código ya existe
+        existing = (await session.execute(
+            select(Cliente).where(Cliente.codigo_unico == codigo)
+        )).scalar_one_or_none()
+        
+        if not existing:
+            logger.info(f"✨ Código único generado: {codigo} (intento {intento + 1})")
+            return codigo
+    
+    # Si llegamos aquí, no se pudo generar un código único
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail={
+            "error": "CODIGO_GENERATION_FAILED",
+            "message": f"No se pudo generar un código único después de {max_intentos} intentos",
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        }
+    )
+
+
+@router.get("/sin-vendedor", response_model=List[ClienteBasicoResponse])
+async def listar_clientes_sin_vendedor(
+    request: Request,
+    limite: int = Query(
+        default=50,
+        ge=1,
+        le=500,
+        description="Número máximo de clientes a retornar"
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+        description="Número de registros a saltar (para paginación)"
+    ),
+    activos_solo: bool = Query(
+        default=True,
+        description="Si mostrar solo clientes activos (true) o todos (false)"
+    ),
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Listar todos los clientes que NO tienen vendedor asociado
+    
+    **Útil para:**
+    - Identificar clientes sin asignar
+    - Asignar vendedores a clientes nuevos
+    - Reportes de cobertura de vendedores
+    
+    **Retorna:**
+    - Lista de clientes sin vendedor_id
+    """
+    from app.models.client_model import Cliente
+    
+    started = time.perf_counter_ns()
+    logger.info(f"📋 Listando clientes sin vendedor (activos_solo={activos_solo})")
+    
+    try:
+        # Construir query para clientes sin vendedor
+        query = select(Cliente).where(Cliente.vendedor_id.is_(None))
+        
+        if activos_solo:
+            query = query.where(Cliente.activo == True)
+        
+        # Ordenar por nombre
+        query = query.order_by(Cliente.nombre)
+        
+        # Aplicar paginación
+        query = query.offset(offset).limit(limite)
+        
+        # Ejecutar query
+        result = await session.execute(query)
+        clientes_sin_vendedor = result.scalars().all()
+        
+        # Medir performance
+        took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+        logger.info(f"📋 Encontrados {len(clientes_sin_vendedor)} clientes sin vendedor en {took_ms}ms")
+        
+        # Formatear respuesta
+        return [
+            {
+                "id": str(c.id),
+                "nit": c.nit,
+                "nombre": c.nombre,
+                "codigo_unico": c.codigo_unico,
+                "email": c.email,
+                "telefono": c.telefono,
+                "direccion": c.direccion,
+                "ciudad": c.ciudad,
+                "pais": c.pais,
+                "activo": c.activo,
+                "vendedor_id": None,
+                "rol": c.rol if hasattr(c, 'rol') else None,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+                "updated_at": c.updated_at.isoformat() if c.updated_at else None
+            }
+            for c in clientes_sin_vendedor
+        ]
+        
+    except Exception as e:
+        logger.error(f"❌ Error listando clientes sin vendedor: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "INTERNAL_SERVER_ERROR",
+                "message": "Error interno al listar clientes sin vendedor",
+                "details": {"error_id": f"ERR_{int(time.time())}"},
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            }
+        )
 
 
 @router.get("/",response_model=List[ClienteBasicoResponse],)
@@ -123,7 +261,7 @@ async def listar_clientes(
                     "ciudad": c.ciudad,
                     "pais": c.pais,
                     "activo": c.activo,
-                    "vendedor_id": str(c.vendedor_id),
+                    "vendedor_id": str(c.vendedor_id) if c.vendedor_id else None,
                     "rol": c.rol if hasattr(c, 'rol') else None,
                     "created_at": c.created_at.isoformat() if c.created_at else None,
                     "updated_at": c.updated_at.isoformat() if c.updated_at else None
@@ -173,28 +311,32 @@ async def crear_cliente(
     - NIT (debe ser único)
     - Nombre del cliente
     - Código único (debe ser único)
-    - Vendedor ID (para trazabilidad)
+    - Vendedor ID (opcional - para trazabilidad y asignación)
     
     **Retorna:**
     - 201: Cliente creado exitosamente
     - 409: Cliente ya existe (NIT o código único duplicado)
     - 500: Error interno
     """
-    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) por vendedor {cliente.vendedor_id}")
+    vendedor_info = f"por vendedor {cliente.vendedor_id}" if cliente.vendedor_id else "sin vendedor asignado"
+    codigo_info = f"con código {cliente.codigo_unico}" if cliente.codigo_unico else "con código auto-generado"
+    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) {codigo_info} {vendedor_info}")
     started = time.perf_counter_ns()
     
-    # Validar vendedor_id antes del try principal
+    # Validar vendedor_id SOLO si se proporciona
     from uuid import UUID
-    try:
-        vendedor_uuid = UUID(cliente.vendedor_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "INVALID_VENDEDOR_UUID",
-                "message": f"vendedor_id '{cliente.vendedor_id}' no es un UUID válido. Debe ser un UUID en formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            }
-        )
+    vendedor_uuid = None
+    if cliente.vendedor_id:
+        try:
+            vendedor_uuid = UUID(cliente.vendedor_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "INVALID_VENDEDOR_UUID",
+                    "message": f"vendedor_id '{cliente.vendedor_id}' no es un UUID válido. Debe ser un UUID en formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                }
+            )
     
     try:
         from app.models.client_model import Cliente
@@ -214,26 +356,32 @@ async def crear_cliente(
                 }
             )
         
-        # Verificar si el código único ya existe
-        existing_by_codigo = (await session.execute(
-            select(Cliente).where(Cliente.codigo_unico == cliente.codigo_unico)
-        )).scalar_one_or_none()
-        
-        if existing_by_codigo:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "error": "CODIGO_ALREADY_EXISTS",
-                    "message": f"Cliente con código único {cliente.codigo_unico} ya existe",
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-                }
-            )
+        # Generar código único automáticamente si no se proporciona
+        codigo_unico_final = cliente.codigo_unico
+        if not codigo_unico_final:
+            codigo_unico_final = await generar_codigo_unico(session)
+            logger.info(f"✨ Código único auto-generado: {codigo_unico_final}")
+        else:
+            # Si se proporciona, verificar que no exista
+            existing_by_codigo = (await session.execute(
+                select(Cliente).where(Cliente.codigo_unico == codigo_unico_final)
+            )).scalar_one_or_none()
+            
+            if existing_by_codigo:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": "CODIGO_ALREADY_EXISTS",
+                        "message": f"Cliente con código único {codigo_unico_final} ya existe",
+                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    }
+                )
         
         # Crear nuevo cliente (id se genera automáticamente con UUID)
         new_cliente = Cliente(
             nit=cliente.nit,
             nombre=cliente.nombre,
-            codigo_unico=cliente.codigo_unico,
+            codigo_unico=codigo_unico_final,
             email=cliente.email,
             telefono=cliente.telefono,
             direccion=cliente.direccion,
@@ -278,16 +426,30 @@ async def actualizar_cliente(
     
     **Requiere:**
     - ID del cliente (en la URL)
-    - Vendedor ID (para trazabilidad)
-    - Campos a actualizar (opcionales)
+    - Campos a actualizar (todos opcionales, incluyendo vendedor_id)
     
     **Retorna:**
     - 200: Cliente actualizado exitosamente
     - 404: Cliente no encontrado
     - 500: Error interno
     """
-    logger.info(f"🔄 Actualizando cliente: {cliente_id} por vendedor {cliente_data.vendedor_id if cliente_data else 'unknown'}")
+    logger.info(f"🔄 Actualizando cliente: {cliente_id}")
     started = time.perf_counter_ns()
+    
+    # Validar vendedor_id SOLO si se proporciona
+    from uuid import UUID
+    vendedor_uuid = None
+    if cliente_data and cliente_data.vendedor_id:
+        try:
+            vendedor_uuid = UUID(cliente_data.vendedor_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "INVALID_VENDEDOR_UUID",
+                    "message": f"vendedor_id '{cliente_data.vendedor_id}' no es un UUID válido. Debe ser un UUID en formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                }
+            )
     
     try:
         from app.models.client_model import Cliente
@@ -307,13 +469,19 @@ async def actualizar_cliente(
                 }
             )
         
-        # Actualizar solo los campos proporcionados
+        # Actualizar solo los campos proporcionados (ahora incluye vendedor_id)
         update_data = cliente_data.model_dump(exclude_unset=True, exclude={'vendedor_id'})
         
         if update_data:
             for field, value in update_data.items():
                 setattr(existing, field, value)
-            
+        
+        # Actualizar vendedor_id si se proporcionó
+        if cliente_data.vendedor_id is not None:
+            existing.vendedor_id = vendedor_uuid
+            logger.info(f"  ↳ Actualizando vendedor_id a: {vendedor_uuid}")
+        
+        if update_data or cliente_data.vendedor_id is not None:
             existing.updated_at = datetime.utcnow()
             await session.commit()
             await session.refresh(existing)
