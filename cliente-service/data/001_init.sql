@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS cliente (
     nit VARCHAR(20) UNIQUE NOT NULL,
     nombre VARCHAR(255) NOT NULL,
     codigo_unico VARCHAR(64) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),  -- Hash de contraseña para autenticación
     email VARCHAR(255),
     telefono VARCHAR(50),
     direccion TEXT,
@@ -22,6 +23,25 @@ CREATE TABLE IF NOT EXISTS cliente (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ====================================================
+-- MIGRACIONES (Para tablas existentes)
+-- ====================================================
+
+-- Agregar columna password_hash si no existe (para bases de datos existentes)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'cliente' 
+        AND column_name = 'password_hash'
+    ) THEN
+        ALTER TABLE cliente 
+        ADD COLUMN password_hash VARCHAR(255) NULL;
+        RAISE NOTICE '✅ Columna password_hash agregada a tabla cliente';
+    END IF;
+END $$;
 
 -- Tabla de histórico de compras
 CREATE TABLE IF NOT EXISTS compra_historico (

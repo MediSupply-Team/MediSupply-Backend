@@ -73,6 +73,7 @@ class Cliente(Base):
     nit: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, index=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     codigo_unico: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     email: Mapped[str] = mapped_column(String(255), nullable=True)
     telefono: Mapped[str] = mapped_column(String(32), nullable=True)
     direccion: Mapped[str] = mapped_column(String(512), nullable=True)

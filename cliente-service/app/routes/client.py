@@ -307,20 +307,18 @@ async def crear_cliente(
     Crea un nuevo cliente en el sistema
     
     **Requiere:**
-    - ID único del cliente
     - NIT (debe ser único)
     - Nombre del cliente
-    - Código único (debe ser único)
+    - Password (se almacena hasheado)
     - Vendedor ID (opcional - para trazabilidad y asignación)
     
     **Retorna:**
     - 201: Cliente creado exitosamente
-    - 409: Cliente ya existe (NIT o código único duplicado)
+    - 409: Cliente ya existe (NIT duplicado)
     - 500: Error interno
     """
     vendedor_info = f"por vendedor {cliente.vendedor_id}" if cliente.vendedor_id else "sin vendedor asignado"
-    codigo_info = f"con código {cliente.codigo_unico}" if cliente.codigo_unico else "con código auto-generado"
-    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) {codigo_info} {vendedor_info}")
+    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) con código auto-generado {vendedor_info}")
     started = time.perf_counter_ns()
     
     # Validar vendedor_id SOLO si se proporciona
@@ -340,6 +338,10 @@ async def crear_cliente(
     
     try:
         from app.models.client_model import Cliente
+        from passlib.context import CryptContext
+        
+        # Configurar contexto de hashing
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         
         # Verificar si el NIT ya existe
         existing_by_nit = (await session.execute(
@@ -356,32 +358,19 @@ async def crear_cliente(
                 }
             )
         
-        # Generar código único automáticamente si no se proporciona
-        codigo_unico_final = cliente.codigo_unico
-        if not codigo_unico_final:
-            codigo_unico_final = await generar_codigo_unico(session)
-            logger.info(f"✨ Código único auto-generado: {codigo_unico_final}")
-        else:
-            # Si se proporciona, verificar que no exista
-            existing_by_codigo = (await session.execute(
-                select(Cliente).where(Cliente.codigo_unico == codigo_unico_final)
-            )).scalar_one_or_none()
-            
-            if existing_by_codigo:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail={
-                        "error": "CODIGO_ALREADY_EXISTS",
-                        "message": f"Cliente con código único {codigo_unico_final} ya existe",
-                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-                    }
-                )
+        # Generar código único automáticamente
+        codigo_unico_final = await generar_codigo_unico(session)
+        logger.info(f"✨ Código único auto-generado: {codigo_unico_final}")
+        
+        # Hashear password
+        password_hash = pwd_context.hash(cliente.password)
         
         # Crear nuevo cliente (id se genera automáticamente con UUID)
         new_cliente = Cliente(
             nit=cliente.nit,
             nombre=cliente.nombre,
             codigo_unico=codigo_unico_final,
+            password_hash=password_hash,
             email=cliente.email,
             telefono=cliente.telefono,
             direccion=cliente.direccion,
