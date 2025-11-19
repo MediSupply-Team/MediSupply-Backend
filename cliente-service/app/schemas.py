@@ -17,7 +17,7 @@ class ClienteCreate(BaseModel):
     """Payload para crear un nuevo cliente (id se genera automáticamente)"""
     nit: str = Field(..., min_length=5, max_length=32, description="NIT del cliente", example="900555666-7")
     nombre: str = Field(..., min_length=3, max_length=255, description="Nombre del cliente", example="Farmacia Los Andes")
-    password: str = Field(..., min_length=8, max_length=255, description="Contraseña del cliente", example="SecurePass123!")
+    password: str = Field(..., min_length=8, max_length=72, description="Contraseña del cliente (máximo 72 caracteres debido a limitación de bcrypt)", example="SecurePass123!")
     email: Optional[str] = Field(None, max_length=255, description="Email del cliente", example="contacto@losandes.com")
     telefono: Optional[str] = Field(None, max_length=32, description="Teléfono del cliente", example="+57-1-3456789")
     direccion: Optional[str] = Field(None, max_length=512, description="Dirección del cliente", example="Calle 45 #12-34")
