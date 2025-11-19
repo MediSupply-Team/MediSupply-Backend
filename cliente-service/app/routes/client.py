@@ -362,9 +362,17 @@ async def crear_cliente(
         codigo_unico_final = await generar_codigo_unico(session)
         logger.info(f"✨ Código único auto-generado: {codigo_unico_final}")
         
-        # Hashear password (bcrypt tiene límite de 72 bytes)
-        password_truncated = cliente.password[:72] if len(cliente.password) > 72 else cliente.password
-        password_hash = pwd_context.hash(password_truncated)
+        # Hashear password (bcrypt tiene límite de 72 bytes, no caracteres)
+        # Convertir a bytes y truncar si es necesario
+        password_bytes = cliente.password.encode('utf-8')
+        if len(password_bytes) > 72:
+            # Truncar a 72 bytes y decodificar (ignorando bytes incompletos al final)
+            password_bytes = password_bytes[:72]
+            password_to_hash = password_bytes.decode('utf-8', errors='ignore')
+        else:
+            password_to_hash = cliente.password
+        
+        password_hash = pwd_context.hash(password_to_hash)
         
         # Crear nuevo cliente (id se genera automáticamente con UUID)
         new_cliente = Cliente(
