@@ -338,10 +338,7 @@ async def crear_cliente(
     
     try:
         from app.models.client_model import Cliente
-        from passlib.context import CryptContext
-        
-        # Configurar contexto de hashing
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        import bcrypt
         
         # Verificar si el NIT ya existe
         existing_by_nit = (await session.execute(
@@ -362,17 +359,10 @@ async def crear_cliente(
         codigo_unico_final = await generar_codigo_unico(session)
         logger.info(f"✨ Código único auto-generado: {codigo_unico_final}")
         
-        # Hashear password (bcrypt tiene límite de 72 bytes, no caracteres)
-        # Convertir a bytes y truncar si es necesario
-        password_bytes = cliente.password.encode('utf-8')
-        if len(password_bytes) > 72:
-            # Truncar a 72 bytes y decodificar (ignorando bytes incompletos al final)
-            password_bytes = password_bytes[:72]
-            password_to_hash = password_bytes.decode('utf-8', errors='ignore')
-        else:
-            password_to_hash = cliente.password
-        
-        password_hash = pwd_context.hash(password_to_hash)
+        # Hashear password con bcrypt directamente (límite de 72 bytes)
+        password_bytes = cliente.password.encode('utf-8')[:72]
+        salt = bcrypt.gensalt()
+        password_hash = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
         
         # Crear nuevo cliente (id se genera automáticamente con UUID)
         new_cliente = Cliente(
