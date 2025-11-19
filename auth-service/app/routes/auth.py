@@ -65,7 +65,9 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
             "email": user.email,
             "name": user.name,
             "role": role.name,
-            "permissions": permissions
+            "permissions": permissions,
+            "cliente_id": user.cliente_id,
+            "venta_id": user.venta_id
         }
     )
 
@@ -85,6 +87,17 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
             detail="El email ya está registrado"
         )
     
+    role_result = await db.execute(
+        select(Role).where(Role.id == request.role_id)
+    )
+    role_exists = role_result.scalar_one_or_none()
+    
+    if not role_exists:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El rol con ID {request.role_id} no existe"
+        )
+    
     # Crear nuevo usuario
     hashed_password = password_service.hash_password(request.password)
     new_user = User(
@@ -93,6 +106,8 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
         name=request.name,
         role_id=request.role_id,
         hospital_id=request.hospital_id,
+        cliente_id=request.cliente_id,
+        venta_id=request.venta_id,
         is_active=True
     )
     

@@ -30,6 +30,8 @@ class RegisterRequest(BaseModel):
     name: str
     role_id: int
     hospital_id: Optional[str] = None
+    cliente_id: Optional[str] = None
+    venta_id: Optional[str] = None
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
