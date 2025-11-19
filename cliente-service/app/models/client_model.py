@@ -36,10 +36,10 @@ class Vendedor(Base):
     
     # Campos de rol y permisos
     rol: Mapped[str] = mapped_column(String(32), default="seller", nullable=False)  # seller para coincidir con orders
-    rol_vendedor_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("tipo_rol_vendedor.id"), nullable=True, index=True)  # FK a TipoRolVendedor
+    rol_vendedor_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tipo_rol_vendedor.id"), nullable=True, index=True)  # FK a TipoRolVendedor
     
     # Campos de asignación geográfica y jerarquía
-    territorio_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("territorio.id"), nullable=True, index=True)  # FK a Territorio
+    territorio_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("territorio.id"), nullable=True, index=True)  # FK a Territorio
     supervisor_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("vendedor.id"), nullable=True, index=True)  # FK a Vendedor (auto-referencia)
     
     # Campos adicionales

@@ -29,7 +29,7 @@ class PlanVenta(Base):
     
     # Relaciones
     vendedor_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("vendedor.id"), unique=True, nullable=False, index=True)  # 1:1 con Vendedor
-    tipo_plan_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("tipo_plan.id"), nullable=True, index=True)
+    tipo_plan_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tipo_plan.id"), nullable=True, index=True)
     
     # Fechas del plan
     fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)

@@ -19,7 +19,7 @@ class TipoRolVendedor(Base):
     """
     __tablename__ = "tipo_rol_vendedor"
     
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     codigo: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -37,7 +37,7 @@ class Territorio(Base):
     """
     __tablename__ = "territorio"
     
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     codigo: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     pais: Mapped[str] = mapped_column(String(2), nullable=False, index=True)  # ISO 3166-1 alpha-2
@@ -54,7 +54,7 @@ class TipoPlan(Base):
     """
     __tablename__ = "tipo_plan"
     
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     codigo: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -71,7 +71,7 @@ class Region(Base):
     """
     __tablename__ = "region"
     
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     codigo: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     pais: Mapped[str] = mapped_column(String(2), nullable=False, index=True)  # ISO 3166-1 alpha-2
@@ -88,7 +88,7 @@ class Zona(Base):
     """
     __tablename__ = "zona"
     
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     codigo: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     tipo: Mapped[str] = mapped_column(String(64), nullable=False, index=True)  # industrial, hospitalaria, rural, etc.
