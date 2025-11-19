@@ -7,6 +7,8 @@ class UserBase(BaseModel):
     email: EmailStr
     name: str
     hospital_id: Optional[str] = None
+    cliente_id: Optional[str] = None
+    venta_id: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
@@ -16,6 +18,8 @@ class UserResponse(UserBase):
     id: int
     role: str
     is_active: bool
+    cliente_id: Optional[str] = None
+    venta_id: Optional[str] = None
     created_at: datetime
 
     class Config:

@@ -16,5 +16,6 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+    cliente_id = Column(String, nullable=True, index=True)
+    venta_id = Column(String, nullable=True, index=True)
     role = relationship("Role", back_populates="users")

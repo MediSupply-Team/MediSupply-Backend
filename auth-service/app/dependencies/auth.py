@@ -1,16 +1,19 @@
 # app/dependencies/auth.py
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.services.jwt_service import jwt_service
 from app.models.user import User
+from app.models.role import Role
 
 security = HTTPBearer()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> dict:
     token = credentials.credentials
     
@@ -35,14 +38,31 @@ async def get_current_user(
             detail="Invalid token"
         )
     
-    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    # ✅ OBTENER USUARIO CON ROL Y PERMISOS ACTUALIZADOS
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.role).selectinload(Role.permissions))
+        .where(User.id == user_id, User.is_active == True)
+    )
+    user = result.scalar_one_or_none()
+    
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found"
         )
     
-    return payload
+    # ✅ RETORNAR INFO ACTUALIZADA DESDE LA BD
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role.name,
+        "permissions": [
+            {"resource": p.resource, "action": p.action}
+            for p in user.role.permissions
+        ]
+    }
 
 def require_permission(resource: str, action: str):
     def permission_checker(current_user: dict = Depends(get_current_user)):
