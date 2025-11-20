@@ -326,18 +326,11 @@ async def crear_vendedor(
             "created_at": new_vendedor.created_at,
             "updated_at": new_vendedor.updated_at,
             "created_by_user_id": new_vendedor.created_by_user_id,
-            "plan_venta_id": plan_venta_id  # Solo el ID del plan
+            "plan_venta_id": plan_venta_id,  # Solo el ID del plan
+            "generated_password": generated_password  # Contraseña generada (o None si no se generó)
         }
         
-        response = VendedorResponse(**vendedor_dict)
-        
-        # 🔐 Si se generó contraseña, agregarla a la respuesta (solo esta vez)
-        if generated_password:
-            response_dict = response.model_dump()
-            response_dict["temporary_password"] = generated_password
-            logger.info(f"✅ Vendedor creado con contraseña temporal")
-            return response_dict
-        
+        return VendedorResponse(**vendedor_dict)
         return response
         
     except HTTPException:
