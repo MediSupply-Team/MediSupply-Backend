@@ -36,9 +36,11 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def generate_random_password(length: int = 12) -> str:
-    """Genera una contraseña aleatoria segura"""
+    """Genera una contraseña aleatoria segura (max 12 chars para bcrypt)"""
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    password = ''.join(secrets.choice(alphabet) for _ in range(length))
+    # Limitar a 12 caracteres para evitar el límite de 72 bytes de bcrypt
+    safe_length = min(length, 12)
+    password = ''.join(secrets.choice(alphabet) for _ in range(safe_length))
     return password
 
 
