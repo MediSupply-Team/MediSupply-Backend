@@ -76,20 +76,26 @@ async def crear_vendedor(
         # Si no tiene password_hash, generar contraseña automática
         if not vendedor.password_hash:
             generated_password = generate_random_password()
+            logger.info(f"🔐 Generando contraseña automática para {vendedor.email}")
             logger.info(f"🔐 Contraseña generada: longitud={len(generated_password)} bytes={len(generated_password.encode('utf-8'))}")
             # Asegurar que no exceda el límite de bcrypt (72 bytes)
             if len(generated_password.encode('utf-8')) > 72:
                 generated_password = generated_password[:72]
+                logger.info(f"🔐 Contraseña truncada a 72 bytes")
             vendedor.password_hash = pwd_context.hash(generated_password)
-            logger.info(f"🔐 Contraseña generada automáticamente para {vendedor.username}")
+            logger.info(f"🔐 Contraseña hasheada exitosamente")
         else:
+            logger.info(f"🔐 password_hash recibido: longitud={len(vendedor.password_hash)}")
             # Si viene password_hash, verificar que no sea demasiado largo (probablemente ya está hasheado)
             # Si es muy largo (>100 chars), asumir que ya está hasheado
             # Si es corto, hashear
             if len(vendedor.password_hash) < 100:
+                logger.info(f"🔐 Hasheando password recibido (longitud < 100)")
                 # Es una contraseña en texto plano, hashear
                 vendedor.password_hash = pwd_context.hash(vendedor.password_hash)
                 logger.info(f"🔐 Contraseña hasheada para {vendedor.username}")
+            else:
+                logger.info(f"🔐 password_hash ya está hasheado (longitud >= 100)")
         
         # Verificar si la identificación ya existe
         existing_by_id = (await session.execute(
