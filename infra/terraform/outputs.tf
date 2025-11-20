@@ -202,10 +202,11 @@ output "catalogo_ecr_repository_url" {
   value       = module.catalogo_service.ecr_repository_url
 }
 
-output "catalogo_db_endpoint" {
-  description = "Catalogo service database endpoint"
-  value       = module.catalogo_service.db_instance_endpoint
-}
+# Comentado: catalogo ahora usa la base de datos compartida
+# output "catalogo_db_endpoint" {
+#   description = "Catalogo service database endpoint"
+#   value       = module.catalogo_service.db_instance_endpoint
+# }
 
 output "catalogo_sqs_queue_url" {
   description = "Catalogo service SQS queue URL"
@@ -244,7 +245,7 @@ output "quick_reference" {
     catalogo_ecr         = module.catalogo_service.ecr_repository_url
     catalogo_queue       = module.catalogo_service.sqs_queue_url
     connect_to_db        = "export PGPASSWORD=$(aws secretsmanager get-secret-value --secret-id ${aws_secretsmanager_secret.db_password.name} --query SecretString --output text) && psql -h ${aws_db_instance.postgres.address} -U ${aws_db_instance.postgres.username} -d ${aws_db_instance.postgres.db_name}"
-    catalogo_db          = "aws secretsmanager get-secret-value --secret-id ${module.catalogo_service.db_credentials_secret_arn}"
+    # catalogo_db usa la base de datos compartida orders-postgres
     view_logs            = "aws logs tail /ecs/${var.project}-${var.env} --follow"
     catalogo_logs        = "aws logs tail ${module.catalogo_service.cloudwatch_log_group_name} --follow"
   }

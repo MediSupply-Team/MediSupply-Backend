@@ -7,13 +7,18 @@ import uuid
 class Visita(SQLModel, table=True):
     """Modelo para visitas de vendedores"""
     id: int | None = Field(default=None, primary_key=True)
-    vendedor_id: int
-    cliente: str
-    direccion: str
+    vendedor_id: int  # Mantener como int para compatibilidad con endpoint actual
+    cliente: str  # Nombre del cliente (mantener nombre original)
+    direccion: str  # Dirección completa (mantener nombre original)
     fecha: date
     hora: str
     lat: float
     lng: float
+    # Campos adicionales internos (no se exponen en el endpoint actual)
+    cliente_id: Optional[str] = None  # UUID real del cliente en cliente-service
+    ciudad: Optional[str] = None
+    estado: str = Field(default="pendiente")
+    observaciones: Optional[str] = None
 
 
 class Ruta(SQLModel, table=True):

@@ -42,9 +42,11 @@ def _calculate_order_revenue(order: Dict[str, Any], products: Dict[str, Dict[str
         price = 0.0
         if codigo and codigo in products:
             price = products[codigo].get("precio_unitario", 0.0)
+            logger.info(f"Producto {codigo}: qty={quantity}, precio={price}, subtotal={quantity * price}")
         else:
             # Fallback al precio en el item
             price = item.get("price", 0.0)
+            logger.warning(f"Producto {codigo} no encontrado en catálogo, usando precio del item: {price}")
         
         total += quantity * price
     return round(total, 2)
@@ -97,8 +99,16 @@ async def get_sales_performance(
             end_date=end_datetime
         )
         
-        # Filtrar por fechas (validación adicional)
-        orders = _filter_orders_by_date(all_orders, period_from, period_to)
+        logger.info(f"Roles en órdenes: {[order.get('created_by_role') for order in all_orders]}")
+        
+        # Filtrar solo órdenes de vendedores (seller) y por fechas
+        orders = [
+            order for order in all_orders 
+            if order.get("created_by_role", "").lower() == "seller"
+        ]
+        orders = _filter_orders_by_date(orders, period_from, period_to)
+        
+        logger.info(f"Órdenes de seller después de filtrar: {len(orders)}")
         
         # Obtener todos los SKUs únicos de las órdenes
         all_skus = set()
@@ -130,6 +140,7 @@ async def get_sales_performance(
         
         # -------- SUMMARY: Total Sales --------
         total_sales = sum(_calculate_order_revenue(order, products) for order in orders)
+        logger.info(f"Total sales calculado: {total_sales}, de {len(orders)} órdenes")
         
         # -------- SUMMARY: Pending Orders --------
         pending_orders = sum(
@@ -155,6 +166,11 @@ async def get_sales_performance(
             start_date=prev_start_datetime,
             end_date=prev_end_datetime
         )
+        # Filtrar solo órdenes de vendedores (seller)
+        prev_orders = [
+            order for order in prev_orders 
+            if order.get("created_by_role", "").lower() == "seller"
+        ]
         prev_orders = _filter_orders_by_date(prev_orders, prev_from, prev_to)
         prev_total = sum(_calculate_order_revenue(order, products) for order in prev_orders)
         
@@ -241,7 +257,7 @@ async def get_sales_performance(
         # -------- TABLE: Rows (órdenes individuales) --------
         table_rows: List[TableRow] = []
         for order in orders:
-            vendor_name = order.get("user_name", "N/A")
+            vendor_name = order.get("user_name") or "Vendedor desconocido"
             items = order.get("items", [])
             status = order.get("status", "COMPLETED")
             

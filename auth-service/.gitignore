@@ -1,0 +1,26 @@
+# Entorno virtual
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Database
+*.db
+*.sqlite3
+
+# Alembic
+alembic.ini.bak
+
+# Tests
+.pytest_cache/
+.coverage

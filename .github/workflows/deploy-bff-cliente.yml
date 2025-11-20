@@ -3,7 +3,7 @@ name: Deploy BFF Cliente Service
 
 on:
   push:
-    branches: [ "develop" ]
+    branches: [ "develop", "ajuste_cliente_service" ]
     paths:
       - "bff-cliente/**"  # ✅ CORRECTO - tu nombre original
       - ".github/workflows/deploy-bff-cliente.yml"

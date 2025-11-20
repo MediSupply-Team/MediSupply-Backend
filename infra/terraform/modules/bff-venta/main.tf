@@ -12,10 +12,10 @@ locals {
   # Todos los servicios backend están detrás del mismo ALB con path-based routing
   # ============================================================
   
-  # Catálogo: /catalog/* o /catalogo/*
+  # Catálogo: /api/v1/catalog/*, /api/v1/inventory/*, /api/v1/proveedores/*
   computed_catalogo_url = (
     var.catalogo_service_url == "" || var.catalogo_service_url == "placeholder-will-be-updated-after-deploy"
-    ? "http://${aws_lb.alb.dns_name}/catalog"
+    ? "http://${aws_lb.alb.dns_name}"
     : var.catalogo_service_url
   )
   
