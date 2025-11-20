@@ -96,7 +96,7 @@ class PlanRegion(Base):
     
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     plan_venta_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("plan_venta.id", ondelete="CASCADE"), nullable=False, index=True)
-    region_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("region.id"), nullable=False, index=True)
+    region_id: Mapped[int] = mapped_column(Integer, ForeignKey("region.id"), nullable=False, index=True)
     
     # Auditoría
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -120,7 +120,7 @@ class PlanZona(Base):
     
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     plan_venta_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("plan_venta.id", ondelete="CASCADE"), nullable=False, index=True)
-    zona_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("zona.id"), nullable=False, index=True)
+    zona_id: Mapped[int] = mapped_column(Integer, ForeignKey("zona.id"), nullable=False, index=True)
     
     # Auditoría
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
