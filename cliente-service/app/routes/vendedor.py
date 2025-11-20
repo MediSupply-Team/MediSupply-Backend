@@ -76,6 +76,10 @@ async def crear_vendedor(
         # Si no tiene password_hash, generar contraseña automática
         if not vendedor.password_hash:
             generated_password = generate_random_password()
+            logger.info(f"🔐 Contraseña generada: longitud={len(generated_password)} bytes={len(generated_password.encode('utf-8'))}")
+            # Asegurar que no exceda el límite de bcrypt (72 bytes)
+            if len(generated_password.encode('utf-8')) > 72:
+                generated_password = generated_password[:72]
             vendedor.password_hash = pwd_context.hash(generated_password)
             logger.info(f"🔐 Contraseña generada automáticamente para {vendedor.username}")
         else:
