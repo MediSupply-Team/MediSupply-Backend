@@ -24,9 +24,22 @@ from typing import Optional, List
 from uuid import UUID
 import time
 import logging
+import secrets
+import string
+from passlib.context import CryptContext
 
 router = APIRouter(tags=["vendedores"])
 logger = logging.getLogger(__name__)
+
+# Configurar bcrypt para hashear contraseñas
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def generate_random_password(length: int = 12) -> str:
+    """Genera una contraseña aleatoria segura"""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    password = ''.join(secrets.choice(alphabet) for _ in range(length))
+    return password
 
 
 @router.post("/", response_model=VendedorResponse, status_code=status.HTTP_201_CREATED)
@@ -52,6 +65,18 @@ async def crear_vendedor(
     started = time.perf_counter_ns()
     
     try:
+        # 🔹 GENERAR CONTRASEÑA AUTOMÁTICAMENTE SI NO SE PROPORCIONA
+        generated_password = None
+        if not vendedor.username:
+            # Generar username automático basado en email
+            vendedor.username = vendedor.email.split('@')[0].lower()
+        
+        if not vendedor.password_hash:
+            # Generar contraseña aleatoria
+            generated_password = generate_random_password()
+            vendedor.password_hash = pwd_context.hash(generated_password)
+            logger.info(f"🔐 Contraseña generada automáticamente para {vendedor.username}")
+        
         # Verificar si la identificación ya existe
         existing_by_id = (await session.execute(
             select(Vendedor).where(Vendedor.identificacion == vendedor.identificacion)
@@ -284,7 +309,16 @@ async def crear_vendedor(
             "plan_venta_id": plan_venta_id  # Solo el ID del plan
         }
         
-        return VendedorResponse(**vendedor_dict)
+        response = VendedorResponse(**vendedor_dict)
+        
+        # 🔐 Si se generó contraseña, agregarla a la respuesta (solo esta vez)
+        if generated_password:
+            response_dict = response.model_dump()
+            response_dict["temporary_password"] = generated_password
+            logger.info(f"✅ Vendedor creado con contraseña temporal")
+            return response_dict
+        
+        return response
         
     except HTTPException:
         raise
