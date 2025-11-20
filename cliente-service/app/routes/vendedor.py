@@ -71,11 +71,19 @@ async def crear_vendedor(
             # Generar username automático basado en email
             vendedor.username = vendedor.email.split('@')[0].lower()
         
+        # Si no tiene password_hash, generar contraseña automática
         if not vendedor.password_hash:
-            # Generar contraseña aleatoria
             generated_password = generate_random_password()
             vendedor.password_hash = pwd_context.hash(generated_password)
             logger.info(f"🔐 Contraseña generada automáticamente para {vendedor.username}")
+        else:
+            # Si viene password_hash, verificar que no sea demasiado largo (probablemente ya está hasheado)
+            # Si es muy largo (>100 chars), asumir que ya está hasheado
+            # Si es corto, hashear
+            if len(vendedor.password_hash) < 100:
+                # Es una contraseña en texto plano, hashear
+                vendedor.password_hash = pwd_context.hash(vendedor.password_hash)
+                logger.info(f"🔐 Contraseña hasheada para {vendedor.username}")
         
         # Verificar si la identificación ya existe
         existing_by_id = (await session.execute(
