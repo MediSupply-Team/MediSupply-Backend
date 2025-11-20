@@ -16,15 +16,31 @@ from app.schemas import (
     VendedorResponse,
     VendedorDetalleResponse,
     VendedorListResponse,
-    ClienteBasicoResponse
+    ClienteBasicoResponse,
+    AsociarClientesRequest,
+    AsociarClientesResponse
 )
 from typing import Optional, List
 from uuid import UUID
 import time
 import logging
+import secrets
+import string
+import bcrypt
 
 router = APIRouter(tags=["vendedores"])
 logger = logging.getLogger(__name__)
+
+
+def generate_random_password(length: int = 12) -> str:
+    """Genera una contraseña aleatoria segura (max 12 chars para bcrypt)"""
+    # Usar solo caracteres ASCII simples para evitar problemas de codificación
+    # Caracteres especiales de 1 byte
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    # Limitar a 12 caracteres para evitar el límite de 72 bytes de bcrypt
+    safe_length = min(length, 12)
+    password = ''.join(secrets.choice(alphabet) for _ in range(safe_length))
+    return password
 
 
 @router.post("/", response_model=VendedorResponse, status_code=status.HTTP_201_CREATED)
@@ -50,6 +66,37 @@ async def crear_vendedor(
     started = time.perf_counter_ns()
     
     try:
+        # 🔹 GENERAR CONTRASEÑA AUTOMÁTICAMENTE SI NO SE PROPORCIONA
+        generated_password = None
+        if not vendedor.username:
+            # Generar username automático basado en email
+            vendedor.username = vendedor.email.split('@')[0].lower()
+        
+        # Si no tiene password_hash, generar contraseña automática
+        if not vendedor.password_hash:
+            generated_password = generate_random_password()
+            logger.info(f"🔐 Generando contraseña automática para {vendedor.email}")
+            logger.info(f"🔐 Contraseña generada: longitud={len(generated_password)} bytes={len(generated_password.encode('utf-8'))}")
+            # Hashear password con bcrypt directamente (límite de 72 bytes)
+            password_bytes = generated_password.encode('utf-8')[:72]
+            salt = bcrypt.gensalt()
+            vendedor.password_hash = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
+            logger.info(f"🔐 Contraseña hasheada exitosamente")
+        else:
+            logger.info(f"🔐 password_hash recibido: longitud={len(vendedor.password_hash)}")
+            # Si viene password_hash, verificar que no sea demasiado largo (probablemente ya está hasheado)
+            # Si es muy largo (>100 chars), asumir que ya está hasheado
+            # Si es corto, hashear
+            if len(vendedor.password_hash) < 100:
+                logger.info(f"🔐 Hasheando password recibido (longitud < 100)")
+                # Es una contraseña en texto plano, hashear con bcrypt
+                password_bytes = vendedor.password_hash.encode('utf-8')[:72]
+                salt = bcrypt.gensalt()
+                vendedor.password_hash = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
+                logger.info(f"🔐 Contraseña hasheada para {vendedor.username}")
+            else:
+                logger.info(f"🔐 password_hash ya está hasheado (longitud >= 100)")
+        
         # Verificar si la identificación ya existe
         existing_by_id = (await session.execute(
             select(Vendedor).where(Vendedor.identificacion == vendedor.identificacion)
@@ -97,43 +144,27 @@ async def crear_vendedor(
                 )
         
         # Validar FK: rol_vendedor_id (si se proporciona)
-        rol_vendedor_uuid = None
         if vendedor.rol_vendedor_id:
-            try:
-                rol_vendedor_uuid = UUID(vendedor.rol_vendedor_id)
-                tipo_rol = await session.get(TipoRolVendedor, rol_vendedor_uuid)
-                if not tipo_rol or not tipo_rol.activo:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail={
-                            "error": "TIPO_ROL_NOT_FOUND",
-                            "message": f"Tipo de rol con ID '{vendedor.rol_vendedor_id}' no encontrado o inactivo"
-                        }
-                    )
-            except ValueError:
+            tipo_rol = await session.get(TipoRolVendedor, vendedor.rol_vendedor_id)
+            if not tipo_rol or not tipo_rol.activo:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "INVALID_UUID", "message": f"rol_vendedor_id '{vendedor.rol_vendedor_id}' no es un UUID válido"}
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "error": "TIPO_ROL_NOT_FOUND",
+                        "message": f"Tipo de rol con ID '{vendedor.rol_vendedor_id}' no encontrado o inactivo"
+                    }
                 )
         
         # Validar FK: territorio_id (si se proporciona)
-        territorio_uuid = None
         if vendedor.territorio_id:
-            try:
-                territorio_uuid = UUID(vendedor.territorio_id)
-                territorio = await session.get(Territorio, territorio_uuid)
-                if not territorio or not territorio.activo:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail={
-                            "error": "TERRITORIO_NOT_FOUND",
-                            "message": f"Territorio con ID '{vendedor.territorio_id}' no encontrado o inactivo"
-                        }
-                    )
-            except ValueError:
+            territorio = await session.get(Territorio, vendedor.territorio_id)
+            if not territorio or not territorio.activo:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "INVALID_UUID", "message": f"territorio_id '{vendedor.territorio_id}' no es un UUID válido"}
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "error": "TERRITORIO_NOT_FOUND",
+                        "message": f"Territorio con ID '{vendedor.territorio_id}' no encontrado o inactivo"
+                    }
                 )
         
         # Validar FK: supervisor_id (si se proporciona)
@@ -166,8 +197,8 @@ async def crear_vendedor(
             username=vendedor.username,
             password_hash=vendedor.password_hash,
             rol=vendedor.rol,
-            rol_vendedor_id=rol_vendedor_uuid,
-            territorio_id=territorio_uuid,
+            rol_vendedor_id=vendedor.rol_vendedor_id,
+            territorio_id=vendedor.territorio_id,
             supervisor_id=supervisor_uuid,
             fecha_ingreso=vendedor.fecha_ingreso,
             observaciones=vendedor.observaciones,
@@ -184,29 +215,21 @@ async def crear_vendedor(
             plan_data = vendedor.plan_venta
             
             # Validar tipo_plan_id (si se proporciona)
-            tipo_plan_uuid = None
             if plan_data.tipo_plan_id:
-                try:
-                    tipo_plan_uuid = UUID(plan_data.tipo_plan_id)
-                    tipo_plan = await session.get(TipoPlan, tipo_plan_uuid)
-                    if not tipo_plan or not tipo_plan.activo:
-                        raise HTTPException(
-                            status_code=status.HTTP_404_NOT_FOUND,
-                            detail={
-                                "error": "TIPO_PLAN_NOT_FOUND",
-                                "message": f"Tipo de plan con ID '{plan_data.tipo_plan_id}' no encontrado o inactivo"
-                            }
-                        )
-                except ValueError:
+                tipo_plan = await session.get(TipoPlan, plan_data.tipo_plan_id)
+                if not tipo_plan or not tipo_plan.activo:
                     raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail={"error": "INVALID_UUID", "message": f"tipo_plan_id '{plan_data.tipo_plan_id}' no es un UUID válido"}
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail={
+                            "error": "TIPO_PLAN_NOT_FOUND",
+                            "message": f"Tipo de plan con ID '{plan_data.tipo_plan_id}' no encontrado o inactivo"
+                        }
                     )
             
             # Crear el Plan de Venta
             new_plan = PlanVenta(
                 vendedor_id=new_vendedor.id,  # ← ID del vendedor recién creado
-                tipo_plan_id=tipo_plan_uuid,
+                tipo_plan_id=plan_data.tipo_plan_id,
                 nombre_plan=plan_data.nombre_plan,
                 fecha_inicio=plan_data.fecha_inicio,
                 fecha_fin=plan_data.fecha_fin,
@@ -234,58 +257,44 @@ async def crear_vendedor(
             
             # Crear regiones asignadas
             if plan_data.region_ids:
-                for region_id_str in plan_data.region_ids:
-                    try:
-                        region_uuid = UUID(region_id_str)
-                        # Validar que la región exista y esté activa
-                        region = await session.get(Region, region_uuid)
-                        if not region or not region.activo:
-                            raise HTTPException(
-                                status_code=status.HTTP_404_NOT_FOUND,
-                                detail={
-                                    "error": "REGION_NOT_FOUND",
-                                    "message": f"Región con ID '{region_id_str}' no encontrada o inactiva"
-                                }
-                            )
-                        
-                        plan_region = PlanRegion(
-                            plan_venta_id=new_plan.id,
-                            region_id=region_uuid
-                        )
-                        session.add(plan_region)
-                    except ValueError:
+                for region_id in plan_data.region_ids:
+                    # Validar que la región exista y esté activa
+                    region = await session.get(Region, region_id)
+                    if not region or not region.activo:
                         raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail={"error": "INVALID_UUID", "message": f"region_id '{region_id_str}' no es un UUID válido"}
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail={
+                                "error": "REGION_NOT_FOUND",
+                                "message": f"Región con ID '{region_id}' no encontrada o inactiva"
+                            }
                         )
+                    
+                    plan_region = PlanRegion(
+                        plan_venta_id=new_plan.id,
+                        region_id=region_id
+                    )
+                    session.add(plan_region)
                 logger.info(f"   ✅ {len(plan_data.region_ids)} regiones asignadas")
             
             # Crear zonas asignadas
             if plan_data.zona_ids:
-                for zona_id_str in plan_data.zona_ids:
-                    try:
-                        zona_uuid = UUID(zona_id_str)
-                        # Validar que la zona exista y esté activa
-                        zona = await session.get(Zona, zona_uuid)
-                        if not zona or not zona.activo:
-                            raise HTTPException(
-                                status_code=status.HTTP_404_NOT_FOUND,
-                                detail={
-                                    "error": "ZONA_NOT_FOUND",
-                                    "message": f"Zona con ID '{zona_id_str}' no encontrada o inactiva"
-                                }
-                            )
-                        
-                        plan_zona = PlanZona(
-                            plan_venta_id=new_plan.id,
-                            zona_id=zona_uuid
-                        )
-                        session.add(plan_zona)
-                    except ValueError:
+                for zona_id in plan_data.zona_ids:
+                    # Validar que la zona exista y esté activa
+                    zona = await session.get(Zona, zona_id)
+                    if not zona or not zona.activo:
                         raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail={"error": "INVALID_UUID", "message": f"zona_id '{zona_id_str}' no es un UUID válido"}
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail={
+                                "error": "ZONA_NOT_FOUND",
+                                "message": f"Zona con ID '{zona_id}' no encontrada o inactiva"
+                            }
                         )
+                    
+                    plan_zona = PlanZona(
+                        plan_venta_id=new_plan.id,
+                        zona_id=zona_id
+                    )
+                    session.add(plan_zona)
                 logger.info(f"   ✅ {len(plan_data.zona_ids)} zonas asignadas")
         
         # Commit de toda la transacción (vendedor + plan + productos + regiones + zonas)
@@ -317,10 +326,12 @@ async def crear_vendedor(
             "created_at": new_vendedor.created_at,
             "updated_at": new_vendedor.updated_at,
             "created_by_user_id": new_vendedor.created_by_user_id,
-            "plan_venta_id": plan_venta_id  # Solo el ID del plan
+            "plan_venta_id": plan_venta_id,  # Solo el ID del plan
+            "generated_password": generated_password  # Contraseña generada (o None si no se generó)
         }
         
         return VendedorResponse(**vendedor_dict)
+        return response
         
     except HTTPException:
         raise
@@ -698,35 +709,19 @@ async def actualizar_vendedor(
         
         # Validar y convertir FK antes de asignar
         if "rol_vendedor_id" in update_data and update_data["rol_vendedor_id"]:
-            try:
-                rol_uuid = UUID(update_data["rol_vendedor_id"])
-                tipo_rol = await session.get(TipoRolVendedor, rol_uuid)
-                if not tipo_rol or not tipo_rol.activo:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail={"error": "TIPO_ROL_NOT_FOUND", "message": f"Tipo de rol no encontrado o inactivo"}
-                    )
-                update_data["rol_vendedor_id"] = rol_uuid
-            except ValueError:
+            tipo_rol = await session.get(TipoRolVendedor, update_data["rol_vendedor_id"])
+            if not tipo_rol or not tipo_rol.activo:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "INVALID_UUID", "message": "rol_vendedor_id no es un UUID válido"}
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"error": "TIPO_ROL_NOT_FOUND", "message": f"Tipo de rol no encontrado o inactivo"}
                 )
         
         if "territorio_id" in update_data and update_data["territorio_id"]:
-            try:
-                territorio_uuid = UUID(update_data["territorio_id"])
-                territorio = await session.get(Territorio, territorio_uuid)
-                if not territorio or not territorio.activo:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail={"error": "TERRITORIO_NOT_FOUND", "message": f"Territorio no encontrado o inactivo"}
-                    )
-                update_data["territorio_id"] = territorio_uuid
-            except ValueError:
+            territorio = await session.get(Territorio, update_data["territorio_id"])
+            if not territorio or not territorio.activo:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "INVALID_UUID", "message": "territorio_id no es un UUID válido"}
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"error": "TERRITORIO_NOT_FOUND", "message": f"Territorio no encontrado o inactivo"}
                 )
         
         if "supervisor_id" in update_data and update_data["supervisor_id"]:
@@ -897,4 +892,139 @@ async def obtener_clientes_vendedor(
             for c in clientes
         ]
     }
+
+
+@router.post("/{vendedor_id}/clientes/asociar", response_model=AsociarClientesResponse, status_code=status.HTTP_200_OK)
+async def asociar_clientes_a_vendedor(
+    vendedor_id: str,
+    payload: AsociarClientesRequest,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Asociar múltiples clientes a un vendedor
+    
+    **Validaciones:**
+    - El vendedor debe existir y estar activo
+    - Los clientes deben existir
+    - Solo se asocian clientes activos
+    - Se reportan clientes no encontrados o inactivos
+    
+    **Retorna:**
+    - 200: Clientes asociados exitosamente (con detalles de éxitos y fallos)
+    - 400: ID de vendedor inválido
+    - 404: Vendedor no encontrado o inactivo
+    """
+    logger.info(f"🔗 Asociando {len(payload.clientes_ids)} clientes al vendedor: {vendedor_id}")
+    started = time.perf_counter_ns()
+    
+    # Validar UUID del vendedor
+    try:
+        vendedor_uuid = UUID(vendedor_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "INVALID_VENDEDOR_UUID",
+                "message": f"ID de vendedor '{vendedor_id}' no es un UUID válido"
+            }
+        )
+    
+    # Verificar que el vendedor existe y está activo
+    vendedor = (await session.execute(
+        select(Vendedor).where(Vendedor.id == vendedor_uuid)
+    )).scalar_one_or_none()
+    
+    if not vendedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "VENDEDOR_NOT_FOUND",
+                "message": f"Vendedor {vendedor_id} no encontrado"
+            }
+        )
+    
+    if not vendedor.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "VENDEDOR_INACTIVE",
+                "message": f"Vendedor {vendedor.nombre_completo} está inactivo y no puede tener clientes asociados"
+            }
+        )
+    
+    # Procesar cada cliente
+    clientes_asociados = 0
+    clientes_no_encontrados = []
+    clientes_inactivos = []
+    clientes_con_vendedor = []
+    
+    for cliente_id_str in payload.clientes_ids:
+        try:
+            # Validar UUID del cliente
+            try:
+                cliente_uuid = UUID(cliente_id_str)
+            except ValueError:
+                logger.warning(f"⚠️  Cliente ID inválido: {cliente_id_str}")
+                clientes_no_encontrados.append(cliente_id_str)
+                continue
+            
+            # Buscar el cliente
+            cliente = (await session.execute(
+                select(Cliente).where(Cliente.id == cliente_uuid)
+            )).scalar_one_or_none()
+            
+            if not cliente:
+                logger.warning(f"⚠️  Cliente no encontrado: {cliente_id_str}")
+                clientes_no_encontrados.append(cliente_id_str)
+                continue
+            
+            if not cliente.activo:
+                logger.warning(f"⚠️  Cliente inactivo: {cliente.nombre}")
+                clientes_inactivos.append(cliente_id_str)
+                continue
+            
+            # Verificar que el cliente NO tenga ya un vendedor asociado
+            if cliente.vendedor_id is not None:
+                logger.warning(f"⚠️  Cliente {cliente.nombre} ya tiene un vendedor asociado: {cliente.vendedor_id}")
+                clientes_con_vendedor.append(cliente_id_str)
+                continue
+            
+            # Asociar el cliente al vendedor
+            cliente.vendedor_id = vendedor_uuid
+            clientes_asociados += 1
+            logger.info(f"  ✅ Cliente '{cliente.nombre}' asociado correctamente")
+            
+        except Exception as e:
+            logger.error(f"❌ Error procesando cliente {cliente_id_str}: {e}")
+            clientes_no_encontrados.append(cliente_id_str)
+    
+    # Guardar cambios
+    await session.commit()
+    
+    took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+    
+    # Construir mensaje de resultado
+    mensaje_partes = []
+    if clientes_asociados > 0:
+        mensaje_partes.append(f"{clientes_asociados} cliente(s) asociado(s) exitosamente")
+    if clientes_no_encontrados:
+        mensaje_partes.append(f"{len(clientes_no_encontrados)} cliente(s) no encontrado(s)")
+    if clientes_inactivos:
+        mensaje_partes.append(f"{len(clientes_inactivos)} cliente(s) inactivo(s)")
+    if clientes_con_vendedor:
+        mensaje_partes.append(f"{len(clientes_con_vendedor)} cliente(s) ya tenían vendedor asociado")
+    
+    mensaje = ". ".join(mensaje_partes) if mensaje_partes else "No se realizaron cambios"
+    
+    logger.info(f"✅ Asociación completada en {took_ms}ms: {mensaje}")
+    
+    return AsociarClientesResponse(
+        vendedor_id=vendedor_uuid,
+        vendedor_nombre=vendedor.nombre_completo,
+        clientes_asociados=clientes_asociados,
+        clientes_no_encontrados=clientes_no_encontrados,
+        clientes_inactivos=clientes_inactivos,
+        clientes_con_vendedor=clientes_con_vendedor,
+        mensaje=mensaje
+    )
 

@@ -98,6 +98,78 @@ def listar_clientes():
         return jsonify(error="Error interno del servidor"), 500
 
 
+@bp.route('/api/v1/client/sin-vendedor', methods=['GET'])
+def listar_clientes_sin_vendedor():
+    """
+    Lista todos los clientes que NO tienen vendedor asociado
+    Proxy hacia cliente-service GET /api/cliente/sin-vendedor
+    """
+    cliente_url = get_cliente_service_url()
+    if not cliente_url:
+        return jsonify(error="Servicio de clientes no disponible"), 503
+    
+    try:
+        # Construir parámetros de query
+        params = {}
+        if request.args.get('limite'):
+            params['limite'] = request.args.get('limite')
+        if request.args.get('offset'):
+            params['offset'] = request.args.get('offset')
+        if request.args.get('activos_solo'):
+            params['activos_solo'] = request.args.get('activos_solo')
+        
+        # Construir URL
+        url = f"{cliente_url}/api/cliente/sin-vendedor"
+        
+        current_app.logger.info(f"Calling cliente service sin-vendedor: {url} with params: {params}")
+        
+        response = requests.get(
+            url,
+            params=params,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Cliente/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
+        )
+        
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Cliente service error: {response.status_code} - {response.text[:200]}"
+            )
+            
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al listar clientes sin vendedor",
+                details=error_data
+            ), response.status_code
+        
+        # Respuesta exitosa
+        current_app.logger.info(f"Cliente service sin-vendedor success: {response.status_code}")
+        
+        try:
+            return jsonify(response.json()), response.status_code
+        except:
+            return jsonify({"data": response.text}), response.status_code
+        
+    except Timeout:
+        current_app.logger.error(f"Timeout al conectar con servicio de clientes: {cliente_url}")
+        return jsonify(error="Timeout al listar clientes sin vendedor"), 504
+    
+    except RequestException as e:
+        current_app.logger.error(f"Error conectando con servicio de clientes: {e}")
+        return jsonify(error="Error de conexión con servicio de clientes"), 503
+    
+    except Exception as e:
+        current_app.logger.error(f"Error inesperado listando clientes sin vendedor: {e}", exc_info=True)
+        return jsonify(error="Error interno del servidor"), 500
+
+
 @bp.route('/api/v1/client/', methods=['POST'])
 def crear_cliente():
     """

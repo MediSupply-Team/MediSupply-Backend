@@ -45,9 +45,10 @@ def generar_visitas_desde_cliente_service():
     cliente_db_url = os.getenv("CLIENTE_DB_URL")
     
     if not cliente_db_url:
-        print("❌ ERROR: CLIENTE_DB_URL no configurada")
-        print("   No se pueden cargar datos sin conexión a cliente-service")
-        raise Exception("CLIENTE_DB_URL environment variable is required")
+        print("⚠️  ADVERTENCIA: CLIENTE_DB_URL no configurada")
+        print("   El servicio iniciará sin datos de visitas")
+        print("   Las visitas se pueden crear más tarde mediante la API")
+        return
     
     print(f"📡 Conectando a cliente-service...")
     
@@ -70,8 +71,9 @@ def generar_visitas_desde_cliente_service():
             clientes = result.fetchall()
             
             if not clientes:
-                print("❌ ERROR: No se encontraron clientes activos en cliente-service")
-                raise Exception("No active clients found in cliente-service database")
+                print("⚠️  ADVERTENCIA: No se encontraron clientes activos en cliente-service")
+                print("   El servicio iniciará sin datos de visitas")
+                return
             
             print(f"✅ Encontrados {len(clientes)} clientes activos")
         
@@ -80,8 +82,9 @@ def generar_visitas_desde_cliente_service():
         print(f"👤 Usando vendedor_id: {vendedor_id}")
         
     except Exception as e:
-        print(f"❌ ERROR conectando a cliente-service: {e}")
-        raise
+        print(f"⚠️  ADVERTENCIA: Error conectando a cliente-service: {e}")
+        print("   El servicio iniciará sin datos de visitas")
+        return
     
     # Generar visitas para 7 días (3 antes, hoy, 3 después)
     hoy = date.today()

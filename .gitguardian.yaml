@@ -1,0 +1,15 @@
+# .gitguardian.yaml
+version: 2
+
+# Ignorar archivos de desarrollo con secrets de dev
+paths-ignore:
+  - "docker-compose.dev.yml"
+  - "auth-service/create_auth_db.py"
+  - "**/create_*_db.py"
+  - "**/*.dev.yml"
+  - "**/*.local.yml"
+
+# Opcional: Ignorar patrones específicos
+matches-ignore:
+  - name: Generic Password in docker-compose dev files
+    match: docker-compose.dev.yml

@@ -88,19 +88,25 @@ COMMENT ON COLUMN vendedor.updated_at IS 'Fecha de última actualización';
 COMMENT ON COLUMN vendedor.created_by_user_id IS 'ID del usuario que creó el registro (trazabilidad)';
 
 -- Datos de ejemplo para pruebas (id se genera automáticamente)
+-- Se crean 3 vendedores principales para demo
+INSERT INTO vendedor (id, identificacion, nombre_completo, email, telefono, pais, plan_de_ventas, rol, activo) VALUES
+('11111111-1111-1111-1111-111111111111', '1001234567', 'Carlos Mendoza Pérez', 'carlos.mendoza@medisupply.com', '+57-310-1234567', 'CO', 75000000.00, 'seller', true),
+('22222222-2222-2222-2222-222222222222', '1009876543', 'María Fernández López', 'maria.fernandez@medisupply.com', '+57-320-9876543', 'CO', 85000000.00, 'seller', true),
+('33333333-3333-3333-3333-333333333333', '1001122334', 'Andrés Ramírez Silva', 'andres.ramirez@medisupply.com', '+57-315-1122334', 'CO', 90000000.00, 'seller', true)
+ON CONFLICT (identificacion) DO NOTHING;
+
+-- Vendedores adicionales para pruebas avanzadas
 INSERT INTO vendedor (identificacion, nombre_completo, email, telefono, pais, plan_de_ventas, rol, activo) VALUES
-('1234567890', 'Juan Pérez Gómez', 'juan.perez@medisupply.com', '+57-300-1234567', 'CO', 50000000.00, 'seller', true),
-('0987654321', 'María Rodríguez López', 'maria.rodriguez@medisupply.com', '+57-311-7654321', 'CO', 75000000.00, 'seller', true),
-('1122334455', 'Carlos Martínez Silva', 'carlos.martinez@medisupply.com', '+52-55-1122334', 'MX', 100000000.00, 'seller', true),
-('5544332211', 'Ana García Torres', 'ana.garcia@medisupply.com', '+51-1-9988776', 'PE', 60000000.00, 'seller', true),
-('6677889900', 'Luis Fernández Castro', 'luis.fernandez@medisupply.com', '+56-2-6677889', 'CL', 80000000.00, 'seller', true)
+('1005544332', 'Ana García Torres', 'ana.garcia@medisupply.com', '+51-1-9988776', 'PE', 60000000.00, 'seller', true),
+('1006677889', 'Luis Fernández Castro', 'luis.fernandez@medisupply.com', '+56-2-6677889', 'CL', 80000000.00, 'seller', true)
 ON CONFLICT (identificacion) DO NOTHING;
 
 -- Log de la migración
 DO $$
 BEGIN
     RAISE NOTICE '✅ Migración 002: Tabla vendedor creada exitosamente';
-    RAISE NOTICE '✅ Se agregaron 5 vendedores de ejemplo';
+    RAISE NOTICE '✅ Se agregaron 3 vendedores principales con UUID fijo';
+    RAISE NOTICE '✅ Se agregaron 2 vendedores adicionales para pruebas';
     RAISE NOTICE '✅ FK vendedor_id agregada a tabla cliente';
 END $$;
 
