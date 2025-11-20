@@ -633,7 +633,7 @@ class TipoRolVendedorCreate(BaseModel):
 
 class TipoRolVendedorResponse(BaseModel):
     """Schema de respuesta de un tipo de rol de vendedor"""
-    id: UUID = Field(..., description="ID único del rol")
+    id: int = Field(..., description="ID único del rol")
     codigo: str
     nombre: str
     descripcion: Optional[str] = None
@@ -679,7 +679,7 @@ class TerritorioCreate(BaseModel):
 
 class TerritorioResponse(BaseModel):
     """Schema de respuesta de un territorio"""
-    id: UUID = Field(..., description="ID único del territorio")
+    id: int = Field(..., description="ID único del territorio")
     codigo: str
     nombre: str
     pais: str
@@ -724,7 +724,7 @@ class TipoPlanCreate(BaseModel):
 
 class TipoPlanResponse(BaseModel):
     """Schema de respuesta de un tipo de plan"""
-    id: UUID = Field(..., description="ID único del tipo de plan")
+    id: int = Field(..., description="ID único del tipo de plan")
     codigo: str
     nombre: str
     descripcion: Optional[str] = None
@@ -769,7 +769,7 @@ class RegionCreate(BaseModel):
 
 class RegionResponse(BaseModel):
     """Schema de respuesta de una región"""
-    id: UUID = Field(..., description="ID único de la región")
+    id: int = Field(..., description="ID único de la región")
     codigo: str
     nombre: str
     pais: str
@@ -814,7 +814,7 @@ class ZonaCreate(BaseModel):
 
 class ZonaResponse(BaseModel):
     """Schema de respuesta de una zona"""
-    id: UUID = Field(..., description="ID único de la zona")
+    id: int = Field(..., description="ID único de la zona")
     codigo: str
     nombre: str
     tipo: str
