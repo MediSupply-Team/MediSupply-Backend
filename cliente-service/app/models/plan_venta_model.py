@@ -3,7 +3,7 @@ Modelos SQLAlchemy para Plan de Venta
 FASE 3: Plan de Venta completo con productos, regiones, zonas y bonificaciones
 """
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Boolean, Date, DateTime, ForeignKey, DECIMAL, JSON, Text
+from sqlalchemy import String, Boolean, Date, DateTime, ForeignKey, DECIMAL, JSON, Text, Integer
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from datetime import date, datetime
 from decimal import Decimal
