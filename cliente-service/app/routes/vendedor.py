@@ -37,11 +37,22 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def generate_random_password(length: int = 12) -> str:
     """Genera una contraseña aleatoria segura (max 12 chars para bcrypt)"""
+    # Usar solo caracteres ASCII simples para evitar problemas de codificación
+    # Caracteres especiales de 1 byte
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
     # Limitar a 12 caracteres para evitar el límite de 72 bytes de bcrypt
     safe_length = min(length, 12)
     password = ''.join(secrets.choice(alphabet) for _ in range(safe_length))
     return password
+
+
+def truncate_to_bytes(text: str, max_bytes: int = 72) -> str:
+    """Trunca un string para que no exceda max_bytes cuando se codifica a UTF-8"""
+    encoded = text.encode('utf-8')
+    if len(encoded) <= max_bytes:
+        return text
+    # Truncar byte por byte hasta que quepa
+    return encoded[:max_bytes].decode('utf-8', errors='ignore')
 
 
 @router.post("/", response_model=VendedorResponse, status_code=status.HTTP_201_CREATED)
@@ -78,10 +89,8 @@ async def crear_vendedor(
             generated_password = generate_random_password()
             logger.info(f"🔐 Generando contraseña automática para {vendedor.email}")
             logger.info(f"🔐 Contraseña generada: longitud={len(generated_password)} bytes={len(generated_password.encode('utf-8'))}")
-            # Asegurar que no exceda el límite de bcrypt (72 bytes)
-            if len(generated_password.encode('utf-8')) > 72:
-                generated_password = generated_password[:72]
-                logger.info(f"🔐 Contraseña truncada a 72 bytes")
+            # Truncar a 72 bytes si es necesario (límite de bcrypt)
+            generated_password = truncate_to_bytes(generated_password, 72)
             vendedor.password_hash = pwd_context.hash(generated_password)
             logger.info(f"🔐 Contraseña hasheada exitosamente")
         else:
@@ -91,8 +100,9 @@ async def crear_vendedor(
             # Si es corto, hashear
             if len(vendedor.password_hash) < 100:
                 logger.info(f"🔐 Hasheando password recibido (longitud < 100)")
-                # Es una contraseña en texto plano, hashear
-                vendedor.password_hash = pwd_context.hash(vendedor.password_hash)
+                # Es una contraseña en texto plano, truncar a 72 bytes y hashear
+                password_truncated = truncate_to_bytes(vendedor.password_hash, 72)
+                vendedor.password_hash = pwd_context.hash(password_truncated)
                 logger.info(f"🔐 Contraseña hasheada para {vendedor.username}")
             else:
                 logger.info(f"🔐 password_hash ya está hasheado (longitud >= 100)")
