@@ -7,7 +7,8 @@ from database import engine
 from models import Ruta
 from schemas_rutas import (
     RutaCreate, 
-    RutaResponse, 
+    RutaResponse,
+    RutaListItemResponse,
     RutaCreatedResponse,
     RutaListResponse,
     RutaUpdate,
@@ -61,8 +62,8 @@ def create_ruta(ruta_data: RutaCreate):
     "",
     response_model=RutaListResponse,
     summary="Listar rutas",
-    description="Obtiene una lista paginada de rutas con filtros opcionales",
-    response_description="Lista de rutas con total"
+    description="Obtiene una lista paginada de rutas con filtros opcionales. **La geometría se excluye para optimizar el tamaño de respuesta.**",
+    response_description="Lista de rutas sin geometría (use GET /{id} para obtener geometría completa)"
 )
 def list_rutas(
     skip: int = Query(0, ge=0, description="Número de registros a saltar"),
@@ -75,6 +76,9 @@ def list_rutas(
     - **skip**: Número de registros a saltar (para paginación)
     - **limit**: Cantidad máxima de rutas a retornar (máx: 100)
     - **status**: Filtrar por estado específico
+    
+    **Optimización**: La geometría NO se incluye en las listas para reducir el tamaño.
+    Para obtener la geometría completa, use `GET /rutas/{id}`
     """
     with Session(engine) as session:
         query = select(Ruta)
@@ -89,9 +93,10 @@ def list_rutas(
         query = query.offset(skip).limit(limit)
         rutas = session.exec(query).all()
         
+        # ✅ Usar schema sin geometría
         return RutaListResponse(
             total=total,
-            routes=[RutaResponse.model_validate(r) for r in rutas]
+            routes=[RutaListItemResponse.model_validate(r) for r in rutas]
         )
 
 
@@ -99,9 +104,9 @@ def list_rutas(
     "/{ruta_id}",
     response_model=RutaResponse,
     summary="Obtener ruta por ID",
-    description="Obtiene los detalles completos de una ruta específica",
+    description="Obtiene los detalles completos de una ruta específica **incluyendo la geometría para visualización en mapa**",
     responses={
-        200: {"description": "Ruta encontrada"},
+        200: {"description": "Ruta encontrada con geometría completa"},
         404: {"description": "Ruta no encontrada"}
     }
 )
@@ -111,7 +116,10 @@ def get_ruta(ruta_id: str):
     
     - **ruta_id**: ID único de la ruta (UUID)
     
-    Retorna todos los detalles incluyendo secuencia de entregas, resumen, geometría y alertas.
+    Retorna todos los detalles **incluyendo geometría completa** para:
+    - Visualización en mapa (Leaflet, Mapbox, etc.)
+    - Exportación a PDF
+    - Análisis detallado de la ruta
     """
     with Session(engine) as session:
         ruta = session.get(Ruta, ruta_id)
@@ -253,7 +261,7 @@ def delete_ruta(ruta_id: str):
     
     - **ruta_id**: ID único de la ruta a eliminar
     
-    ⚠️ Esta acción es permanente y no se puede deshacer.
+      Esta acción es permanente y no se puede deshacer.
     """
     with Session(engine) as session:
         ruta = session.get(Ruta, ruta_id)
@@ -273,8 +281,8 @@ def delete_ruta(ruta_id: str):
     "/driver/{driver_id}",
     response_model=RutaListResponse,
     summary="Rutas por conductor",
-    description="Obtiene todas las rutas asignadas a un conductor específico",
-    response_description="Lista de rutas del conductor"
+    description="Obtiene todas las rutas asignadas a un conductor específico (sin geometría)",
+    response_description="Lista de rutas del conductor sin geometría"
 )
 def get_rutas_by_driver(driver_id: str):
     """
@@ -283,12 +291,15 @@ def get_rutas_by_driver(driver_id: str):
     - **driver_id**: ID del conductor
     
     Retorna todas las rutas asignadas a este conductor, sin importar su estado.
+    
+    ⚡ **Optimización**: La geometría NO se incluye. Use `GET /rutas/{id}` para geometría completa.
     """
     with Session(engine) as session:
         query = select(Ruta).where(Ruta.driver_id == driver_id)
         rutas = session.exec(query).all()
         
+        # ✅ Usar schema sin geometría
         return RutaListResponse(
             total=len(rutas),
-            routes=[RutaResponse.model_validate(r) for r in rutas]
+            routes=[RutaListItemResponse.model_validate(r) for r in rutas]
         )
