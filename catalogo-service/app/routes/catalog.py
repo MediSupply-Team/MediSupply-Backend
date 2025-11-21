@@ -139,37 +139,68 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
     """
     logger.info(f"📝 Creando producto: {product.id}")
     
-    # Verificar si el producto ya existe
-    existing = (await session.execute(
-        select(Producto).where(Producto.id == product.id)
-    )).scalar_one_or_none()
-    
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Producto con id {product.id} ya existe"
+    try:
+        # Verificar si el producto ya existe
+        existing = (await session.execute(
+            select(Producto).where(Producto.id == product.id)
+        )).scalar_one_or_none()
+        
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Producto con id {product.id} ya existe"
+            )
+        
+        # Validar proveedorId si se proporciona
+        if product.proveedorId:
+            try:
+                from uuid import UUID
+                UUID(product.proveedorId)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "error": "INVALID_PROVEEDOR_ID",
+                        "message": f"proveedorId '{product.proveedorId}' no es un UUID válido. Debe tener formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+                        "field": "proveedorId",
+                        "received": product.proveedorId
+                    }
+                )
+        
+        # Crear nuevo producto con campos de inventario
+        new_product = Producto(
+            id=product.id,
+            nombre=product.nombre,
+            codigo=product.codigo,
+            categoria_id=product.categoria,
+            presentacion=product.presentacion,
+            precio_unitario=product.precioUnitario,
+            requisitos_almacenamiento=product.requisitosAlmacenamiento,
+            stock_minimo=product.stockMinimo or 10,
+            stock_critico=product.stockCritico or 5,
+            requiere_lote=product.requiereLote or False,
+            requiere_vencimiento=product.requiereVencimiento if product.requiereVencimiento is not None else True,
+            certificado_sanitario=product.certificadoSanitario,
+            tiempo_entrega_dias=product.tiempoEntregaDias,
+            proveedor_id=product.proveedorId
         )
+        
+        session.add(new_product)
+        await session.flush()  # Flush para que el producto exista antes de crear inventarios
     
-    # Crear nuevo producto con campos de inventario
-    new_product = Producto(
-        id=product.id,
-        nombre=product.nombre,
-        codigo=product.codigo,
-        categoria_id=product.categoria,
-        presentacion=product.presentacion,
-        precio_unitario=product.precioUnitario,
-        requisitos_almacenamiento=product.requisitosAlmacenamiento,
-        stock_minimo=product.stockMinimo or 10,
-        stock_critico=product.stockCritico or 5,
-        requiere_lote=product.requiereLote or False,
-        requiere_vencimiento=product.requiereVencimiento if product.requiereVencimiento is not None else True,
-        certificado_sanitario=product.certificadoSanitario,
-        tiempo_entrega_dias=product.tiempoEntregaDias,
-        proveedor_id=product.proveedorId
-    )
-    
-    session.add(new_product)
-    await session.flush()  # Flush para que el producto exista antes de crear inventarios
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error creando producto {product.id}: {str(e)}")
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "PRODUCT_CREATION_FAILED",
+                "message": f"Error al crear producto: {str(e)}",
+                "product_id": product.id
+            }
+        )
     
     # Crear inventarios iniciales si se especificaron bodegas
     bodegas_creadas = []

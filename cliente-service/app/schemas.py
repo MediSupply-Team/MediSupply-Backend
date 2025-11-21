@@ -537,6 +537,8 @@ class VendedorResponse(BaseModel):
     
     # Campos de credenciales (sin password_hash por seguridad)
     username: Optional[str] = None
+    # Contraseña generada automáticamente (solo se devuelve en creación)
+    generated_password: Optional[str] = Field(None, description="Contraseña generada automáticamente (solo en creación)")
     
     # Campos de plan y rol
     rol: str

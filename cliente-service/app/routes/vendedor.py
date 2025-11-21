@@ -26,13 +26,10 @@ import time
 import logging
 import secrets
 import string
-from passlib.context import CryptContext
+import bcrypt
 
 router = APIRouter(tags=["vendedores"])
 logger = logging.getLogger(__name__)
-
-# Configurar bcrypt para hashear contraseñas
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def generate_random_password(length: int = 12) -> str:
@@ -44,15 +41,6 @@ def generate_random_password(length: int = 12) -> str:
     safe_length = min(length, 12)
     password = ''.join(secrets.choice(alphabet) for _ in range(safe_length))
     return password
-
-
-def truncate_to_bytes(text: str, max_bytes: int = 72) -> str:
-    """Trunca un string para que no exceda max_bytes cuando se codifica a UTF-8"""
-    encoded = text.encode('utf-8')
-    if len(encoded) <= max_bytes:
-        return text
-    # Truncar byte por byte hasta que quepa
-    return encoded[:max_bytes].decode('utf-8', errors='ignore')
 
 
 @router.post("/", response_model=VendedorResponse, status_code=status.HTTP_201_CREATED)
@@ -89,9 +77,10 @@ async def crear_vendedor(
             generated_password = generate_random_password()
             logger.info(f"🔐 Generando contraseña automática para {vendedor.email}")
             logger.info(f"🔐 Contraseña generada: longitud={len(generated_password)} bytes={len(generated_password.encode('utf-8'))}")
-            # Truncar a 72 bytes si es necesario (límite de bcrypt)
-            generated_password = truncate_to_bytes(generated_password, 72)
-            vendedor.password_hash = pwd_context.hash(generated_password)
+            # Hashear password con bcrypt directamente (límite de 72 bytes)
+            password_bytes = generated_password.encode('utf-8')[:72]
+            salt = bcrypt.gensalt()
+            vendedor.password_hash = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
             logger.info(f"🔐 Contraseña hasheada exitosamente")
         else:
             logger.info(f"🔐 password_hash recibido: longitud={len(vendedor.password_hash)}")
@@ -100,9 +89,10 @@ async def crear_vendedor(
             # Si es corto, hashear
             if len(vendedor.password_hash) < 100:
                 logger.info(f"🔐 Hasheando password recibido (longitud < 100)")
-                # Es una contraseña en texto plano, truncar a 72 bytes y hashear
-                password_truncated = truncate_to_bytes(vendedor.password_hash, 72)
-                vendedor.password_hash = pwd_context.hash(password_truncated)
+                # Es una contraseña en texto plano, hashear con bcrypt
+                password_bytes = vendedor.password_hash.encode('utf-8')[:72]
+                salt = bcrypt.gensalt()
+                vendedor.password_hash = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
                 logger.info(f"🔐 Contraseña hasheada para {vendedor.username}")
             else:
                 logger.info(f"🔐 password_hash ya está hasheado (longitud >= 100)")
@@ -336,18 +326,11 @@ async def crear_vendedor(
             "created_at": new_vendedor.created_at,
             "updated_at": new_vendedor.updated_at,
             "created_by_user_id": new_vendedor.created_by_user_id,
-            "plan_venta_id": plan_venta_id  # Solo el ID del plan
+            "plan_venta_id": plan_venta_id,  # Solo el ID del plan
+            "generated_password": generated_password  # Contraseña generada (o None si no se generó)
         }
         
-        response = VendedorResponse(**vendedor_dict)
-        
-        # 🔐 Si se generó contraseña, agregarla a la respuesta (solo esta vez)
-        if generated_password:
-            response_dict = response.model_dump()
-            response_dict["temporary_password"] = generated_password
-            logger.info(f"✅ Vendedor creado con contraseña temporal")
-            return response_dict
-        
+        return VendedorResponse(**vendedor_dict)
         return response
         
     except HTTPException:
