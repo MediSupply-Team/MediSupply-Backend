@@ -14,10 +14,10 @@ from uuid import UUID
 # ==========================================
 
 class ClienteCreate(BaseModel):
-    """Payload para crear un nuevo cliente (id y codigo_unico se generan automáticamente)"""
+    """Payload para crear un nuevo cliente (id se genera automáticamente)"""
     nit: str = Field(..., min_length=5, max_length=32, description="NIT del cliente", example="900555666-7")
     nombre: str = Field(..., min_length=3, max_length=255, description="Nombre del cliente", example="Farmacia Los Andes")
-    codigo_unico: Optional[str] = Field(None, min_length=3, max_length=64, description="Código único del cliente (se genera automáticamente si no se proporciona)", example="ABC123")
+    password: str = Field(..., min_length=8, max_length=72, description="Contraseña del cliente (máximo 72 caracteres debido a limitación de bcrypt)", example="SecurePass123!")
     email: Optional[str] = Field(None, max_length=255, description="Email del cliente", example="contacto@losandes.com")
     telefono: Optional[str] = Field(None, max_length=32, description="Teléfono del cliente", example="+57-1-3456789")
     direccion: Optional[str] = Field(None, max_length=512, description="Dirección del cliente", example="Calle 45 #12-34")
@@ -433,10 +433,10 @@ class VendedorCreate(BaseModel):
     
     # Campos de plan y rol (opcionales)
     rol: str = Field(default="seller", description="Rol del vendedor en orders-service", example="seller")
-    rol_vendedor_id: Optional[str] = Field(None, description="ID del tipo de rol vendedor (UUID)", example="550e8400-e29b-41d4-a716-446655440000")
+    rol_vendedor_id: Optional[int] = Field(None, description="ID del tipo de rol vendedor", example=1)
     
     # Campos de asignación geográfica y jerarquía (opcionales)
-    territorio_id: Optional[str] = Field(None, description="ID del territorio asignado (UUID)", example="550e8400-e29b-41d4-a716-446655440001")
+    territorio_id: Optional[int] = Field(None, description="ID del territorio asignado", example=1)
     supervisor_id: Optional[str] = Field(None, description="ID del supervisor (UUID)", example="550e8400-e29b-41d4-a716-446655440002")
     
     # Campos adicionales (opcionales)
@@ -501,10 +501,10 @@ class VendedorUpdate(BaseModel):
     
     # Campos de plan y rol
     rol: Optional[str] = None
-    rol_vendedor_id: Optional[str] = Field(None, description="ID del tipo de rol vendedor (UUID)")
+    rol_vendedor_id: Optional[int] = Field(None, description="ID del tipo de rol vendedor")
     
     # Campos de asignación geográfica y jerarquía
-    territorio_id: Optional[str] = Field(None, description="ID del territorio asignado (UUID)")
+    territorio_id: Optional[int] = Field(None, description="ID del territorio asignado")
     supervisor_id: Optional[str] = Field(None, description="ID del supervisor (UUID)")
     
     # Campos adicionales
@@ -537,13 +537,15 @@ class VendedorResponse(BaseModel):
     
     # Campos de credenciales (sin password_hash por seguridad)
     username: Optional[str] = None
+    # Contraseña generada automáticamente (solo se devuelve en creación)
+    generated_password: Optional[str] = Field(None, description="Contraseña generada automáticamente (solo en creación)")
     
     # Campos de plan y rol
     rol: str
-    rol_vendedor_id: Optional[UUID] = None
+    rol_vendedor_id: Optional[int] = None
     
     # Campos de asignación geográfica y jerarquía
-    territorio_id: Optional[UUID] = None
+    territorio_id: Optional[int] = None
     supervisor_id: Optional[UUID] = None
     
     # Campos adicionales
@@ -586,8 +588,8 @@ class VendedorDetalleResponse(BaseModel):
     pais: str
     username: Optional[str] = None
     rol: str
-    rol_vendedor_id: Optional[UUID] = None
-    territorio_id: Optional[UUID] = None
+    rol_vendedor_id: Optional[int] = None
+    territorio_id: Optional[int] = None
     supervisor_id: Optional[UUID] = None
     fecha_ingreso: Optional[date] = None
     observaciones: Optional[str] = None
@@ -633,7 +635,7 @@ class TipoRolVendedorCreate(BaseModel):
 
 class TipoRolVendedorResponse(BaseModel):
     """Schema de respuesta de un tipo de rol de vendedor"""
-    id: UUID = Field(..., description="ID único del rol")
+    id: int = Field(..., description="ID único del rol")
     codigo: str
     nombre: str
     descripcion: Optional[str] = None
@@ -679,7 +681,7 @@ class TerritorioCreate(BaseModel):
 
 class TerritorioResponse(BaseModel):
     """Schema de respuesta de un territorio"""
-    id: UUID = Field(..., description="ID único del territorio")
+    id: int = Field(..., description="ID único del territorio")
     codigo: str
     nombre: str
     pais: str
@@ -724,7 +726,7 @@ class TipoPlanCreate(BaseModel):
 
 class TipoPlanResponse(BaseModel):
     """Schema de respuesta de un tipo de plan"""
-    id: UUID = Field(..., description="ID único del tipo de plan")
+    id: int = Field(..., description="ID único del tipo de plan")
     codigo: str
     nombre: str
     descripcion: Optional[str] = None
@@ -769,7 +771,7 @@ class RegionCreate(BaseModel):
 
 class RegionResponse(BaseModel):
     """Schema de respuesta de una región"""
-    id: UUID = Field(..., description="ID único de la región")
+    id: int = Field(..., description="ID único de la región")
     codigo: str
     nombre: str
     pais: str
@@ -814,7 +816,7 @@ class ZonaCreate(BaseModel):
 
 class ZonaResponse(BaseModel):
     """Schema de respuesta de una zona"""
-    id: UUID = Field(..., description="ID único de la zona")
+    id: int = Field(..., description="ID único de la zona")
     codigo: str
     nombre: str
     tipo: str
@@ -877,7 +879,7 @@ class PlanProductoItemResponse(BaseModel):
 class PlanVentaCreateNested(BaseModel):
     """Schema para crear un plan de venta DENTRO del vendedor (sin vendedor_id)"""
     # Relaciones
-    tipo_plan_id: Optional[str] = Field(None, description="ID del tipo de plan (UUID)")
+    tipo_plan_id: Optional[int] = Field(None, description="ID del tipo de plan")
     
     # Información básica
     nombre_plan: str = Field(..., min_length=3, max_length=255, description="Nombre del plan")
@@ -899,8 +901,8 @@ class PlanVentaCreateNested(BaseModel):
     productos: List[PlanProductoItem] = Field(default_factory=list, description="Productos asignados al plan")
     
     # Regiones y zonas (IDs)
-    region_ids: List[str] = Field(default_factory=list, description="IDs de regiones asignadas")
-    zona_ids: List[str] = Field(default_factory=list, description="IDs de zonas asignadas")
+    region_ids: List[int] = Field(default_factory=list, description="IDs de regiones asignadas")
+    zona_ids: List[int] = Field(default_factory=list, description="IDs de zonas asignadas")
     
     # Campos adicionales
     observaciones: Optional[str] = Field(None, description="Observaciones del plan")
@@ -956,7 +958,7 @@ class PlanVentaResponse(BaseModel):
     # Campos principales
     id: UUID
     vendedor_id: UUID
-    tipo_plan_id: Optional[UUID] = None
+    tipo_plan_id: Optional[int] = None
     nombre_plan: str
     fecha_inicio: date
     fecha_fin: date

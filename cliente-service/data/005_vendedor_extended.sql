@@ -23,7 +23,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'vendedor' AND column_name = 'rol_vendedor_id'
     ) THEN
-        ALTER TABLE vendedor ADD COLUMN rol_vendedor_id UUID;
+        ALTER TABLE vendedor ADD COLUMN rol_vendedor_id INTEGER;
         CREATE INDEX idx_vendedor_rol_vendedor ON vendedor(rol_vendedor_id) WHERE rol_vendedor_id IS NOT NULL;
         RAISE NOTICE '  ✅ Columna rol_vendedor_id agregada';
     ELSE
@@ -35,7 +35,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'vendedor' AND column_name = 'territorio_id'
     ) THEN
-        ALTER TABLE vendedor ADD COLUMN territorio_id UUID;
+        ALTER TABLE vendedor ADD COLUMN territorio_id INTEGER;
         CREATE INDEX idx_vendedor_territorio ON vendedor(territorio_id) WHERE territorio_id IS NOT NULL;
         RAISE NOTICE '  ✅ Columna territorio_id agregada';
     ELSE
@@ -149,7 +149,7 @@ COMMENT ON COLUMN vendedor.observaciones IS 'Observaciones adicionales sobre el 
 DO $$
 DECLARE
     vendedor_count INTEGER;
-    tipo_rol_default_id UUID;
+    tipo_rol_default_id INTEGER;
 BEGIN
     -- Contar vendedores existentes
     SELECT COUNT(*) INTO vendedor_count FROM vendedor;

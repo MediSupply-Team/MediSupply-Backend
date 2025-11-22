@@ -127,17 +127,36 @@ class PedidosService:
             if capacidad_volumen_pct > 100:
                 alertas.append(f"⚠️ Excede capacidad de volumen: {capacidad_volumen_pct:.1f}%")
             
-            # Calcular costos
-            costo_distancia = ruta_optimizada["distancia_total_km"] * costo_km
-            costo_tiempo = (ruta_optimizada["duracion_total_minutos"] / 60) * costo_hora
+            # ✅ FIX: Calcular distancia sumando tramos individuales
+            distancia_total_real = sum(e["distancia_desde_anterior_km"] for e in secuencia_entregas)
+            
+            # Agregar retorno a bodega si aplica
+            if configuracion["retornar_bodega"] and len(secuencia_entregas) > 0:
+                ultima_entrega = secuencia_entregas[-1]
+                try:
+                    origen_retorno = {"lat": ultima_entrega["lat"], "lon": ultima_entrega["lon"]}
+                    destino_retorno = {"lat": bodega["lat"], "lon": bodega["lon"]}
+                    ruta_retorno = osrm_service.calcular_ruta(origen_retorno, destino_retorno)
+                    distancia_total_real += ruta_retorno["distancia_km"]
+                except:
+                    pass  # Si falla, continuar sin retorno
+            
+            # Calcular tiempos reales
+            tiempo_conduccion_real = sum(e["tiempo_desde_anterior_min"] for e in secuencia_entregas)
+            tiempo_entregas_real = len(secuencia_entregas) * 15  # 15 min por entrega
+            tiempo_total_real = tiempo_conduccion_real + tiempo_entregas_real
+            
+            # Calcular costos con valores reales
+            costo_distancia = distancia_total_real * costo_km
+            costo_tiempo = (tiempo_total_real / 60) * costo_hora
             costo_total = costo_distancia + costo_tiempo
             
             resumen = {
                 "total_entregas": len(secuencia_entregas),
-                "distancia_total_km": round(ruta_optimizada["distancia_total_km"], 2),
-                "tiempo_total_min": round(ruta_optimizada["duracion_total_minutos"], 1),
-                "tiempo_conduccion_min": round(ruta_optimizada["metricas"]["duracion_conduccion_min"], 1),
-                "tiempo_entregas_min": round(ruta_optimizada["metricas"]["duracion_entregas_min"], 1),
+                "distancia_total_km": round(distancia_total_real, 2),  # ✅ Distancia correcta
+                "tiempo_total_min": round(tiempo_total_real, 1),  # ✅ Tiempo correcto
+                "tiempo_conduccion_min": round(tiempo_conduccion_real, 1),  # ✅ Conducción correcta
+                "tiempo_entregas_min": tiempo_entregas_real,
                 "total_cajas": total_cajas,
                 "costo_estimado": round(costo_total, 0),
                 "hora_inicio": configuracion["hora_inicio"],

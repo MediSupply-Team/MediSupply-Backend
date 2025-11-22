@@ -3,7 +3,7 @@ Modelos SQLAlchemy para Plan de Venta
 FASE 3: Plan de Venta completo con productos, regiones, zonas y bonificaciones
 """
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Boolean, Date, DateTime, ForeignKey, DECIMAL, JSON, Text
+from sqlalchemy import String, Boolean, Date, DateTime, ForeignKey, DECIMAL, JSON, Text, Integer
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from datetime import date, datetime
 from decimal import Decimal
@@ -29,7 +29,7 @@ class PlanVenta(Base):
     
     # Relaciones
     vendedor_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("vendedor.id"), unique=True, nullable=False, index=True)  # 1:1 con Vendedor
-    tipo_plan_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("tipo_plan.id"), nullable=True, index=True)
+    tipo_plan_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tipo_plan.id"), nullable=True, index=True)
     
     # Fechas del plan
     fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
@@ -96,7 +96,7 @@ class PlanRegion(Base):
     
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     plan_venta_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("plan_venta.id", ondelete="CASCADE"), nullable=False, index=True)
-    region_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("region.id"), nullable=False, index=True)
+    region_id: Mapped[int] = mapped_column(Integer, ForeignKey("region.id"), nullable=False, index=True)
     
     # Auditoría
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -120,7 +120,7 @@ class PlanZona(Base):
     
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     plan_venta_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("plan_venta.id", ondelete="CASCADE"), nullable=False, index=True)
-    zona_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("zona.id"), nullable=False, index=True)
+    zona_id: Mapped[int] = mapped_column(Integer, ForeignKey("zona.id"), nullable=False, index=True)
     
     # Auditoría
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
