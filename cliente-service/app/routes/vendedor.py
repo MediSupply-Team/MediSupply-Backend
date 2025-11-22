@@ -58,17 +58,20 @@ async def crear_vendedor(
     - Trazabilidad completa
     - Opcionalmente puede asociar clientes que NO tengan vendedor asignado
     
-    **Asociación de clientes:**
-    - Si se envía el campo `clientes_ids` vacío o null, el vendedor se crea normalmente
-    - Si se envía con IDs, TODOS los IDs deben existir o la operación se ABORTA
-    - Solo se asociarán clientes que estén activos y NO tengan vendedor asignado
-    - Los clientes con vendedor previo serán reportados pero NO bloquean la creación
+    **Validaciones de asociación de clientes (TODO O NADA):**
+    - Si `clientes_ids` es vacío o null → Vendedor se crea normalmente
+    - Si se envía con IDs, TODOS los clientes deben cumplir:
+      * Existir en la base de datos (error 404 si no existe)
+      * NO tener vendedor asignado (error 409 si ya tiene vendedor)
+      * Estar activos (error 400 si está inactivo)
+      * Tener UUID válido (error 400 si es inválido)
+    - Si CUALQUIER cliente NO cumple → La operación se ABORTA completamente
     
     **Retorna:**
-    - 201: Vendedor creado exitosamente (con info de clientes asociados si aplica)
-    - 400: ID de cliente inválido (UUID malformado)
-    - 404: Uno o más clientes no existen (no se crea el vendedor)
-    - 409: Identificación o email ya existe
+    - 201: Vendedor creado exitosamente (con todos los clientes asociados)
+    - 400: ID de cliente inválido o cliente inactivo
+    - 404: Uno o más clientes no existen
+    - 409: Identificación/email duplicado O cliente ya tiene vendedor
     - 500: Error interno
     """
     logger.info(f"📝 Creando vendedor: {vendedor.nombre_completo}")
@@ -314,7 +317,7 @@ async def crear_vendedor(
         if vendedor.clientes_ids:
             logger.info(f"👥 Validando {len(vendedor.clientes_ids)} clientes para asociar al vendedor")
             
-            # PRIMERO: Validar que TODOS los IDs de clientes existan
+            # PRIMERO: Validar que TODOS los IDs de clientes existan y NO tengan vendedor
             for cliente_id_str in vendedor.clientes_ids:
                 try:
                     cliente_uuid = UUID(cliente_id_str)
@@ -333,6 +336,35 @@ async def crear_vendedor(
                             }
                         )
                     
+                    # Validar que el cliente NO tenga vendedor asignado
+                    if cliente.vendedor_id is not None:
+                        # Si un cliente ya tiene vendedor, ABORTAR la creación del vendedor
+                        await session.rollback()
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail={
+                                "error": "CLIENTE_ALREADY_HAS_VENDEDOR",
+                                "message": f"Cliente con ID '{cliente_id_str}' ya tiene un vendedor asignado (ID: {cliente.vendedor_id}). No se puede crear el vendedor.",
+                                "cliente_id": cliente_id_str,
+                                "vendedor_actual": str(cliente.vendedor_id),
+                                "cliente_nombre": cliente.nombre
+                            }
+                        )
+                    
+                    # Validar que el cliente esté activo
+                    if not cliente.activo:
+                        # Si un cliente está inactivo, ABORTAR la creación del vendedor
+                        await session.rollback()
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail={
+                                "error": "CLIENTE_INACTIVE",
+                                "message": f"Cliente con ID '{cliente_id_str}' está inactivo. No se puede crear el vendedor con clientes inactivos.",
+                                "cliente_id": cliente_id_str,
+                                "cliente_nombre": cliente.nombre
+                            }
+                        )
+                    
                 except ValueError:
                     # Si un ID es inválido, ABORTAR la creación del vendedor
                     await session.rollback()
@@ -345,23 +377,12 @@ async def crear_vendedor(
                         }
                     )
             
-            # SEGUNDO: Si todos los clientes existen, proceder con la asociación
-            logger.info(f"✅ Todos los clientes existen. Procediendo con asociación...")
+            # SEGUNDO: Si todos los clientes son válidos (existen, sin vendedor, activos), proceder con la asociación
+            logger.info(f"✅ Todos los clientes son válidos. Procediendo con asociación...")
             
             for cliente_id_str in vendedor.clientes_ids:
                 cliente_uuid = UUID(cliente_id_str)
                 cliente = await session.get(Cliente, cliente_uuid)
-                
-                # Validar que el cliente NO tenga vendedor asignado
-                if cliente.vendedor_id is not None:
-                    clientes_con_vendedor_previo.append(cliente_id_str)
-                    logger.warning(f"   ⚠️  Cliente {cliente_id_str} ya tiene vendedor asignado: {cliente.vendedor_id}")
-                    continue
-                
-                # Validar que el cliente esté activo
-                if not cliente.activo:
-                    logger.warning(f"   ⚠️  Cliente {cliente_id_str} está inactivo")
-                    continue
                 
                 # Asociar el cliente al vendedor
                 cliente.vendedor_id = new_vendedor.id
@@ -369,8 +390,6 @@ async def crear_vendedor(
                 logger.info(f"   ✅ Cliente {cliente.nombre} asociado")
             
             logger.info(f"👥 Asociación completada: {clientes_asociados_count} clientes asociados")
-            if clientes_con_vendedor_previo:
-                logger.info(f"   ⚠️  {len(clientes_con_vendedor_previo)} clientes ya tenían vendedor")
         
         # Commit de toda la transacción (vendedor + plan + productos + regiones + zonas + clientes)
         await session.commit()
@@ -405,7 +424,7 @@ async def crear_vendedor(
             "generated_password": generated_password,  # Contraseña generada (o None si no se generó)
             # Información de clientes asociados (si se enviaron)
             "clientes_asociados": clientes_asociados_count if vendedor.clientes_ids else None,
-            "clientes_con_vendedor_previo": clientes_con_vendedor_previo if vendedor.clientes_ids else None,
+            "clientes_con_vendedor_previo": None,  # Ya no aplica porque se valida antes de crear
             "clientes_no_encontrados": None  # Ya no aplica porque se valida antes de crear
         }
         
