@@ -56,9 +56,16 @@ async def crear_vendedor(
     - Email debe ser único
     - Registro en ≤ 1 segundo
     - Trazabilidad completa
+    - Opcionalmente puede asociar clientes que NO tengan vendedor asignado
+    
+    **Asociación de clientes:**
+    - Si se envía el campo `clientes_ids`, el sistema intentará asociar esos clientes al vendedor
+    - Solo se asociarán clientes que estén activos y NO tengan vendedor asignado
+    - Los clientes con vendedor previo serán reportados pero no asociados
+    - Los clientes no encontrados serán reportados
     
     **Retorna:**
-    - 201: Vendedor creado exitosamente
+    - 201: Vendedor creado exitosamente (con info de clientes asociados si aplica)
     - 409: Identificación o email ya existe
     - 500: Error interno
     """
@@ -297,7 +304,52 @@ async def crear_vendedor(
                     session.add(plan_zona)
                 logger.info(f"   ✅ {len(plan_data.zona_ids)} zonas asignadas")
         
-        # Commit de toda la transacción (vendedor + plan + productos + regiones + zonas)
+        # 🔹 ASOCIAR CLIENTES (si se enviaron)
+        clientes_asociados_count = 0
+        clientes_con_vendedor_previo = []
+        clientes_no_encontrados = []
+        
+        if vendedor.clientes_ids:
+            logger.info(f"👥 Asociando {len(vendedor.clientes_ids)} clientes al vendedor {new_vendedor.id}")
+            
+            for cliente_id_str in vendedor.clientes_ids:
+                try:
+                    cliente_uuid = UUID(cliente_id_str)
+                    # Buscar el cliente
+                    cliente = await session.get(Cliente, cliente_uuid)
+                    
+                    if not cliente:
+                        clientes_no_encontrados.append(cliente_id_str)
+                        logger.warning(f"   ⚠️  Cliente {cliente_id_str} no encontrado")
+                        continue
+                    
+                    # Validar que el cliente NO tenga vendedor asignado
+                    if cliente.vendedor_id is not None:
+                        clientes_con_vendedor_previo.append(cliente_id_str)
+                        logger.warning(f"   ⚠️  Cliente {cliente_id_str} ya tiene vendedor asignado: {cliente.vendedor_id}")
+                        continue
+                    
+                    # Validar que el cliente esté activo
+                    if not cliente.activo:
+                        logger.warning(f"   ⚠️  Cliente {cliente_id_str} está inactivo")
+                        continue
+                    
+                    # Asociar el cliente al vendedor
+                    cliente.vendedor_id = new_vendedor.id
+                    clientes_asociados_count += 1
+                    logger.info(f"   ✅ Cliente {cliente.nombre} asociado")
+                    
+                except ValueError:
+                    clientes_no_encontrados.append(cliente_id_str)
+                    logger.warning(f"   ⚠️  ID inválido: {cliente_id_str}")
+            
+            logger.info(f"👥 Asociación completada: {clientes_asociados_count} clientes asociados")
+            if clientes_con_vendedor_previo:
+                logger.info(f"   ⚠️  {len(clientes_con_vendedor_previo)} clientes ya tenían vendedor")
+            if clientes_no_encontrados:
+                logger.info(f"   ⚠️  {len(clientes_no_encontrados)} clientes no encontrados")
+        
+        # Commit de toda la transacción (vendedor + plan + productos + regiones + zonas + clientes)
         await session.commit()
         await session.refresh(new_vendedor)
         
@@ -307,7 +359,7 @@ async def crear_vendedor(
         # Obtener plan_venta_id si se creó
         plan_venta_id = new_plan.id if vendedor.plan_venta else None
         
-        # Construir response con plan_venta_id
+        # Construir response con plan_venta_id y datos de asociación de clientes
         vendedor_dict = {
             "id": new_vendedor.id,
             "identificacion": new_vendedor.identificacion,
@@ -327,11 +379,14 @@ async def crear_vendedor(
             "updated_at": new_vendedor.updated_at,
             "created_by_user_id": new_vendedor.created_by_user_id,
             "plan_venta_id": plan_venta_id,  # Solo el ID del plan
-            "generated_password": generated_password  # Contraseña generada (o None si no se generó)
+            "generated_password": generated_password,  # Contraseña generada (o None si no se generó)
+            # Información de clientes asociados (si se enviaron)
+            "clientes_asociados": clientes_asociados_count if vendedor.clientes_ids else None,
+            "clientes_con_vendedor_previo": clientes_con_vendedor_previo if vendedor.clientes_ids else None,
+            "clientes_no_encontrados": clientes_no_encontrados if vendedor.clientes_ids else None
         }
         
         return VendedorResponse(**vendedor_dict)
-        return response
         
     except HTTPException:
         raise

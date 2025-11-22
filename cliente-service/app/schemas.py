@@ -24,7 +24,6 @@ class ClienteCreate(BaseModel):
     ciudad: Optional[str] = Field(None, max_length=128, description="Ciudad del cliente", example="Medellín")
     pais: Optional[str] = Field(default="CO", max_length=8, description="País del cliente", example="CO")
     activo: bool = Field(default=True, description="Si el cliente está activo")
-    vendedor_id: Optional[str] = Field(None, description="ID del vendedor (UUID como string) - Opcional", example="550e8400-e29b-41d4-a716-446655440000")
 
 
 class ClienteUpdate(BaseModel):
@@ -446,6 +445,13 @@ class VendedorCreate(BaseModel):
     # Plan de Venta (OPCIONAL - se crea en cascada si se envía)
     plan_venta: Optional["PlanVentaCreateNested"] = Field(None, description="Plan de venta del vendedor (se crea automáticamente)")
     
+    # Clientes a asociar (OPCIONAL - se asocian después de crear el vendedor)
+    clientes_ids: Optional[List[str]] = Field(
+        None,
+        description="Lista de IDs de clientes (UUIDs) a asociar con el vendedor al crearlo. Solo se asociarán clientes sin vendedor asignado.",
+        example=["550e8400-e29b-41d4-a716-446655440001", "550e8400-e29b-41d4-a716-446655440002"]
+    )
+    
     # Campos de auditoría
     activo: bool = Field(default=True, description="Si el vendedor está activo")
     created_by_user_id: Optional[str] = Field(None, max_length=64, description="ID del usuario que crea el vendedor")
@@ -560,6 +566,11 @@ class VendedorResponse(BaseModel):
     
     # ID del Plan de Venta asociado (1:1, se obtiene completo en /vendedores/{id}/detalle)
     plan_venta_id: Optional[UUID] = Field(None, description="ID del plan de venta asociado (si existe)")
+    
+    # Información de asociación de clientes (solo presente al crear vendedor con clientes_ids)
+    clientes_asociados: Optional[int] = Field(None, description="Cantidad de clientes asociados al crear el vendedor")
+    clientes_con_vendedor_previo: Optional[List[str]] = Field(None, description="IDs de clientes que ya tenían vendedor asignado")
+    clientes_no_encontrados: Optional[List[str]] = Field(None, description="IDs de clientes que no fueron encontrados")
     
     class Config:
         from_attributes = True
