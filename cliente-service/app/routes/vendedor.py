@@ -56,10 +56,22 @@ async def crear_vendedor(
     - Email debe ser único
     - Registro en ≤ 1 segundo
     - Trazabilidad completa
+    - Opcionalmente puede asociar clientes que NO tengan vendedor asignado
+    
+    **Validaciones de asociación de clientes (TODO O NADA):**
+    - Si `clientes_ids` es vacío o null → Vendedor se crea normalmente
+    - Si se envía con IDs, TODOS los clientes deben cumplir:
+      * Existir en la base de datos (error 404 si no existe)
+      * NO tener vendedor asignado (error 409 si ya tiene vendedor)
+      * Estar activos (error 400 si está inactivo)
+      * Tener UUID válido (error 400 si es inválido)
+    - Si CUALQUIER cliente NO cumple → La operación se ABORTA completamente
     
     **Retorna:**
-    - 201: Vendedor creado exitosamente
-    - 409: Identificación o email ya existe
+    - 201: Vendedor creado exitosamente (con todos los clientes asociados)
+    - 400: ID de cliente inválido o cliente inactivo
+    - 404: Uno o más clientes no existen
+    - 409: Identificación/email duplicado O cliente ya tiene vendedor
     - 500: Error interno
     """
     logger.info(f"📝 Creando vendedor: {vendedor.nombre_completo}")
@@ -297,7 +309,97 @@ async def crear_vendedor(
                     session.add(plan_zona)
                 logger.info(f"   ✅ {len(plan_data.zona_ids)} zonas asignadas")
         
-        # Commit de toda la transacción (vendedor + plan + productos + regiones + zonas)
+        # 🔹 VALIDAR Y ASOCIAR CLIENTES (si se enviaron)
+        clientes_asociados_count = 0
+        clientes_asociados_list = []
+        clientes_con_vendedor_previo = []
+        clientes_no_encontrados = []
+        
+        if vendedor.clientes_ids:
+            logger.info(f"👥 Validando {len(vendedor.clientes_ids)} clientes para asociar al vendedor")
+            
+            # PRIMERO: Validar que TODOS los IDs de clientes existan y NO tengan vendedor
+            for cliente_id_str in vendedor.clientes_ids:
+                try:
+                    cliente_uuid = UUID(cliente_id_str)
+                    # Buscar el cliente
+                    cliente = await session.get(Cliente, cliente_uuid)
+                    
+                    if not cliente:
+                        # Si un cliente no existe, ABORTAR la creación del vendedor
+                        await session.rollback()
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail={
+                                "error": "CLIENTE_NOT_FOUND",
+                                "message": f"Cliente con ID '{cliente_id_str}' no existe. No se puede crear el vendedor con clientes inexistentes.",
+                                "cliente_id": cliente_id_str
+                            }
+                        )
+                    
+                    # Validar que el cliente NO tenga vendedor asignado
+                    if cliente.vendedor_id is not None:
+                        # Si un cliente ya tiene vendedor, ABORTAR la creación del vendedor
+                        # Guardar valores antes del rollback para evitar lazy loading
+                        vendedor_actual_id = str(cliente.vendedor_id)
+                        cliente_nombre = cliente.nombre
+                        await session.rollback()
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail={
+                                "error": "CLIENTE_ALREADY_HAS_VENDEDOR",
+                                "message": f"Cliente con ID '{cliente_id_str}' ya tiene un vendedor asignado (ID: {vendedor_actual_id}). No se puede crear el vendedor.",
+                                "cliente_id": cliente_id_str,
+                                "vendedor_actual": vendedor_actual_id,
+                                "cliente_nombre": cliente_nombre
+                            }
+                        )
+                    
+                    # Validar que el cliente esté activo
+                    if not cliente.activo:
+                        # Si un cliente está inactivo, ABORTAR la creación del vendedor
+                        # Guardar valores antes del rollback para evitar lazy loading
+                        cliente_nombre = cliente.nombre
+                        await session.rollback()
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail={
+                                "error": "CLIENTE_INACTIVE",
+                                "message": f"Cliente con ID '{cliente_id_str}' está inactivo. No se puede crear el vendedor con clientes inactivos.",
+                                "cliente_id": cliente_id_str,
+                                "cliente_nombre": cliente_nombre
+                            }
+                        )
+                    
+                except ValueError:
+                    # Si un ID es inválido, ABORTAR la creación del vendedor
+                    await session.rollback()
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "error": "INVALID_CLIENTE_UUID",
+                            "message": f"ID de cliente '{cliente_id_str}' no es un UUID válido. No se puede crear el vendedor con IDs inválidos.",
+                            "cliente_id": cliente_id_str
+                        }
+                    )
+            
+            # SEGUNDO: Si todos los clientes son válidos (existen, sin vendedor, activos), proceder con la asociación
+            logger.info(f"✅ Todos los clientes son válidos. Procediendo con asociación...")
+            
+            clientes_asociados_list = []
+            for cliente_id_str in vendedor.clientes_ids:
+                cliente_uuid = UUID(cliente_id_str)
+                cliente = await session.get(Cliente, cliente_uuid)
+                
+                # Asociar el cliente al vendedor
+                cliente.vendedor_id = new_vendedor.id
+                clientes_asociados_count += 1
+                clientes_asociados_list.append(cliente_id_str)
+                logger.info(f"   ✅ Cliente {cliente.nombre} asociado")
+            
+            logger.info(f"👥 Asociación completada: {clientes_asociados_count} clientes asociados")
+        
+        # Commit de toda la transacción (vendedor + plan + productos + regiones + zonas + clientes)
         await session.commit()
         await session.refresh(new_vendedor)
         
@@ -307,7 +409,7 @@ async def crear_vendedor(
         # Obtener plan_venta_id si se creó
         plan_venta_id = new_plan.id if vendedor.plan_venta else None
         
-        # Construir response con plan_venta_id
+        # Construir response con plan_venta_id y datos de asociación de clientes
         vendedor_dict = {
             "id": new_vendedor.id,
             "identificacion": new_vendedor.identificacion,
@@ -327,11 +429,14 @@ async def crear_vendedor(
             "updated_at": new_vendedor.updated_at,
             "created_by_user_id": new_vendedor.created_by_user_id,
             "plan_venta_id": plan_venta_id,  # Solo el ID del plan
-            "generated_password": generated_password  # Contraseña generada (o None si no se generó)
+            "generated_password": generated_password,  # Contraseña generada (o None si no se generó)
+            # Información de clientes asociados (si se enviaron)
+            "clientes_asociados": clientes_asociados_list if vendedor.clientes_ids else None,
+            "clientes_con_vendedor_previo": None,  # Ya no aplica porque se valida antes de crear
+            "clientes_no_encontrados": None  # Ya no aplica porque se valida antes de crear
         }
         
         return VendedorResponse(**vendedor_dict)
-        return response
         
     except HTTPException:
         raise
@@ -421,11 +526,50 @@ async def listar_vendedores(
         result = await session.execute(stmt)
         vendedores = result.scalars().all()
         
+        # Construir responses con IDs de clientes para cada vendedor
+        vendedores_response = []
+        for v in vendedores:
+            # Obtener IDs de clientes asociados
+            clientes_ids_result = await session.execute(
+                select(Cliente.id).where(Cliente.vendedor_id == v.id)
+            )
+            clientes_ids = [str(cid) for cid in clientes_ids_result.scalars().all()]
+            
+            # Obtener plan_venta_id si existe
+            plan_venta_id = (await session.execute(
+                select(PlanVenta.id).where(PlanVenta.vendedor_id == v.id)
+            )).scalar_one_or_none()
+            
+            vendedor_dict = {
+                "id": v.id,
+                "identificacion": v.identificacion,
+                "nombre_completo": v.nombre_completo,
+                "email": v.email,
+                "telefono": v.telefono,
+                "pais": v.pais,
+                "username": v.username,
+                "rol": v.rol,
+                "rol_vendedor_id": v.rol_vendedor_id,
+                "territorio_id": v.territorio_id,
+                "supervisor_id": v.supervisor_id,
+                "fecha_ingreso": v.fecha_ingreso,
+                "observaciones": v.observaciones,
+                "activo": v.activo,
+                "created_at": v.created_at,
+                "updated_at": v.updated_at,
+                "created_by_user_id": v.created_by_user_id,
+                "plan_venta_id": plan_venta_id,
+                "clientes_asociados": clientes_ids,
+                "clientes_con_vendedor_previo": None,
+                "clientes_no_encontrados": None
+            }
+            vendedores_response.append(VendedorResponse(**vendedor_dict))
+        
         took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
         logger.info(f"✅ {len(vendedores)} vendedores encontrados en {took_ms}ms")
         
         return VendedorListResponse(
-            items=[VendedorResponse.model_validate(v) for v in vendedores],
+            items=vendedores_response,
             total=total,
             page=page,
             size=size,
@@ -485,7 +629,13 @@ async def obtener_vendedor(
         select(PlanVenta.id).where(PlanVenta.vendedor_id == uuid_id)
     )).scalar_one_or_none()
     
-    # Construir response con plan_venta_id
+    # Obtener IDs de clientes asociados
+    clientes_ids_result = await session.execute(
+        select(Cliente.id).where(Cliente.vendedor_id == uuid_id)
+    )
+    clientes_ids = [str(cid) for cid in clientes_ids_result.scalars().all()]
+    
+    # Construir response con plan_venta_id y clientes_asociados
     vendedor_dict = {
         "id": vendedor.id,
         "identificacion": vendedor.identificacion,
@@ -504,7 +654,8 @@ async def obtener_vendedor(
         "created_at": vendedor.created_at,
         "updated_at": vendedor.updated_at,
         "created_by_user_id": vendedor.created_by_user_id,
-        "plan_venta_id": plan_venta  # Solo el ID del plan
+        "plan_venta_id": plan_venta,  # Solo el ID del plan
+        "clientes_asociados": clientes_ids
     }
     
     return VendedorResponse(**vendedor_dict)
@@ -903,19 +1054,34 @@ async def asociar_clientes_a_vendedor(
     """
     Asociar múltiples clientes a un vendedor
     
-    **Validaciones:**
+    **Validaciones estrictas (TODO O NADA):**
     - El vendedor debe existir y estar activo
-    - Los clientes deben existir
-    - Solo se asocian clientes activos
-    - Se reportan clientes no encontrados o inactivos
+    - TODOS los clientes deben cumplir:
+      * Existir en la base de datos (error 404 si no existe)
+      * NO tener vendedor asignado (error 409 si ya tiene vendedor)
+      * Estar activos (error 400 si está inactivo)
+      * Tener UUID válido (error 400 si es inválido)
+    - Si CUALQUIER cliente NO cumple → La operación se ABORTA completamente
+    - No se permite lista vacía de clientes
     
     **Retorna:**
-    - 200: Clientes asociados exitosamente (con detalles de éxitos y fallos)
-    - 400: ID de vendedor inválido
-    - 404: Vendedor no encontrado o inactivo
+    - 200: Todos los clientes asociados exitosamente
+    - 400: ID inválido, lista vacía o cliente inactivo
+    - 404: Vendedor o cliente no encontrado
+    - 409: Cliente ya tiene vendedor asignado
     """
     logger.info(f"🔗 Asociando {len(payload.clientes_ids)} clientes al vendedor: {vendedor_id}")
     started = time.perf_counter_ns()
+    
+    # Validar que la lista no esté vacía
+    if not payload.clientes_ids or len(payload.clientes_ids) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "EMPTY_CLIENTES_LIST",
+                "message": "La lista de clientes no puede estar vacía"
+            }
+        )
     
     # Validar UUID del vendedor
     try:
@@ -952,69 +1118,83 @@ async def asociar_clientes_a_vendedor(
             }
         )
     
-    # Procesar cada cliente
-    clientes_asociados = 0
-    clientes_no_encontrados = []
-    clientes_inactivos = []
-    clientes_con_vendedor = []
+    # FASE 1: VALIDAR que TODOS los clientes cumplan los requisitos (sin modificar nada)
+    logger.info(f"👥 Validando {len(payload.clientes_ids)} clientes antes de asociar...")
     
     for cliente_id_str in payload.clientes_ids:
+        # Validar UUID del cliente
         try:
-            # Validar UUID del cliente
-            try:
-                cliente_uuid = UUID(cliente_id_str)
-            except ValueError:
-                logger.warning(f"⚠️  Cliente ID inválido: {cliente_id_str}")
-                clientes_no_encontrados.append(cliente_id_str)
-                continue
-            
-            # Buscar el cliente
-            cliente = (await session.execute(
-                select(Cliente).where(Cliente.id == cliente_uuid)
-            )).scalar_one_or_none()
-            
-            if not cliente:
-                logger.warning(f"⚠️  Cliente no encontrado: {cliente_id_str}")
-                clientes_no_encontrados.append(cliente_id_str)
-                continue
-            
-            if not cliente.activo:
-                logger.warning(f"⚠️  Cliente inactivo: {cliente.nombre}")
-                clientes_inactivos.append(cliente_id_str)
-                continue
-            
-            # Verificar que el cliente NO tenga ya un vendedor asociado
-            if cliente.vendedor_id is not None:
-                logger.warning(f"⚠️  Cliente {cliente.nombre} ya tiene un vendedor asociado: {cliente.vendedor_id}")
-                clientes_con_vendedor.append(cliente_id_str)
-                continue
-            
-            # Asociar el cliente al vendedor
-            cliente.vendedor_id = vendedor_uuid
-            clientes_asociados += 1
-            logger.info(f"  ✅ Cliente '{cliente.nombre}' asociado correctamente")
-            
-        except Exception as e:
-            logger.error(f"❌ Error procesando cliente {cliente_id_str}: {e}")
-            clientes_no_encontrados.append(cliente_id_str)
+            cliente_uuid = UUID(cliente_id_str)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "INVALID_CLIENTE_UUID",
+                    "message": f"ID de cliente '{cliente_id_str}' no es un UUID válido",
+                    "cliente_id": cliente_id_str
+                }
+            )
+        
+        # Buscar el cliente
+        cliente = await session.get(Cliente, cliente_uuid)
+        
+        if not cliente:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "CLIENTE_NOT_FOUND",
+                    "message": f"Cliente con ID '{cliente_id_str}' no existe",
+                    "cliente_id": cliente_id_str
+                }
+            )
+        
+        # Validar que el cliente esté activo
+        if not cliente.activo:
+            cliente_nombre = cliente.nombre
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "CLIENTE_INACTIVE",
+                    "message": f"Cliente '{cliente_nombre}' (ID: {cliente_id_str}) está inactivo",
+                    "cliente_id": cliente_id_str,
+                    "cliente_nombre": cliente_nombre
+                }
+            )
+        
+        # Validar que el cliente NO tenga vendedor asignado
+        if cliente.vendedor_id is not None:
+            vendedor_actual_id = str(cliente.vendedor_id)
+            cliente_nombre = cliente.nombre
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "CLIENTE_ALREADY_HAS_VENDEDOR",
+                    "message": f"Cliente '{cliente_nombre}' (ID: {cliente_id_str}) ya tiene un vendedor asignado (ID: {vendedor_actual_id})",
+                    "cliente_id": cliente_id_str,
+                    "vendedor_actual": vendedor_actual_id,
+                    "cliente_nombre": cliente_nombre
+                }
+            )
+    
+    # FASE 2: Si todas las validaciones pasaron, ASOCIAR todos los clientes
+    logger.info(f"✅ Todas las validaciones pasaron. Asociando clientes...")
+    clientes_asociados = 0
+    
+    for cliente_id_str in payload.clientes_ids:
+        cliente_uuid = UUID(cliente_id_str)
+        cliente = await session.get(Cliente, cliente_uuid)
+        
+        # Asociar el cliente al vendedor
+        cliente.vendedor_id = vendedor_uuid
+        clientes_asociados += 1
+        logger.info(f"  ✅ Cliente '{cliente.nombre}' asociado correctamente")
     
     # Guardar cambios
     await session.commit()
     
     took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
     
-    # Construir mensaje de resultado
-    mensaje_partes = []
-    if clientes_asociados > 0:
-        mensaje_partes.append(f"{clientes_asociados} cliente(s) asociado(s) exitosamente")
-    if clientes_no_encontrados:
-        mensaje_partes.append(f"{len(clientes_no_encontrados)} cliente(s) no encontrado(s)")
-    if clientes_inactivos:
-        mensaje_partes.append(f"{len(clientes_inactivos)} cliente(s) inactivo(s)")
-    if clientes_con_vendedor:
-        mensaje_partes.append(f"{len(clientes_con_vendedor)} cliente(s) ya tenían vendedor asociado")
-    
-    mensaje = ". ".join(mensaje_partes) if mensaje_partes else "No se realizaron cambios"
+    mensaje = f"{clientes_asociados} cliente(s) asociado(s) exitosamente al vendedor {vendedor.nombre_completo}"
     
     logger.info(f"✅ Asociación completada en {took_ms}ms: {mensaje}")
     
@@ -1022,9 +1202,9 @@ async def asociar_clientes_a_vendedor(
         vendedor_id=vendedor_uuid,
         vendedor_nombre=vendedor.nombre_completo,
         clientes_asociados=clientes_asociados,
-        clientes_no_encontrados=clientes_no_encontrados,
-        clientes_inactivos=clientes_inactivos,
-        clientes_con_vendedor=clientes_con_vendedor,
+        clientes_no_encontrados=[],  # Ya no aplica porque se valida antes
+        clientes_inactivos=[],  # Ya no aplica porque se valida antes
+        clientes_con_vendedor=[],  # Ya no aplica porque se valida antes
         mensaje=mensaje
     )
 

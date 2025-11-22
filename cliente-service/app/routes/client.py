@@ -310,31 +310,17 @@ async def crear_cliente(
     - NIT (debe ser único)
     - Nombre del cliente
     - Password (se almacena hasheado)
-    - Vendedor ID (opcional - para trazabilidad y asignación)
     
     **Retorna:**
     - 201: Cliente creado exitosamente
     - 409: Cliente ya existe (NIT duplicado)
     - 500: Error interno
-    """
-    vendedor_info = f"por vendedor {cliente.vendedor_id}" if cliente.vendedor_id else "sin vendedor asignado"
-    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) con código auto-generado {vendedor_info}")
-    started = time.perf_counter_ns()
     
-    # Validar vendedor_id SOLO si se proporciona
-    from uuid import UUID
-    vendedor_uuid = None
-    if cliente.vendedor_id:
-        try:
-            vendedor_uuid = UUID(cliente.vendedor_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "error": "INVALID_VENDEDOR_UUID",
-                    "message": f"vendedor_id '{cliente.vendedor_id}' no es un UUID válido. Debe ser un UUID en formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                }
-            )
+    **Nota:** Los clientes se crean SIN vendedor asignado. Para asociar un vendedor,
+    usar el endpoint POST /api/vendedores/{vendedor_id}/clientes/asociar
+    """
+    logger.info(f"📝 Creando cliente: {cliente.nombre} (NIT: {cliente.nit}) con código auto-generado (sin vendedor)")
+    started = time.perf_counter_ns()
     
     try:
         from app.models.client_model import Cliente
@@ -365,6 +351,7 @@ async def crear_cliente(
         password_hash = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
         
         # Crear nuevo cliente (id se genera automáticamente con UUID)
+        # Los clientes se crean SIN vendedor asignado
         new_cliente = Cliente(
             nit=cliente.nit,
             nombre=cliente.nombre,
@@ -376,7 +363,7 @@ async def crear_cliente(
             ciudad=cliente.ciudad,
             pais=cliente.pais,
             activo=cliente.activo,
-            vendedor_id=vendedor_uuid
+            vendedor_id=None  # Siempre NULL al crear
         )
         
         session.add(new_cliente)
