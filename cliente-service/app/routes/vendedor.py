@@ -311,6 +311,7 @@ async def crear_vendedor(
         
         # 🔹 VALIDAR Y ASOCIAR CLIENTES (si se enviaron)
         clientes_asociados_count = 0
+        clientes_asociados_list = []
         clientes_con_vendedor_previo = []
         clientes_no_encontrados = []
         
@@ -385,6 +386,7 @@ async def crear_vendedor(
             # SEGUNDO: Si todos los clientes son válidos (existen, sin vendedor, activos), proceder con la asociación
             logger.info(f"✅ Todos los clientes son válidos. Procediendo con asociación...")
             
+            clientes_asociados_list = []
             for cliente_id_str in vendedor.clientes_ids:
                 cliente_uuid = UUID(cliente_id_str)
                 cliente = await session.get(Cliente, cliente_uuid)
@@ -392,6 +394,7 @@ async def crear_vendedor(
                 # Asociar el cliente al vendedor
                 cliente.vendedor_id = new_vendedor.id
                 clientes_asociados_count += 1
+                clientes_asociados_list.append(cliente_id_str)
                 logger.info(f"   ✅ Cliente {cliente.nombre} asociado")
             
             logger.info(f"👥 Asociación completada: {clientes_asociados_count} clientes asociados")
@@ -428,7 +431,7 @@ async def crear_vendedor(
             "plan_venta_id": plan_venta_id,  # Solo el ID del plan
             "generated_password": generated_password,  # Contraseña generada (o None si no se generó)
             # Información de clientes asociados (si se enviaron)
-            "clientes_asociados": clientes_asociados_count if vendedor.clientes_ids else None,
+            "clientes_asociados": clientes_asociados_list if vendedor.clientes_ids else None,
             "clientes_con_vendedor_previo": None,  # Ya no aplica porque se valida antes de crear
             "clientes_no_encontrados": None  # Ya no aplica porque se valida antes de crear
         }
@@ -523,11 +526,50 @@ async def listar_vendedores(
         result = await session.execute(stmt)
         vendedores = result.scalars().all()
         
+        # Construir responses con IDs de clientes para cada vendedor
+        vendedores_response = []
+        for v in vendedores:
+            # Obtener IDs de clientes asociados
+            clientes_ids_result = await session.execute(
+                select(Cliente.id).where(Cliente.vendedor_id == v.id)
+            )
+            clientes_ids = [str(cid) for cid in clientes_ids_result.scalars().all()]
+            
+            # Obtener plan_venta_id si existe
+            plan_venta_id = (await session.execute(
+                select(PlanVenta.id).where(PlanVenta.vendedor_id == v.id)
+            )).scalar_one_or_none()
+            
+            vendedor_dict = {
+                "id": v.id,
+                "identificacion": v.identificacion,
+                "nombre_completo": v.nombre_completo,
+                "email": v.email,
+                "telefono": v.telefono,
+                "pais": v.pais,
+                "username": v.username,
+                "rol": v.rol,
+                "rol_vendedor_id": v.rol_vendedor_id,
+                "territorio_id": v.territorio_id,
+                "supervisor_id": v.supervisor_id,
+                "fecha_ingreso": v.fecha_ingreso,
+                "observaciones": v.observaciones,
+                "activo": v.activo,
+                "created_at": v.created_at,
+                "updated_at": v.updated_at,
+                "created_by_user_id": v.created_by_user_id,
+                "plan_venta_id": plan_venta_id,
+                "clientes_asociados": clientes_ids,
+                "clientes_con_vendedor_previo": None,
+                "clientes_no_encontrados": None
+            }
+            vendedores_response.append(VendedorResponse(**vendedor_dict))
+        
         took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
         logger.info(f"✅ {len(vendedores)} vendedores encontrados en {took_ms}ms")
         
         return VendedorListResponse(
-            items=[VendedorResponse.model_validate(v) for v in vendedores],
+            items=vendedores_response,
             total=total,
             page=page,
             size=size,
@@ -587,7 +629,13 @@ async def obtener_vendedor(
         select(PlanVenta.id).where(PlanVenta.vendedor_id == uuid_id)
     )).scalar_one_or_none()
     
-    # Construir response con plan_venta_id
+    # Obtener IDs de clientes asociados
+    clientes_ids_result = await session.execute(
+        select(Cliente.id).where(Cliente.vendedor_id == uuid_id)
+    )
+    clientes_ids = [str(cid) for cid in clientes_ids_result.scalars().all()]
+    
+    # Construir response con plan_venta_id y clientes_asociados
     vendedor_dict = {
         "id": vendedor.id,
         "identificacion": vendedor.identificacion,
@@ -606,7 +654,8 @@ async def obtener_vendedor(
         "created_at": vendedor.created_at,
         "updated_at": vendedor.updated_at,
         "created_by_user_id": vendedor.created_by_user_id,
-        "plan_venta_id": plan_venta  # Solo el ID del plan
+        "plan_venta_id": plan_venta,  # Solo el ID del plan
+        "clientes_asociados": clientes_ids
     }
     
     return VendedorResponse(**vendedor_dict)
