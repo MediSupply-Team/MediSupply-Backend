@@ -1005,19 +1005,34 @@ async def asociar_clientes_a_vendedor(
     """
     Asociar múltiples clientes a un vendedor
     
-    **Validaciones:**
+    **Validaciones estrictas (TODO O NADA):**
     - El vendedor debe existir y estar activo
-    - Los clientes deben existir
-    - Solo se asocian clientes activos
-    - Se reportan clientes no encontrados o inactivos
+    - TODOS los clientes deben cumplir:
+      * Existir en la base de datos (error 404 si no existe)
+      * NO tener vendedor asignado (error 409 si ya tiene vendedor)
+      * Estar activos (error 400 si está inactivo)
+      * Tener UUID válido (error 400 si es inválido)
+    - Si CUALQUIER cliente NO cumple → La operación se ABORTA completamente
+    - No se permite lista vacía de clientes
     
     **Retorna:**
-    - 200: Clientes asociados exitosamente (con detalles de éxitos y fallos)
-    - 400: ID de vendedor inválido
-    - 404: Vendedor no encontrado o inactivo
+    - 200: Todos los clientes asociados exitosamente
+    - 400: ID inválido, lista vacía o cliente inactivo
+    - 404: Vendedor o cliente no encontrado
+    - 409: Cliente ya tiene vendedor asignado
     """
     logger.info(f"🔗 Asociando {len(payload.clientes_ids)} clientes al vendedor: {vendedor_id}")
     started = time.perf_counter_ns()
+    
+    # Validar que la lista no esté vacía
+    if not payload.clientes_ids or len(payload.clientes_ids) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "EMPTY_CLIENTES_LIST",
+                "message": "La lista de clientes no puede estar vacía"
+            }
+        )
     
     # Validar UUID del vendedor
     try:
@@ -1054,69 +1069,83 @@ async def asociar_clientes_a_vendedor(
             }
         )
     
-    # Procesar cada cliente
-    clientes_asociados = 0
-    clientes_no_encontrados = []
-    clientes_inactivos = []
-    clientes_con_vendedor = []
+    # FASE 1: VALIDAR que TODOS los clientes cumplan los requisitos (sin modificar nada)
+    logger.info(f"👥 Validando {len(payload.clientes_ids)} clientes antes de asociar...")
     
     for cliente_id_str in payload.clientes_ids:
+        # Validar UUID del cliente
         try:
-            # Validar UUID del cliente
-            try:
-                cliente_uuid = UUID(cliente_id_str)
-            except ValueError:
-                logger.warning(f"⚠️  Cliente ID inválido: {cliente_id_str}")
-                clientes_no_encontrados.append(cliente_id_str)
-                continue
-            
-            # Buscar el cliente
-            cliente = (await session.execute(
-                select(Cliente).where(Cliente.id == cliente_uuid)
-            )).scalar_one_or_none()
-            
-            if not cliente:
-                logger.warning(f"⚠️  Cliente no encontrado: {cliente_id_str}")
-                clientes_no_encontrados.append(cliente_id_str)
-                continue
-            
-            if not cliente.activo:
-                logger.warning(f"⚠️  Cliente inactivo: {cliente.nombre}")
-                clientes_inactivos.append(cliente_id_str)
-                continue
-            
-            # Verificar que el cliente NO tenga ya un vendedor asociado
-            if cliente.vendedor_id is not None:
-                logger.warning(f"⚠️  Cliente {cliente.nombre} ya tiene un vendedor asociado: {cliente.vendedor_id}")
-                clientes_con_vendedor.append(cliente_id_str)
-                continue
-            
-            # Asociar el cliente al vendedor
-            cliente.vendedor_id = vendedor_uuid
-            clientes_asociados += 1
-            logger.info(f"  ✅ Cliente '{cliente.nombre}' asociado correctamente")
-            
-        except Exception as e:
-            logger.error(f"❌ Error procesando cliente {cliente_id_str}: {e}")
-            clientes_no_encontrados.append(cliente_id_str)
+            cliente_uuid = UUID(cliente_id_str)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "INVALID_CLIENTE_UUID",
+                    "message": f"ID de cliente '{cliente_id_str}' no es un UUID válido",
+                    "cliente_id": cliente_id_str
+                }
+            )
+        
+        # Buscar el cliente
+        cliente = await session.get(Cliente, cliente_uuid)
+        
+        if not cliente:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "CLIENTE_NOT_FOUND",
+                    "message": f"Cliente con ID '{cliente_id_str}' no existe",
+                    "cliente_id": cliente_id_str
+                }
+            )
+        
+        # Validar que el cliente esté activo
+        if not cliente.activo:
+            cliente_nombre = cliente.nombre
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "CLIENTE_INACTIVE",
+                    "message": f"Cliente '{cliente_nombre}' (ID: {cliente_id_str}) está inactivo",
+                    "cliente_id": cliente_id_str,
+                    "cliente_nombre": cliente_nombre
+                }
+            )
+        
+        # Validar que el cliente NO tenga vendedor asignado
+        if cliente.vendedor_id is not None:
+            vendedor_actual_id = str(cliente.vendedor_id)
+            cliente_nombre = cliente.nombre
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "CLIENTE_ALREADY_HAS_VENDEDOR",
+                    "message": f"Cliente '{cliente_nombre}' (ID: {cliente_id_str}) ya tiene un vendedor asignado (ID: {vendedor_actual_id})",
+                    "cliente_id": cliente_id_str,
+                    "vendedor_actual": vendedor_actual_id,
+                    "cliente_nombre": cliente_nombre
+                }
+            )
+    
+    # FASE 2: Si todas las validaciones pasaron, ASOCIAR todos los clientes
+    logger.info(f"✅ Todas las validaciones pasaron. Asociando clientes...")
+    clientes_asociados = 0
+    
+    for cliente_id_str in payload.clientes_ids:
+        cliente_uuid = UUID(cliente_id_str)
+        cliente = await session.get(Cliente, cliente_uuid)
+        
+        # Asociar el cliente al vendedor
+        cliente.vendedor_id = vendedor_uuid
+        clientes_asociados += 1
+        logger.info(f"  ✅ Cliente '{cliente.nombre}' asociado correctamente")
     
     # Guardar cambios
     await session.commit()
     
     took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
     
-    # Construir mensaje de resultado
-    mensaje_partes = []
-    if clientes_asociados > 0:
-        mensaje_partes.append(f"{clientes_asociados} cliente(s) asociado(s) exitosamente")
-    if clientes_no_encontrados:
-        mensaje_partes.append(f"{len(clientes_no_encontrados)} cliente(s) no encontrado(s)")
-    if clientes_inactivos:
-        mensaje_partes.append(f"{len(clientes_inactivos)} cliente(s) inactivo(s)")
-    if clientes_con_vendedor:
-        mensaje_partes.append(f"{len(clientes_con_vendedor)} cliente(s) ya tenían vendedor asociado")
-    
-    mensaje = ". ".join(mensaje_partes) if mensaje_partes else "No se realizaron cambios"
+    mensaje = f"{clientes_asociados} cliente(s) asociado(s) exitosamente al vendedor {vendedor.nombre_completo}"
     
     logger.info(f"✅ Asociación completada en {took_ms}ms: {mensaje}")
     
@@ -1124,9 +1153,9 @@ async def asociar_clientes_a_vendedor(
         vendedor_id=vendedor_uuid,
         vendedor_nombre=vendedor.nombre_completo,
         clientes_asociados=clientes_asociados,
-        clientes_no_encontrados=clientes_no_encontrados,
-        clientes_inactivos=clientes_inactivos,
-        clientes_con_vendedor=clientes_con_vendedor,
+        clientes_no_encontrados=[],  # Ya no aplica porque se valida antes
+        clientes_inactivos=[],  # Ya no aplica porque se valida antes
+        clientes_con_vendedor=[],  # Ya no aplica porque se valida antes
         mensaje=mensaje
     )
 
