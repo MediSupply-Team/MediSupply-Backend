@@ -339,21 +339,26 @@ async def crear_vendedor(
                     # Validar que el cliente NO tenga vendedor asignado
                     if cliente.vendedor_id is not None:
                         # Si un cliente ya tiene vendedor, ABORTAR la creación del vendedor
+                        # Guardar valores antes del rollback para evitar lazy loading
+                        vendedor_actual_id = str(cliente.vendedor_id)
+                        cliente_nombre = cliente.nombre
                         await session.rollback()
                         raise HTTPException(
                             status_code=status.HTTP_409_CONFLICT,
                             detail={
                                 "error": "CLIENTE_ALREADY_HAS_VENDEDOR",
-                                "message": f"Cliente con ID '{cliente_id_str}' ya tiene un vendedor asignado (ID: {cliente.vendedor_id}). No se puede crear el vendedor.",
+                                "message": f"Cliente con ID '{cliente_id_str}' ya tiene un vendedor asignado (ID: {vendedor_actual_id}). No se puede crear el vendedor.",
                                 "cliente_id": cliente_id_str,
-                                "vendedor_actual": str(cliente.vendedor_id),
-                                "cliente_nombre": cliente.nombre
+                                "vendedor_actual": vendedor_actual_id,
+                                "cliente_nombre": cliente_nombre
                             }
                         )
                     
                     # Validar que el cliente esté activo
                     if not cliente.activo:
                         # Si un cliente está inactivo, ABORTAR la creación del vendedor
+                        # Guardar valores antes del rollback para evitar lazy loading
+                        cliente_nombre = cliente.nombre
                         await session.rollback()
                         raise HTTPException(
                             status_code=status.HTTP_400_BAD_REQUEST,
@@ -361,7 +366,7 @@ async def crear_vendedor(
                                 "error": "CLIENTE_INACTIVE",
                                 "message": f"Cliente con ID '{cliente_id_str}' está inactivo. No se puede crear el vendedor con clientes inactivos.",
                                 "cliente_id": cliente_id_str,
-                                "cliente_nombre": cliente.nombre
+                                "cliente_nombre": cliente_nombre
                             }
                         )
                     
