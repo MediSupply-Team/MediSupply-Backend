@@ -12,7 +12,7 @@ Este módulo contiene toda la lógica de negocio para:
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_, func, or_
-from app.models.catalogo_model import Producto, Inventario
+from app.models.catalogo_model import Producto, Inventario, Bodega
 from app.models.movimiento_model import MovimientoInventario, AlertaInventario
 from app.schemas import (
     MovimientoCreate, TransferenciaCreate, TipoMovimiento, 
@@ -215,6 +215,36 @@ class InventarioService:
             movimiento.tipo_movimiento,
             movimiento.motivo
         )
+        
+        # 1.5. Validar que la bodega existe
+        bodega = (await session.execute(
+            select(Bodega).where(Bodega.codigo == movimiento.bodega_id)
+        )).scalar_one_or_none()
+        
+        if not bodega:
+            logger.error(f"   ❌ Bodega no encontrada: {movimiento.bodega_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "BODEGA_NOT_FOUND",
+                    "message": f"La bodega '{movimiento.bodega_id}' no existe en el sistema",
+                    "bodega_id": movimiento.bodega_id,
+                    "sugerencia": "Verifique el código de bodega o créela primero usando POST /api/v1/bodegas"
+                }
+            )
+        
+        if not bodega.activo:
+            logger.error(f"   ❌ Bodega inactiva: {movimiento.bodega_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "BODEGA_INACTIVE",
+                    "message": f"La bodega '{bodega.nombre}' ({movimiento.bodega_id}) está inactiva",
+                    "bodega_id": movimiento.bodega_id
+                }
+            )
+        
+        logger.info(f"   ✅ Bodega validada: {bodega.nombre} ({bodega.codigo})")
         
         # 2. Obtener saldo actual
         # 🔒 Usar FOR UPDATE para SALIDAS para prevenir race conditions

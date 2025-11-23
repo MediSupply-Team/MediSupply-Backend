@@ -209,24 +209,55 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
     
     # Crear inventarios iniciales si se especificaron bodegas
     bodegas_creadas = []
+    bodegas_omitidas = []
     if product.bodegasIniciales:
-        from app.models.catalogo_model import Inventario
+        from app.models.catalogo_model import Inventario, Bodega
         from datetime import date, datetime
         
-        logger.info(f"   📦 Creando {len(product.bodegasIniciales)} registros de inventario inicial")
+        logger.info(f"   📦 Procesando {len(product.bodegasIniciales)} bodegas iniciales")
         
-        for bodega in product.bodegasIniciales:
+        for bodega_config in product.bodegasIniciales:
+            # Validar que la bodega existe
+            bodega_existente = (await session.execute(
+                select(Bodega).where(Bodega.codigo == bodega_config.bodega_id)
+            )).scalar_one_or_none()
+            
+            if not bodega_existente:
+                logger.warning(f"      ⚠️  Bodega '{bodega_config.bodega_id}' no existe - omitida")
+                bodegas_omitidas.append(f"{bodega_config.bodega_id} (no existe)")
+                continue
+            
+            if not bodega_existente.activo:
+                logger.warning(f"      ⚠️  Bodega '{bodega_config.bodega_id}' está inactiva - omitida")
+                bodegas_omitidas.append(f"{bodega_config.bodega_id} (inactiva)")
+                continue
+            
             # Generar lote si no se proporcionó
-            lote = bodega.lote or f"INICIAL-{datetime.now().strftime('%Y%m%d')}"
+            lote = bodega_config.lote or f"INICIAL-{datetime.now().strftime('%Y%m%d')}"
+            
+            # Verificar si ya existe inventario para este producto + bodega + lote
+            inventario_existe = (await session.execute(
+                select(Inventario).where(
+                    Inventario.producto_id == product_id,
+                    Inventario.bodega_id == bodega_config.bodega_id,
+                    Inventario.pais == bodega_config.pais,
+                    Inventario.lote == lote
+                )
+            )).scalar_one_or_none()
+            
+            if inventario_existe:
+                logger.info(f"      ℹ️  Inventario ya existe en {bodega_config.bodega_id} ({bodega_config.pais}) - omitido")
+                bodegas_omitidas.append(f"{bodega_config.bodega_id} (ya existe)")
+                continue
             
             # Usar fecha de vencimiento proporcionada o una fecha muy lejana
-            fecha_vence = bodega.fecha_vencimiento or date(2099, 12, 31)
+            fecha_vence = bodega_config.fecha_vencimiento or date(2099, 12, 31)
             
             # Crear registro de inventario con cantidad = 0
             inventario_inicial = Inventario(
                 producto_id=product_id,
-                pais=bodega.pais,
-                bodega_id=bodega.bodega_id,
+                pais=bodega_config.pais,
+                bodega_id=bodega_config.bodega_id,
                 lote=lote,
                 cantidad=0,  # Stock inicial en 0
                 vence=fecha_vence,
@@ -234,9 +265,9 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
             )
             
             session.add(inventario_inicial)
-            bodegas_creadas.append(f"{bodega.bodega_id} ({bodega.pais})")
+            bodegas_creadas.append(f"{bodega_existente.nombre} ({bodega_config.bodega_id})")
             
-            logger.info(f"      ✓ Inventario inicial creado en {bodega.bodega_id} ({bodega.pais})")
+            logger.info(f"      ✓ Inventario inicial creado en {bodega_existente.nombre} ({bodega_config.bodega_id})")
     
     # Commit para guardar los cambios
     await session.commit()
@@ -245,6 +276,8 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
     log_msg = f"✅ Producto creado: {product_id}"
     if bodegas_creadas:
         log_msg += f" con inventario inicial en: {', '.join(bodegas_creadas)}"
+    if bodegas_omitidas:
+        log_msg += f" | Bodegas omitidas: {', '.join(bodegas_omitidas)}"
     logger.info(log_msg)
     
     response = {
