@@ -565,7 +565,7 @@ class VendedorResponse(BaseModel):
     created_by_user_id: Optional[str] = None
     
     # ID del Plan de Venta asociado (1:1, se obtiene completo en /vendedores/{id}/detalle)
-    plan_venta_id: Optional[UUID] = Field(None, description="ID del plan de venta asociado (si existe)")
+    plan_venta_id: Optional[int] = Field(None, description="ID del plan de venta asociado (si existe) - INTEGER")
     
     # Información de clientes asociados
     clientes_asociados: Optional[List[str]] = Field(None, description="Lista de IDs de clientes asociados al vendedor")
