@@ -159,14 +159,15 @@ async def populate_database():
         print("2️⃣ Paso 2: Ejecutando migraciones SQL...")
         sql_dir = Path(__file__).parent.parent / 'data'
         
-        # Archivos SQL en orden
+        # Archivos SQL en orden correcto:
+        # PRIMERO catálogos, LUEGO vendedores (ya que vendedores referencia a catálogos)
         sql_files = [
             ('001_init.sql', 'Estructura inicial y tablas base'),
-            ('002_vendedores.sql', 'Tabla vendedores y datos iniciales'),
-            ('003_asignar_vendedores_clientes.sql', 'Asignar vendedores a clientes existentes'),
-            ('004_catalogos_vendedor.sql', 'Catálogos de soporte (Fase 1)'),
-            ('005_vendedor_extended.sql', 'Vendedor extendido con FK (Fase 2)'),
-            ('006_plan_venta.sql', 'Plan de Venta completo con productos, regiones y zonas (Fase 3)')
+            ('004_catalogos_vendedor.sql', 'Catálogos de soporte - FASE 1: Crear catálogos primero'),
+            ('002_vendedores.sql', 'Tabla vendedores y datos iniciales - FASE 2: Usa los catálogos'),
+            ('005_vendedor_extended.sql', 'Vendedor extendido con FK - FASE 3: Añade FKs a catálogos'),
+            ('006_plan_venta.sql', 'Plan de Venta completo con productos, regiones y zonas - FASE 4'),
+            ('003_asignar_vendedores_clientes.sql', 'Asignar vendedores a clientes existentes - FASE 5')
         ]
         
         for filename, description in sql_files:
