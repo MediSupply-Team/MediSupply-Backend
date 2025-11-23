@@ -24,7 +24,7 @@ class PlanVenta(Base):
     __tablename__ = "plan_venta"
     
     # Campos principales
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre_plan: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     
     # Relaciones
@@ -68,7 +68,7 @@ class PlanProducto(Base):
     __tablename__ = "plan_producto"
     
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    plan_venta_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("plan_venta.id", ondelete="CASCADE"), nullable=False, index=True)
+    plan_venta_id: Mapped[int] = mapped_column(Integer, ForeignKey("plan_venta.id", ondelete="CASCADE"), nullable=False, index=True)
     producto_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)  # ID del producto desde catalogo-service
     
     # Metas específicas del producto
@@ -95,7 +95,7 @@ class PlanRegion(Base):
     __tablename__ = "plan_region"
     
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    plan_venta_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("plan_venta.id", ondelete="CASCADE"), nullable=False, index=True)
+    plan_venta_id: Mapped[int] = mapped_column(Integer, ForeignKey("plan_venta.id", ondelete="CASCADE"), nullable=False, index=True)
     region_id: Mapped[int] = mapped_column(Integer, ForeignKey("region.id"), nullable=False, index=True)
     
     # Auditoría
@@ -119,7 +119,7 @@ class PlanZona(Base):
     __tablename__ = "plan_zona"
     
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    plan_venta_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("plan_venta.id", ondelete="CASCADE"), nullable=False, index=True)
+    plan_venta_id: Mapped[int] = mapped_column(Integer, ForeignKey("plan_venta.id", ondelete="CASCADE"), nullable=False, index=True)
     zona_id: Mapped[int] = mapped_column(Integer, ForeignKey("zona.id"), nullable=False, index=True)
     
     # Auditoría

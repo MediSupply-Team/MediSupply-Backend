@@ -24,7 +24,7 @@ $$ LANGUAGE plpgsql;
 -- Relación 1:1 con vendedor (un vendedor tiene un plan activo)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS plan_venta (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     vendedor_id UUID NOT NULL UNIQUE, -- 1:1 con vendedor
     tipo_plan_id INTEGER, -- FK a tipo_plan (opcional)
     nombre_plan VARCHAR(255) NOT NULL,
@@ -160,8 +160,8 @@ COMMENT ON TABLE plan_zona IS 'Zonas especiales asignadas a un plan de venta';
 INSERT INTO plan_venta (
     id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
     meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
-) VALUES (
-    'plan0001-0001-0001-0001-000000000001',
+) OVERRIDING SYSTEM VALUE OVERRIDING SYSTEM VALUE VALUES (
+    1,
     '11111111-1111-1111-1111-111111111111',  -- Carlos Mendoza
     1,  -- PREMIUM
     'Plan Q4 2025 - Carlos Mendoza',
@@ -176,18 +176,18 @@ INSERT INTO plan_venta (
 
 -- Productos para Carlos Mendoza (UUIDs reales del catálogo)
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-('plan0001-0001-0001-0001-000000000001', '11111111-1111-1111-1111-000000000001', 200, 1250.00),  -- Amoxicilina 500mg
-('plan0001-0001-0001-0001-000000000001', '22222222-2222-2222-2222-000000000007', 150, 180.00),   -- Acetaminofén 500mg
-('plan0001-0001-0001-0001-000000000001', '22222222-2222-2222-2222-000000000006', 100, 320.00)    -- Ibuprofeno 400mg
+(1, '11111111-1111-1111-1111-000000000001', 200, 1250.00),  -- Amoxicilina 500mg
+(1, '22222222-2222-2222-2222-000000000007', 150, 180.00),   -- Acetaminofén 500mg
+(1, '22222222-2222-2222-2222-000000000006', 100, 320.00)    -- Ibuprofeno 400mg
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para Carlos Mendoza
 INSERT INTO plan_region (plan_venta_id, region_id) VALUES
-('plan0001-0001-0001-0001-000000000001', 5)  -- REG-CENTRO
+(1, 5)  -- REG-CENTRO
 ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
 
 INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
-('plan0001-0001-0001-0001-000000000001', 2)  -- ZONA-HOSP
+(1, 2)  -- ZONA-HOSP
 ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 
 
@@ -195,8 +195,8 @@ ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 INSERT INTO plan_venta (
     id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
     meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
-) VALUES (
-    'plan0002-0002-0002-0002-000000000002',
+) OVERRIDING SYSTEM VALUE OVERRIDING SYSTEM VALUE VALUES (
+    2,
     '22222222-2222-2222-2222-222222222222',  -- María López
     2,  -- ESTANDAR
     'Plan Q4 2025 - María López',
@@ -211,18 +211,18 @@ INSERT INTO plan_venta (
 
 -- Productos para María López
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-('plan0002-0002-0002-0002-000000000002', '55555555-5555-5555-5555-000000000021', 120, 520.00),   -- Omeprazol 20mg
-('plan0002-0002-0002-0002-000000000002', '44444444-4444-4444-4444-000000000017', 80, 180.00),    -- Loratadina 10mg
-('plan0002-0002-0002-0002-000000000002', '22222222-2222-2222-2222-000000000007', 100, 180.00)    -- Acetaminofén 500mg
+(2, '55555555-5555-5555-5555-000000000021', 120, 520.00),   -- Omeprazol 20mg
+(2, '44444444-4444-4444-4444-000000000017', 80, 180.00),    -- Loratadina 10mg
+(2, '22222222-2222-2222-2222-000000000007', 100, 180.00)    -- Acetaminofén 500mg
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para María López
 INSERT INTO plan_region (plan_venta_id, region_id) VALUES
-('plan0002-0002-0002-0002-000000000002', 4)  -- REG-OESTE
+(2, 4)  -- REG-OESTE
 ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
 
 INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
-('plan0002-0002-0002-0002-000000000002', 4)  -- ZONA-COMERCIAL
+(2, 4)  -- ZONA-COMERCIAL
 ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 
 
@@ -230,8 +230,8 @@ ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 INSERT INTO plan_venta (
     id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
     meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
-) VALUES (
-    'plan0003-0003-0003-0003-000000000003',
+) OVERRIDING SYSTEM VALUE OVERRIDING SYSTEM VALUE VALUES (
+    3,
     '33333333-3333-3333-3333-333333333333',  -- José Hernández
     1,  -- PREMIUM
     'Plan Q4 2025 - José Hernández',
@@ -246,18 +246,18 @@ INSERT INTO plan_venta (
 
 -- Productos para José Hernández
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-('plan0003-0003-0003-0003-000000000003', '22222222-2222-2222-2222-000000000008', 180, 4200.00),  -- Losartán
-('plan0003-0003-0003-0003-000000000003', '22222222-2222-2222-2222-000000000009', 150, 8500.00),  -- Atorvastatina
-('plan0003-0003-0003-0003-000000000003', '22222222-2222-2222-2222-000000000010', 120, 5200.00)   -- Metformina
+(3, '33333333-3333-3333-3333-000000000014', 180, 680.00),   -- Losartán 10mg
+(3, '33333333-3333-3333-3333-000000000012', 150, 420.00),   -- Amlodipino 5mg
+(3, '33333333-3333-3333-3333-000000000015', 120, 280.00)    -- Metformina 500mg
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para José Hernández
 INSERT INTO plan_region (plan_venta_id, region_id) VALUES
-('plan0003-0003-0003-0003-000000000003', 6)  -- REG-CENTRO-MX
+(3, 6)  -- REG-CENTRO-MX
 ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
 
 INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
-('plan0003-0003-0003-0003-000000000003', 4)  -- ZONA-COMERCIAL
+(3, 4)  -- ZONA-COMERCIAL
 ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 
 
@@ -265,8 +265,8 @@ ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 INSERT INTO plan_venta (
     id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
     meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
-) VALUES (
-    'plan0004-0004-0004-0004-000000000004',
+) OVERRIDING SYSTEM VALUE VALUES (
+    4,
     '44444444-4444-4444-4444-444444444444',  -- Ana González
     2,  -- ESTANDAR
     'Plan Q4 2025 - Ana González',
@@ -281,18 +281,18 @@ INSERT INTO plan_venta (
 
 -- Productos para Ana González
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-('plan0004-0004-0004-0004-000000000004', '33333333-3333-3333-3333-000000000011', 90, 6800.00),   -- Levotiroxina
-('plan0004-0004-0004-0004-000000000004', '33333333-3333-3333-3333-000000000012', 70, 12500.00),  -- Insulina
-('plan0004-0004-0004-0004-000000000004', '22222222-2222-2222-2222-000000000007', 100, 1800.00)   -- Acetaminofén
+(4, '33333333-3333-3333-3333-000000000011', 90, 6800.00),   -- Levotiroxina
+(4, '33333333-3333-3333-3333-000000000012', 70, 12500.00),  -- Insulina
+(4, '22222222-2222-2222-2222-000000000007', 100, 1800.00)   -- Acetaminofén
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para Ana González
 INSERT INTO plan_region (plan_venta_id, region_id) VALUES
-('plan0004-0004-0004-0004-000000000004', 7)  -- REG-OCCIDENTE
+(4, 7)  -- REG-OCCIDENTE
 ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
 
 INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
-('plan0004-0004-0004-0004-000000000004', 1)  -- ZONA-IND
+(4, 1)  -- ZONA-IND
 ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 
 
@@ -300,8 +300,8 @@ ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 INSERT INTO plan_venta (
     id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
     meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
-) VALUES (
-    'plan0005-0005-0005-0005-000000000005',
+) OVERRIDING SYSTEM VALUE VALUES (
+    5,
     '55555555-5555-5555-5555-555555555555',  -- Miguel Torres
     1,  -- PREMIUM
     'Plan Q4 2025 - Miguel Torres',
@@ -316,18 +316,18 @@ INSERT INTO plan_venta (
 
 -- Productos para Miguel Torres
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-('plan0005-0005-0005-0005-000000000005', '33333333-3333-3333-3333-000000000013', 120, 1200.00),  -- Salbutamol
-('plan0005-0005-0005-0005-000000000005', '33333333-3333-3333-3333-000000000014', 100, 3800.00),  -- Montelukast
-('plan0005-0005-0005-0005-000000000005', '33333333-3333-3333-3333-000000000015', 80, 4500.00)    -- Enalapril
+(5, '33333333-3333-3333-3333-000000000013', 120, 1200.00),  -- Salbutamol
+(5, '33333333-3333-3333-3333-000000000014', 100, 3800.00),  -- Montelukast
+(5, '33333333-3333-3333-3333-000000000015', 80, 4500.00)    -- Enalapril
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para Miguel Torres
 INSERT INTO plan_region (plan_venta_id, region_id) VALUES
-('plan0005-0005-0005-0005-000000000005', 8)  -- REG-COSTA-PE
+(5, 8)  -- REG-COSTA-PE
 ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
 
 INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
-('plan0005-0005-0005-0005-000000000005', 2)  -- ZONA-HOSP
+(5, 2)  -- ZONA-HOSP
 ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 
 
@@ -335,8 +335,8 @@ ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 INSERT INTO plan_venta (
     id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
     meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
-) VALUES (
-    'plan0006-0006-0006-0006-000000000006',
+) OVERRIDING SYSTEM VALUE VALUES (
+    6,
     '66666666-6666-6666-6666-666666666666',  -- Carolina Silva
     1,  -- PREMIUM
     'Plan Q4 2025 - Carolina Silva',
@@ -351,18 +351,18 @@ INSERT INTO plan_venta (
 
 -- Productos para Carolina Silva
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-('plan0006-0006-0006-0006-000000000006', '44444444-4444-4444-4444-000000000016', 100, 9500.00),  -- Prednisona
-('plan0006-0006-0006-0006-000000000006', '44444444-4444-4444-4444-000000000017', 80, 6200.00),   -- Diclofenaco
-('plan0006-0006-0006-0006-000000000006', '44444444-4444-4444-4444-000000000018', 90, 7800.00)    -- Captopril
+(6, '44444444-4444-4444-4444-000000000016', 100, 9500.00),  -- Prednisona
+(6, '44444444-4444-4444-4444-000000000017', 80, 6200.00),   -- Diclofenaco
+(6, '44444444-4444-4444-4444-000000000018', 90, 7800.00)    -- Captopril
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para Carolina Silva
 INSERT INTO plan_region (plan_venta_id, region_id) VALUES
-('plan0006-0006-0006-0006-000000000006', 9)  -- REG-METRO
+(6, 9)  -- REG-METRO
 ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
 
 INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
-('plan0006-0006-0006-0006-000000000006', 2)  -- ZONA-HOSP
+(6, 2)  -- ZONA-HOSP
 ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 
 
