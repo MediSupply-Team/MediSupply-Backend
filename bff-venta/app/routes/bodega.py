@@ -38,11 +38,8 @@ def listar_bodegas():
     if not catalogo_url:
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
-    # Remover /catalog del final si existe (para AWS), sin afectar 'catalog-service' en el hostname
-    base_url = catalogo_url
-    if base_url.endswith('/catalog'):
-        base_url = base_url[:-8]  # Remover los últimos 8 caracteres: '/catalog'
-    url = f"{base_url}/api/v1/bodegas"
+    # Construir URL - igual que otros endpoints que funcionan
+    url = f"{catalogo_url}/api/v1/bodegas"
     
     # Extraer todos los query parameters
     params = {key: value for key, value in request.args.items()}
@@ -54,11 +51,20 @@ def listar_bodegas():
         response = requests.get(
             url,
             params=params,
-            timeout=30,
-            headers={'Content-Type': 'application/json'}
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+            }
         )
         
         current_app.logger.info(f"[BFF-Venta] Response status: {response.status_code}")
+        
+        # Si el servicio responde con error, propagar el error
+        if response.status_code >= 400:
+            current_app.logger.warning(
+                f"Catalog service error: {response.status_code} - {response.text[:200]}"
+            )
         
         return jsonify(response.json()), response.status_code
     
@@ -117,11 +123,8 @@ def crear_bodega():
     if not catalogo_url:
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
-    # Remover /catalog del final si existe (para AWS), sin afectar 'catalog-service' en el hostname
-    base_url = catalogo_url
-    if base_url.endswith('/catalog'):
-        base_url = base_url[:-8]  # Remover los últimos 8 caracteres: '/catalog'
-    url = f"{base_url}/api/v1/bodegas"
+    # Construir URL - igual que otros endpoints que funcionan
+    url = f"{catalogo_url}/api/v1/bodegas"
     
     # Obtener datos del body
     try:
@@ -144,8 +147,12 @@ def crear_bodega():
         response = requests.post(
             url,
             json=data,
-            timeout=30,
-            headers={'Content-Type': 'application/json'}
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
+                "Content-Type": "application/json"
+            }
         )
         
         current_app.logger.info(f"[BFF-Venta] Response status: {response.status_code}")
