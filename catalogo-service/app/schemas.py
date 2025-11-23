@@ -424,3 +424,80 @@ class ProveedorListResponse(BaseModel):
     """Respuesta con lista de proveedores"""
     items: List[ProveedorResponse]
     meta: Meta
+
+
+# =====================================================
+# SCHEMAS PARA BODEGA (WAREHOUSE)
+# =====================================================
+
+class BodegaCreate(BaseModel):
+    """Schema para crear una bodega"""
+    codigo: str = Field(..., min_length=1, max_length=64, description="Código único de la bodega")
+    nombre: str = Field(..., min_length=1, max_length=255, description="Nombre de la bodega")
+    pais: str = Field(..., min_length=2, max_length=2, description="Código del país (ISO 2 letras)")
+    direccion: Optional[str] = Field(None, max_length=512, description="Dirección física")
+    ciudad: Optional[str] = Field(None, max_length=128, description="Ciudad")
+    responsable: Optional[str] = Field(None, max_length=255, description="Nombre del responsable")
+    telefono: Optional[str] = Field(None, max_length=32, description="Teléfono de contacto")
+    email: Optional[str] = Field(None, max_length=255, description="Email de contacto")
+    capacidad_m3: Optional[float] = Field(None, ge=0, description="Capacidad en metros cúbicos")
+    tipo: Optional[str] = Field(None, max_length=64, description="Tipo de bodega (PRINCIPAL, SECUNDARIA, TRANSITO)")
+    notas: Optional[str] = Field(None, description="Notas adicionales")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "codigo": "BOG_SUR",
+                "nombre": "Bodega Sur Bogotá",
+                "pais": "CO",
+                "direccion": "Av. Boyacá #45-78",
+                "ciudad": "Bogotá",
+                "responsable": "Juan Pérez",
+                "telefono": "+57 301 555 0123",
+                "email": "bodega.sur@medisupply.com",
+                "tipo": "PRINCIPAL",
+                "notas": "Bodega principal para zona sur"
+            }
+        }
+
+
+class BodegaUpdate(BaseModel):
+    """Schema para actualizar una bodega"""
+    nombre: Optional[str] = Field(None, min_length=1, max_length=255)
+    direccion: Optional[str] = Field(None, max_length=512)
+    ciudad: Optional[str] = Field(None, max_length=128)
+    responsable: Optional[str] = Field(None, max_length=255)
+    telefono: Optional[str] = Field(None, max_length=32)
+    email: Optional[str] = Field(None, max_length=255)
+    activo: Optional[bool] = None
+    capacidad_m3: Optional[float] = Field(None, ge=0)
+    tipo: Optional[str] = Field(None, max_length=64)
+    notas: Optional[str] = None
+
+
+class BodegaResponse(BaseModel):
+    """Schema de respuesta de una bodega"""
+    codigo: str
+    nombre: str
+    pais: str
+    direccion: Optional[str]
+    ciudad: Optional[str]
+    responsable: Optional[str]
+    telefono: Optional[str]
+    email: Optional[str]
+    activo: bool
+    capacidad_m3: Optional[float]
+    tipo: Optional[str]
+    notas: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    created_by_user_id: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+
+class BodegaListResponse(BaseModel):
+    """Respuesta con lista de bodegas"""
+    items: List[BodegaResponse]
+    meta: Meta

@@ -29,6 +29,30 @@ class Proveedor(Base):
     created_by_user_id: Mapped[Optional[str]] = mapped_column(String(64))
 
 
+class Bodega(Base):
+    """
+    Modelo de Bodega (Warehouse) para gestión de almacenes.
+    Representa los almacenes/bodegas donde se guarda el inventario.
+    """
+    __tablename__ = "bodega"
+    
+    codigo: Mapped[str] = mapped_column(String(64), primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(255), nullable=False)
+    pais: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
+    direccion: Mapped[Optional[str]] = mapped_column(String(512))
+    ciudad: Mapped[Optional[str]] = mapped_column(String(128))
+    responsable: Mapped[Optional[str]] = mapped_column(String(255))
+    telefono: Mapped[Optional[str]] = mapped_column(String(32))
+    email: Mapped[Optional[str]] = mapped_column(String(255))
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    capacidad_m3: Mapped[Optional[float]] = mapped_column(DECIMAL(10,2))  # Capacidad en metros cúbicos
+    tipo: Mapped[Optional[str]] = mapped_column(String(64))  # PRINCIPAL, SECUNDARIA, TRANSITO
+    notas: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_user_id: Mapped[Optional[str]] = mapped_column(String(64))
+
+
 class Producto(Base):
     __tablename__ = "producto"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -56,7 +80,7 @@ class Inventario(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     producto_id: Mapped[str] = mapped_column(ForeignKey("producto.id"), index=True, nullable=False)
     pais: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
-    bodega_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    bodega_id: Mapped[str] = mapped_column(ForeignKey("bodega.codigo", ondelete="RESTRICT"), nullable=False, index=True)
     lote: Mapped[str] = mapped_column(String(64), nullable=False)
     cantidad: Mapped[int] = mapped_column(Integer, nullable=False)
     vence: Mapped[str] = mapped_column(Date, nullable=False, index=True)

@@ -37,7 +37,12 @@ class MovimientoInventario(Base):
         index=True, 
         nullable=False
     )
-    bodega_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    bodega_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("bodega.codigo", ondelete="RESTRICT"),
+        index=True,
+        nullable=False
+    )
     pais: Mapped[str] = mapped_column(String(2), index=True, nullable=False)
     lote: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     
@@ -137,7 +142,12 @@ class AlertaInventario(Base):
         index=True, 
         nullable=False
     )
-    bodega_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    bodega_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("bodega.codigo", ondelete="RESTRICT"),
+        index=True,
+        nullable=False
+    )
     pais: Mapped[str] = mapped_column(String(2), nullable=False)
     
     # Tipo y nivel de alerta
