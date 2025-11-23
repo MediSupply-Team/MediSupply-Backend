@@ -33,13 +33,15 @@ class CatalogClient:
             
         if not self.pool:
             try:
+                log.info(f"Conectando a catálogo: {self.catalog_database_url[:50]}...")
                 self.pool = await asyncpg.create_pool(
                     self.catalog_database_url,
                     min_size=1,
                     max_size=5,
-                    command_timeout=30
+                    command_timeout=5,  # Reducido de 30 a 5 segundos
+                    timeout=10  # Timeout para obtener conexión del pool
                 )
-                log.info("Conexión a base de datos de catálogo establecida")
+                log.info("Conexión a base de datos de catálogo establecida exitosamente")
             except Exception as e:
                 log.error(f"Error conectando a catálogo: {e}")
                 self.enabled = False
@@ -62,11 +64,13 @@ class CatalogClient:
             Si un SKU no existe, no aparecerá en el diccionario.
         """
         if not self.enabled or not self.pool:
-            log.warning("Validación de SKUs deshabilitada")
+            log.warning("Validación de SKUs deshabilitada - no hay conexión al catálogo")
             return {}
         
         if not skus:
             return {}
+        
+        log.info(f"Iniciando validación de {len(skus)} SKUs: {skus}")
         
         try:
             # Crear placeholders para la consulta
@@ -82,8 +86,11 @@ class CatalogClient:
                 WHERE codigo IN ({placeholders}) AND activo = true
             """
             
+            log.info(f"Adquiriendo conexión del pool de catálogo...")
             async with self.pool.acquire() as conn:
+                log.info(f"Ejecutando query de validación...")
                 rows = await conn.fetch(query, *skus)
+                log.info(f"Query ejecutada, {len(rows)} productos encontrados")
                 
                 products = {}
                 for row in rows:
@@ -94,7 +101,7 @@ class CatalogClient:
                     
                     products[product['codigo']] = product
                 
-                log.info(f"Validados {len(products)} de {len(skus)} SKUs")
+                log.info(f"Validados {len(products)} de {len(skus)} SKUs exitosamente")
                 return products
                 
         except Exception as e:
