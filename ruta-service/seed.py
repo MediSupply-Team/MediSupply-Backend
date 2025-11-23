@@ -87,20 +87,24 @@ def generar_visitas_desde_cliente_service():
         print("   El servicio iniciará sin datos de visitas")
         return
     
-    # Generar visitas para 7 días (3 antes, hoy, 3 después)
+    # Generar visitas distribuyendo clientes desde hoy en adelante (máximo 2 por día)
     hoy = date.today()
     visitas = []
+    clientes_por_dia = 2  # Máximo 2 clientes por día
     
-    # Distribuir clientes en los 7 días
-    clientes_por_dia = max(3, len(clientes) // 7)
+    # Distribuir clientes desde hoy en adelante
+    total_clientes = len(clientes)
+    dias_necesarios = (total_clientes + clientes_por_dia - 1) // clientes_por_dia  # Redondeo hacia arriba
     
-    for dia_offset in range(-3, 4):  # -3 a +3
+    print(f"📅 Distribuyendo {total_clientes} clientes en {dias_necesarios} días (max 2 por día)")
+    
+    for dia_offset in range(dias_necesarios):
         fecha_visita = hoy + timedelta(days=dia_offset)
         
-        # Seleccionar clientes para este día
-        inicio = (dia_offset + 3) * clientes_por_dia
-        fin = inicio + clientes_por_dia
-        clientes_del_dia = clientes[inicio:fin] if inicio < len(clientes) else clientes[:clientes_por_dia]
+        # Seleccionar clientes para este día (máximo 2)
+        inicio = dia_offset * clientes_por_dia
+        fin = min(inicio + clientes_por_dia, total_clientes)
+        clientes_del_dia = clientes[inicio:fin]
         
         for idx, cliente in enumerate(clientes_del_dia):
             # Geocodificar dirección real del cliente usando Mapbox
@@ -132,7 +136,7 @@ def generar_visitas_desde_cliente_service():
                 lng=lng,
                 cliente_id=cliente[0],  # UUID del cliente
                 ciudad=ciudad,
-                estado="pendiente" if dia_offset >= 0 else random.choice(["completada", "pendiente"]),
+                estado="pendiente",
                 observaciones=f"Visita programada"
             )
             visitas.append(visita)
@@ -172,11 +176,16 @@ def generar_visitas_desde_cliente_service():
         session.commit()
         
         print(f"✅ Generadas {len(visitas)} visitas desde cliente-service:")
-        print(f"   - 3 días antes: {len([v for v in visitas if v.fecha < hoy])} visitas")
-        print(f"   - Hoy:          {len([v for v in visitas if v.fecha == hoy])} visitas")
-        print(f"   - 3 días después: {len([v for v in visitas if v.fecha > hoy])} visitas")
-        print(f"   - Fecha actual:  {hoy}")
-        print(f"   - Rango:         {hoy - timedelta(days=3)} a {hoy + timedelta(days=3)}")
+        print(f"   - Total clientes: {total_clientes}")
+        print(f"   - Días necesarios: {dias_necesarios}")
+        print(f"   - Fecha inicio: {hoy}")
+        print(f"   - Fecha fin: {hoy + timedelta(days=dias_necesarios - 1)}")
+        
+        # Desglose por día
+        for dia in range(dias_necesarios):
+            fecha = hoy + timedelta(days=dia)
+            visitas_dia = [v for v in visitas if v.fecha == fecha]
+            print(f"   - {fecha}: {len(visitas_dia)} visitas")
 
 
 if __name__ == "__main__":
