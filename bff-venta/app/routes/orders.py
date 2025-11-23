@@ -106,7 +106,7 @@ def post_message():
             f"{orders_url}/orders",
             json=enriched_body,
             headers={"Idempotency-Key": event_id},
-            timeout=10
+            timeout=15  # Aumentado de 10 a 15 segundos para validación de catálogo
         )
         
         # Si la validación falla, retornar el error inmediatamente
