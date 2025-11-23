@@ -58,29 +58,30 @@ def generar_visitas_desde_cliente_service():
         cliente_db_url_sync = cliente_db_url.replace("postgresql+asyncpg://", "postgresql://")
         cliente_engine = create_engine(cliente_db_url_sync)
         
-        # Obtener clientes activos de cliente-service
-        with Session(cliente_engine) as cliente_session:
-            # Query para obtener clientes (ajustado a la estructura real)
-            from sqlalchemy import text
-            result = cliente_session.execute(text("""
-                SELECT id::text, nombre, direccion, ciudad
-                FROM cliente 
-                WHERE activo = true 
-                ORDER BY nombre
-                LIMIT 50
-            """))
-            clientes = result.fetchall()
-            
-            if not clientes:
-                print("⚠️  ADVERTENCIA: No se encontraron clientes activos en cliente-service")
-                print("   El servicio iniciará sin datos de visitas")
-                return
-            
-            print(f"✅ Encontrados {len(clientes)} clientes activos")
-        
         # Usar UUID de vendedor por defecto (compatible con nuevo schema)
         vendedor_id = "3c479f61-8eba-48b8-9c42-88dea377215b"
         print(f"👤 Usando vendedor_id: {vendedor_id}")
+        
+        # Obtener clientes asociados al vendedor desde cliente-service
+        with Session(cliente_engine) as cliente_session:
+            # Query para obtener clientes del vendedor específico usando la tabla de asociación
+            from sqlalchemy import text
+            result = cliente_session.execute(text("""
+                SELECT c.id::text, c.nombre, c.direccion, c.ciudad
+                FROM cliente c
+                INNER JOIN vendedor_cliente vc ON c.id = vc.cliente_id
+                WHERE vc.vendedor_id = :vendedor_id
+                  AND c.activo = true 
+                ORDER BY c.nombre
+            """), {"vendedor_id": vendedor_id})
+            clientes = result.fetchall()
+            
+            if not clientes:
+                print(f"⚠️  ADVERTENCIA: No se encontraron clientes asociados al vendedor {vendedor_id}")
+                print("   El servicio iniciará sin datos de visitas")
+                return
+            
+            print(f"✅ Encontrados {len(clientes)} clientes para el vendedor")
         
     except Exception as e:
         print(f"⚠️  ADVERTENCIA: Error conectando a cliente-service: {e}")
