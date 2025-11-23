@@ -93,44 +93,10 @@ def post_message():
         "source": "bff-venta"
     }
     
-    # VALIDACIÓN SÍNCRONA: Llamar directamente al servicio de órdenes para validar
-    orders_url = get_orders_service_url()
-    if not orders_url:
-        return jsonify(error="Servicio de ordenes no disponible"), 503
-    
     event_id = str(uuid.uuid4())
     
-    try:
-        # Validar la orden de forma síncrona llamando al servicio de órdenes
-        validation_response = requests.post(
-            f"{orders_url}/orders",
-            json=enriched_body,
-            headers={"Idempotency-Key": event_id},
-            timeout=10  # Con caché y consultas optimizadas debe ser rápido
-        )
-        
-        # Si la validación falla, retornar el error inmediatamente
-        if validation_response.status_code == 400:
-            error_data = validation_response.json()
-            return jsonify(
-                error="Validación de orden fallida",
-                detail=error_data.get("detail", "Error de validación")
-            ), 400
-        
-        # Si hay otro error HTTP, propagarlo
-        validation_response.raise_for_status()
-        
-        # Validación exitosa - continuar con el flujo actual
-        current_app.logger.info(f"Orden validada exitosamente: {event_id}")
-        
-    except requests.exceptions.Timeout:
-        current_app.logger.error(f"Timeout validando orden: {event_id}")
-        return jsonify(error="Timeout validando orden"), 503
-    except requests.exceptions.RequestException as e:
-        current_app.logger.error(f"Error validando orden: {e}")
-        return jsonify(error="Error conectando con servicio de ordenes"), 503
-    
-    # Orden validada - ahora enviar a SQS para procesamiento asíncrono adicional
+    # Enviar directamente a SQS sin validación síncrona para respuesta rápida
+    # La validación se hará de forma asíncrona en el servicio de órdenes
     sqs_message = {
         "event_id": event_id,
         "order": enriched_body,
@@ -154,12 +120,12 @@ def post_message():
         dedup_id
     )
     
-    # Respuesta con validación exitosa
+    # Respuesta inmediata - la orden será procesada de forma asíncrona
     return jsonify(
         messageId=f"async-{event_id}",
         event_id=event_id,
         status="accepted",
-        validated=True
+        validated=False  # Se validará de forma asíncrona
     ), 202
 
 def send_sqs_message_async(sqs, message, group_id, dedup_id):
