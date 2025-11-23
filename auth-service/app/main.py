@@ -38,5 +38,10 @@ async def health_check():
 @app.on_event("startup")
 async def on_startup():
     """Crear tablas automáticamente al iniciar"""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("Database tables created successfully")
+    except Exception as e:
+        print(f"Could not create tables on startup: {e}")
+        print("Service will continue, but database operations may fail")
