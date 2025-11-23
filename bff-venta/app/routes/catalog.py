@@ -11,12 +11,22 @@ bp = Blueprint('catalog', __name__)
 
 
 def get_catalogo_service_url():
-    """Obtener la URL del servicio de catálogo desde variables de entorno"""
+    """
+    Obtener la URL del servicio de catálogo desde variables de entorno.
+    Remueve el sufijo /catalog si existe, ya que el ALB lo maneja automáticamente.
+    """
     url = os.getenv("CATALOGO_SERVICE_URL")
     if not url:
         current_app.logger.error("CATALOGO_SERVICE_URL no está configurada")
         return None
-    return url.rstrip('/')  # Remover trailing slash si existe
+    
+    url = url.rstrip('/')  # Remover trailing slash si existe
+    
+    # Remover /catalog del final si existe, porque el ALB ya lo maneja
+    if url.endswith('/catalog'):
+        url = url.rsplit('/catalog', 1)[0]
+    
+    return url
 
 
 @bp.route('/api/v1/catalog/items', methods=['GET'])
