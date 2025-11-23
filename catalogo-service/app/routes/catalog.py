@@ -70,7 +70,8 @@ async def list_items(
         if r.id in inv_map:
             item["inventarioResumen"] = {
                 "cantidadTotal": inv_map[r.id]["cantidad"],
-                "paises": sorted(inv_map[r.id]["paises"])  # Ordenar para consistencia
+                "paises": sorted(inv_map[r.id]["paises"]),  # Ordenar para consistencia
+                "bodegas": inv_map[r.id].get("bodegas", [])  # Incluir info de bodegas
             }
         else:
             item["inventarioResumen"] = None

@@ -4,9 +4,30 @@ from datetime import date, datetime
 from enum import Enum
 from uuid import UUID
 
+class BodegaInfo(BaseModel):
+    """Información resumida de una bodega con stock"""
+    codigo: str = Field(..., description="Código de la bodega")
+    nombre: str = Field(..., description="Nombre de la bodega")
+    ciudad: Optional[str] = Field(None, description="Ciudad donde está ubicada")
+    pais: str = Field(..., description="Código del país")
+    cantidad: int = Field(..., description="Cantidad disponible en esta bodega")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "codigo": "BOG_CENTRAL",
+                "nombre": "Bodega Central Bogotá",
+                "ciudad": "Bogotá",
+                "pais": "CO",
+                "cantidad": 500
+            }
+        }
+
+
 class InventarioResumen(BaseModel):
     cantidadTotal: int
     paises: List[str] = []
+    bodegas: List[BodegaInfo] = Field(default_factory=list, description="Bodegas con stock disponible")
 
 class Product(BaseModel):
     id: str
