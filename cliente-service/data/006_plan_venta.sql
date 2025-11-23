@@ -160,7 +160,7 @@ COMMENT ON TABLE plan_zona IS 'Zonas especiales asignadas a un plan de venta';
 INSERT INTO plan_venta (
     id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
     meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
-) OVERRIDING SYSTEM VALUE OVERRIDING SYSTEM VALUE VALUES (
+) OVERRIDING SYSTEM VALUE VALUES (
     1,
     '11111111-1111-1111-1111-111111111111',  -- Carlos Mendoza
     1,  -- PREMIUM
@@ -195,7 +195,7 @@ ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 INSERT INTO plan_venta (
     id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
     meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
-) OVERRIDING SYSTEM VALUE OVERRIDING SYSTEM VALUE VALUES (
+) OVERRIDING SYSTEM VALUE VALUES (
     2,
     '22222222-2222-2222-2222-222222222222',  -- María López
     2,  -- ESTANDAR
@@ -230,7 +230,7 @@ ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
 INSERT INTO plan_venta (
     id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
     meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
-) OVERRIDING SYSTEM VALUE OVERRIDING SYSTEM VALUE VALUES (
+) OVERRIDING SYSTEM VALUE VALUES (
     3,
     '33333333-3333-3333-3333-333333333333',  -- José Hernández
     1,  -- PREMIUM
@@ -281,9 +281,9 @@ INSERT INTO plan_venta (
 
 -- Productos para Ana González
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-(4, '33333333-3333-3333-3333-000000000011', 90, 6800.00),   -- Levotiroxina
-(4, '33333333-3333-3333-3333-000000000012', 70, 12500.00),  -- Insulina
-(4, '22222222-2222-2222-2222-000000000007', 100, 1800.00)   -- Acetaminofén
+(4, '33333333-3333-3333-3333-000000000011', 90, 520.00),   -- Enalapril 10mg
+(4, '33333333-3333-3333-3333-000000000012', 70, 420.00),   -- Amlodipino 5mg
+(4, '22222222-2222-2222-2222-000000000007', 100, 180.00)   -- Acetaminofén 500mg
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para Ana González
@@ -316,9 +316,9 @@ INSERT INTO plan_venta (
 
 -- Productos para Miguel Torres
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-(5, '33333333-3333-3333-3333-000000000013', 120, 1200.00),  -- Salbutamol
-(5, '33333333-3333-3333-3333-000000000014', 100, 3800.00),  -- Montelukast
-(5, '33333333-3333-3333-3333-000000000015', 80, 4500.00)    -- Enalapril
+(5, '33333333-3333-3333-3333-000000000013', 120, 350.00),  -- Atenolol 50mg
+(5, '33333333-3333-3333-3333-000000000014', 100, 680.00),  -- Losartán 10mg
+(5, '33333333-3333-3333-3333-000000000015', 80, 280.00)    -- Metformina 500mg
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para Miguel Torres
@@ -351,9 +351,9 @@ INSERT INTO plan_venta (
 
 -- Productos para Carolina Silva
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-(6, '44444444-4444-4444-4444-000000000016', 100, 9500.00),  -- Prednisona
-(6, '44444444-4444-4444-4444-000000000017', 80, 6200.00),   -- Diclofenaco
-(6, '44444444-4444-4444-4444-000000000018', 90, 7800.00)    -- Captopril
+(6, '44444444-4444-4444-4444-000000000016', 100, 520.00),  -- Salbutamol 100mcg
+(6, '44444444-4444-4444-4444-000000000017', 80, 180.00),   -- Loratadina 10mg
+(6, '44444444-4444-4444-4444-000000000018', 90, 280.00)    -- Cetirizina 10mg
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para Carolina Silva

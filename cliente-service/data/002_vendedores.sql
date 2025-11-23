@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS vendedor (
     email VARCHAR(255) UNIQUE NOT NULL,
     telefono VARCHAR(32) NOT NULL,
     pais CHAR(2) NOT NULL,
-    plan_de_ventas DECIMAL(12,2),
     rol VARCHAR(32) DEFAULT 'seller' NOT NULL,
     activo BOOLEAN DEFAULT TRUE NOT NULL,
     password_hash VARCHAR(255),
@@ -81,7 +80,6 @@ COMMENT ON COLUMN vendedor.nombre_completo IS 'Nombre completo del vendedor';
 COMMENT ON COLUMN vendedor.email IS 'Email corporativo del vendedor (único)';
 COMMENT ON COLUMN vendedor.telefono IS 'Teléfono del vendedor con formato internacional';
 COMMENT ON COLUMN vendedor.pais IS 'Código ISO del país (CO, MX, PE, CL)';
-COMMENT ON COLUMN vendedor.plan_de_ventas IS 'Meta de ventas mensual asignada al vendedor (en moneda local)';
 COMMENT ON COLUMN vendedor.rol IS 'Rol del vendedor (seller, senior_seller, supervisor)';
 COMMENT ON COLUMN vendedor.activo IS 'Indica si el vendedor está activo en el sistema';
 COMMENT ON COLUMN vendedor.password_hash IS 'Hash de la contraseña para autenticación (opcional)';
@@ -97,7 +95,7 @@ COMMENT ON COLUMN vendedor.created_by_user_id IS 'ID del usuario que creó el re
 -- ============================================================================
 
 INSERT INTO vendedor (
-    id, identificacion, nombre_completo, email, telefono, pais, plan_de_ventas, rol, activo, username,
+    id, identificacion, nombre_completo, email, telefono, pais, rol, activo, username,
     rol_vendedor_id, territorio_id, supervisor_id, fecha_ingreso, observaciones,
     password_hash, created_by_user_id, created_at, updated_at
 ) VALUES
