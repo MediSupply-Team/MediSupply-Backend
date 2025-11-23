@@ -61,12 +61,14 @@ async def buscar_productos(session: AsyncSession, *,
     inv_bodegas = select(
         Inventario.producto_id,
         Inventario.bodega_id,
+        Bodega.id.label("bodega_uuid"),  # UUID de la bodega
+        Bodega.codigo.label("bodega_codigo"),  # Código de la bodega
         Bodega.nombre.label("bodega_nombre"),
         Bodega.ciudad,
         Bodega.pais,
         func.sum(Inventario.cantidad).label("cantidad")
     ).join(
-        Bodega, Inventario.bodega_id == Bodega.codigo
+        Bodega, Inventario.bodega_id == Bodega.id
     ).where(
         Inventario.producto_id.in_(ids),
         Inventario.cantidad > 0  # Solo bodegas con stock
@@ -80,6 +82,8 @@ async def buscar_productos(session: AsyncSession, *,
     inv_bodegas = inv_bodegas.group_by(
         Inventario.producto_id,
         Inventario.bodega_id,
+        Bodega.id,
+        Bodega.codigo,
         Bodega.nombre,
         Bodega.ciudad,
         Bodega.pais
@@ -105,7 +109,8 @@ async def buscar_productos(session: AsyncSession, *,
     for r in bodega_rows:
         if r.producto_id in inv_map:
             inv_map[r.producto_id]["bodegas"].append({
-                "codigo": r.bodega_id,
+                "id": r.bodega_uuid,  # UUID de la bodega
+                "codigo": r.bodega_codigo,  # Código de negocio
                 "nombre": r.bodega_nombre,
                 "ciudad": r.ciudad,
                 "pais": r.pais,

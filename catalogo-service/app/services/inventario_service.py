@@ -218,7 +218,7 @@ class InventarioService:
         
         # 1.5. Validar que la bodega existe
         bodega = (await session.execute(
-            select(Bodega).where(Bodega.codigo == movimiento.bodega_id)
+            select(Bodega).where(Bodega.id == movimiento.bodega_id)
         )).scalar_one_or_none()
         
         if not bodega:

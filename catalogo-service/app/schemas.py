@@ -6,6 +6,7 @@ from uuid import UUID
 
 class BodegaInfo(BaseModel):
     """Información resumida de una bodega con stock"""
+    id: str = Field(..., description="ID único de la bodega (UUID)")
     codigo: str = Field(..., description="Código de la bodega")
     nombre: str = Field(..., description="Nombre de la bodega")
     ciudad: Optional[str] = Field(None, description="Ciudad donde está ubicada")
@@ -498,6 +499,7 @@ class BodegaUpdate(BaseModel):
 
 class BodegaResponse(BaseModel):
     """Schema de respuesta de una bodega"""
+    id: str
     codigo: str
     nombre: str
     pais: str

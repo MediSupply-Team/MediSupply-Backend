@@ -36,7 +36,8 @@ class Bodega(Base):
     """
     __tablename__ = "bodega"
     
-    codigo: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)  # UUID como PK
+    codigo: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)  # Código de negocio único
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
     pais: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
     direccion: Mapped[Optional[str]] = mapped_column(String(512))
@@ -80,7 +81,7 @@ class Inventario(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     producto_id: Mapped[str] = mapped_column(ForeignKey("producto.id"), index=True, nullable=False)
     pais: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
-    bodega_id: Mapped[str] = mapped_column(ForeignKey("bodega.codigo", ondelete="RESTRICT"), nullable=False, index=True)
+    bodega_id: Mapped[str] = mapped_column(ForeignKey("bodega.id", ondelete="RESTRICT"), nullable=False, index=True)
     lote: Mapped[str] = mapped_column(String(64), nullable=False)
     cantidad: Mapped[int] = mapped_column(Integer, nullable=False)
     vence: Mapped[str] = mapped_column(Date, nullable=False, index=True)

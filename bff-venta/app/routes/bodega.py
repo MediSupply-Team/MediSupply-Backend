@@ -6,7 +6,6 @@ Actúa como proxy hacia el catalogo-service.
 from flask import Blueprint, request, jsonify, current_app
 import requests
 import os
-from app.utils.logger import logger
 
 bp = Blueprint('bodega', __name__)
 
@@ -39,16 +38,18 @@ def listar_bodegas():
     if not catalogo_url:
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
-    # Remover /catalog del catalogo_url para bodegas (similar a proveedores)
-    base_url = catalogo_url.replace('/catalog', '')
+    # Remover /catalog del final si existe (para AWS), sin afectar 'catalog-service' en el hostname
+    base_url = catalogo_url
+    if base_url.endswith('/catalog'):
+        base_url = base_url[:-8]  # Remover los últimos 8 caracteres: '/catalog'
     url = f"{base_url}/api/v1/bodegas"
     
     # Extraer todos los query parameters
     params = {key: value for key, value in request.args.items()}
     
     try:
-        logger.info(f"[BFF-Venta] Proxy GET bodegas → {url}")
-        logger.debug(f"[BFF-Venta] Query params: {params}")
+        current_app.logger.info(f"[BFF-Venta] Proxy GET bodegas → {url}")
+        current_app.logger.debug(f"[BFF-Venta] Query params: {params}")
         
         response = requests.get(
             url,
@@ -57,33 +58,33 @@ def listar_bodegas():
             headers={'Content-Type': 'application/json'}
         )
         
-        logger.info(f"[BFF-Venta] Response status: {response.status_code}")
+        current_app.logger.info(f"[BFF-Venta] Response status: {response.status_code}")
         
         return jsonify(response.json()), response.status_code
     
     except requests.exceptions.Timeout:
-        logger.error("[BFF-Venta] Timeout al conectar con catalogo-service")
+        current_app.logger.error("[BFF-Venta] Timeout al conectar con catalogo-service")
         return jsonify(
             error="TIMEOUT",
             message="El servicio de catálogo no respondió a tiempo"
         ), 504
     
     except requests.exceptions.ConnectionError as e:
-        logger.error(f"[BFF-Venta] Error de conexión: {str(e)}")
+        current_app.logger.error(f"[BFF-Venta] Error de conexión: {str(e)}")
         return jsonify(
             error="CONNECTION_ERROR",
             message="No se pudo conectar con el servicio de catálogo"
         ), 503
     
     except requests.exceptions.RequestException as e:
-        logger.error(f"[BFF-Venta] Error en request: {str(e)}")
+        current_app.logger.error(f"[BFF-Venta] Error en request: {str(e)}")
         return jsonify(
             error="REQUEST_ERROR",
             message=f"Error al comunicarse con catalogo-service: {str(e)}"
         ), 500
     
     except Exception as e:
-        logger.error(f"[BFF-Venta] Error inesperado: {str(e)}", exc_info=True)
+        current_app.logger.error(f"[BFF-Venta] Error inesperado: {str(e)}", exc_info=True)
         return jsonify(
             error="INTERNAL_ERROR",
             message="Error interno del servidor"
@@ -116,8 +117,10 @@ def crear_bodega():
     if not catalogo_url:
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
-    # Remover /catalog del catalogo_url
-    base_url = catalogo_url.replace('/catalog', '')
+    # Remover /catalog del final si existe (para AWS), sin afectar 'catalog-service' en el hostname
+    base_url = catalogo_url
+    if base_url.endswith('/catalog'):
+        base_url = base_url[:-8]  # Remover los últimos 8 caracteres: '/catalog'
     url = f"{base_url}/api/v1/bodegas"
     
     # Obtener datos del body
@@ -135,8 +138,8 @@ def crear_bodega():
         ), 400
     
     try:
-        logger.info(f"[BFF-Venta] Proxy POST bodega → {url}")
-        logger.debug(f"[BFF-Venta] Data: {data}")
+        current_app.logger.info(f"[BFF-Venta] Proxy POST bodega → {url}")
+        current_app.logger.debug(f"[BFF-Venta] Data: {data}")
         
         response = requests.post(
             url,
@@ -145,33 +148,33 @@ def crear_bodega():
             headers={'Content-Type': 'application/json'}
         )
         
-        logger.info(f"[BFF-Venta] Response status: {response.status_code}")
+        current_app.logger.info(f"[BFF-Venta] Response status: {response.status_code}")
         
         return jsonify(response.json()), response.status_code
     
     except requests.exceptions.Timeout:
-        logger.error("[BFF-Venta] Timeout al conectar con catalogo-service")
+        current_app.logger.error("[BFF-Venta] Timeout al conectar con catalogo-service")
         return jsonify(
             error="TIMEOUT",
             message="El servicio de catálogo no respondió a tiempo"
         ), 504
     
     except requests.exceptions.ConnectionError as e:
-        logger.error(f"[BFF-Venta] Error de conexión: {str(e)}")
+        current_app.logger.error(f"[BFF-Venta] Error de conexión: {str(e)}")
         return jsonify(
             error="CONNECTION_ERROR",
             message="No se pudo conectar con el servicio de catálogo"
         ), 503
     
     except requests.exceptions.RequestException as e:
-        logger.error(f"[BFF-Venta] Error en request: {str(e)}")
+        current_app.logger.error(f"[BFF-Venta] Error en request: {str(e)}")
         return jsonify(
             error="REQUEST_ERROR",
             message=f"Error al comunicarse con catalogo-service: {str(e)}"
         ), 500
     
     except Exception as e:
-        logger.error(f"[BFF-Venta] Error inesperado: {str(e)}", exc_info=True)
+        current_app.logger.error(f"[BFF-Venta] Error inesperado: {str(e)}", exc_info=True)
         return jsonify(
             error="INTERNAL_ERROR",
             message="Error interno del servidor"

@@ -239,7 +239,7 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
             inventario_existe = (await session.execute(
                 select(Inventario).where(
                     Inventario.producto_id == product_id,
-                    Inventario.bodega_id == bodega_config.bodega_id,
+                    Inventario.bodega_id == bodega_existente.id,  # Usar UUID de la bodega
                     Inventario.pais == bodega_config.pais,
                     Inventario.lote == lote
                 )
@@ -257,7 +257,7 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
             inventario_inicial = Inventario(
                 producto_id=product_id,
                 pais=bodega_config.pais,
-                bodega_id=bodega_config.bodega_id,
+                bodega_id=bodega_existente.id,  # Usar UUID de la bodega
                 lote=lote,
                 cantidad=0,  # Stock inicial en 0
                 vence=fecha_vence,
@@ -265,9 +265,9 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
             )
             
             session.add(inventario_inicial)
-            bodegas_creadas.append(f"{bodega_existente.nombre} ({bodega_config.bodega_id})")
+            bodegas_creadas.append(f"{bodega_existente.nombre} ({bodega_existente.codigo})")
             
-            logger.info(f"      ✓ Inventario inicial creado en {bodega_existente.nombre} ({bodega_config.bodega_id})")
+            logger.info(f"      ✓ Inventario inicial creado en {bodega_existente.nombre} ({bodega_existente.codigo})")
     
     # Commit para guardar los cambios
     await session.commit()

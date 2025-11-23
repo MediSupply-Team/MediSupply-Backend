@@ -39,7 +39,7 @@ class MovimientoInventario(Base):
     )
     bodega_id: Mapped[str] = mapped_column(
         String(64),
-        ForeignKey("bodega.codigo", ondelete="RESTRICT"),
+        ForeignKey("bodega.id", ondelete="RESTRICT"),
         index=True,
         nullable=False
     )
@@ -144,7 +144,7 @@ class AlertaInventario(Base):
     )
     bodega_id: Mapped[str] = mapped_column(
         String(64),
-        ForeignKey("bodega.codigo", ondelete="RESTRICT"),
+        ForeignKey("bodega.id", ondelete="RESTRICT"),
         index=True,
         nullable=False
     )

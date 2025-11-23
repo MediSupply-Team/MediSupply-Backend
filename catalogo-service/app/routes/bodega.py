@@ -75,8 +75,13 @@ async def crear_bodega(
                 }
             )
         
+        # Generar UUID para la bodega
+        import uuid
+        bodega_id = str(uuid.uuid4())
+        
         # Crear nueva bodega
         nueva_bodega = Bodega(
+            id=bodega_id,
             codigo=codigo_normalizado,
             nombre=bodega.nombre,
             pais=pais_normalizado,
