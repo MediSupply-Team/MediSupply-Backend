@@ -827,6 +827,7 @@ module "rutas_service" {
   ecs_cluster_arn   = aws_ecs_cluster.orders.arn
   db_url_secret_arn = aws_secretsmanager_secret.rutas_db_url.arn
   cliente_db_url_secret_arn = module.cliente_service.db_url_secret_arn
+  mapbox_token_secret_arn   = "arn:aws:secretsmanager:us-east-1:217466752988:secret:/medisupply/dev/mapbox-token-sshGcj"
 
   app_port      = 8000
   image_tag     = "latest"

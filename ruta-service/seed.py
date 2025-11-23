@@ -2,13 +2,16 @@
 Script de inicialización de visitas
 Genera visitas dinámicas para 3 días antes, hoy, y 3 días después
 Conecta con la BD de cliente-service para obtener clientes reales
+Usa Mapbox para geocodificar direcciones reales
 """
 from sqlmodel import Session, delete, create_engine, select
+from sqlalchemy import text
 from database import engine, init_db
 from models import Visita
 from datetime import date, timedelta
 import os
 import random
+from geocoder_service import geocoder_service
 
 # Coordenadas de Bogotá para clientes sin geolocalización
 BOGOTA_COORDS = [
@@ -55,29 +58,29 @@ def generar_visitas_desde_cliente_service():
         cliente_db_url_sync = cliente_db_url.replace("postgresql+asyncpg://", "postgresql://")
         cliente_engine = create_engine(cliente_db_url_sync)
         
-        # Obtener clientes activos de cliente-service
+        # Usar UUID de vendedor por defecto (compatible con nuevo schema)
+        vendedor_id = "3c479f61-8eba-48b8-9c42-88dea377215b"
+        print(f"👤 Usando vendedor_id: {vendedor_id}")
+        
+        # Obtener clientes asociados al vendedor desde cliente-service
         with Session(cliente_engine) as cliente_session:
-            # Query para obtener clientes (ajustado a la estructura real)
+            # Query para obtener clientes del vendedor específico (relación directa en tabla cliente)
             from sqlalchemy import text
             result = cliente_session.execute(text("""
                 SELECT id::text, nombre, direccion, ciudad
-                FROM cliente 
-                WHERE activo = true 
+                FROM cliente
+                WHERE vendedor_id = :vendedor_id
+                  AND activo = true 
                 ORDER BY nombre
-                LIMIT 50
-            """))
+            """), {"vendedor_id": vendedor_id})
             clientes = result.fetchall()
             
             if not clientes:
-                print("⚠️  ADVERTENCIA: No se encontraron clientes activos en cliente-service")
+                print(f"⚠️  ADVERTENCIA: No se encontraron clientes asociados al vendedor {vendedor_id}")
                 print("   El servicio iniciará sin datos de visitas")
                 return
             
-            print(f"✅ Encontrados {len(clientes)} clientes activos")
-        
-        # Usar vendedor_id = 1 por defecto (compatible con endpoint actual)
-        vendedor_id = 1
-        print(f"👤 Usando vendedor_id: {vendedor_id}")
+            print(f"✅ Encontrados {len(clientes)} clientes para el vendedor")
         
     except Exception as e:
         print(f"⚠️  ADVERTENCIA: Error conectando a cliente-service: {e}")
@@ -100,16 +103,24 @@ def generar_visitas_desde_cliente_service():
         clientes_del_dia = clientes[inicio:fin] if inicio < len(clientes) else clientes[:clientes_por_dia]
         
         for idx, cliente in enumerate(clientes_del_dia):
-            # Usar coordenadas de Bogotá
-            lat = BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][0]
-            lng = BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][1]
+            # Geocodificar dirección real del cliente usando Mapbox
+            direccion = cliente[2] if cliente[2] else "Dirección no disponible"
+            ciudad = cliente[3] if cliente[3] else "Bogotá"
+            
+            # Intentar geocodificar la dirección real
+            try:
+                geocode_result = geocoder_service.geocodificar(direccion, ciudad)
+                lat = geocode_result["lat"]
+                lng = geocode_result["lon"]
+                print(f"✅ Geocodificado: {cliente[1]} - {direccion} -> ({lat}, {lng})")
+            except Exception as e:
+                # Si falla, usar coordenadas de respaldo de Bogotá
+                print(f"⚠️  Error geocodificando {direccion}: {e}. Usando coordenadas de respaldo.")
+                lat = BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][0]
+                lng = BOGOTA_COORDS[idx % len(BOGOTA_COORDS)][1]
             
             # Asignar horario
             horario = HORARIOS[idx % len(HORARIOS)]
-            
-            # Crear visita con datos reales del cliente
-            direccion = cliente[2] if cliente[2] else "Dirección no disponible"
-            ciudad = cliente[3] if cliente[3] else "Bogotá"
             
             visita = Visita(
                 vendedor_id=vendedor_id,
@@ -128,6 +139,30 @@ def generar_visitas_desde_cliente_service():
     
     # Guardar en la base de datos de rutas
     with Session(engine) as session:
+        # Migración: Alterar tipo de columna vendedor_id si es necesario
+        try:
+            print("🔄 Verificando tipo de columna vendedor_id...")
+            session.exec(text("""
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'visita' 
+                        AND column_name = 'vendedor_id' 
+                        AND data_type = 'integer'
+                    ) THEN
+                        ALTER TABLE visita ALTER COLUMN vendedor_id TYPE VARCHAR USING vendedor_id::text;
+                        RAISE NOTICE 'Columna vendedor_id migrada a VARCHAR';
+                    END IF;
+                END $$;
+            """))
+            session.commit()
+            print("✅ Tipo de columna verificado/actualizado")
+        except Exception as e:
+            print(f"⚠️  Error en migración de columna: {e}")
+            session.rollback()
+        
         # Limpiar visitas anteriores
         session.exec(delete(Visita))
         session.commit()

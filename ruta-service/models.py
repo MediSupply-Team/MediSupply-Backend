@@ -7,7 +7,7 @@ import uuid
 class Visita(SQLModel, table=True):
     """Modelo para visitas de vendedores"""
     id: int | None = Field(default=None, primary_key=True)
-    vendedor_id: int  # Mantener como int para compatibilidad con endpoint actual
+    vendedor_id: str  # UUID del vendedor
     cliente: str  # Nombre del cliente (mantener nombre original)
     direccion: str  # Dirección completa (mantener nombre original)
     fecha: date
