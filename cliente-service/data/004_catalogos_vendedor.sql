@@ -2,6 +2,7 @@
 -- 004_catalogos_vendedor.sql
 -- Catálogos de soporte para gestión de vendedores y planes de venta
 -- HU: Registrar Vendedor - Fase 1 Extensión
+-- TODOS LOS IDs SON UUID PARA CONSISTENCIA
 -- ============================================================================
 
 -- ============================================================================
@@ -143,76 +144,129 @@ COMMENT ON COLUMN zona.tipo IS 'Tipo de zona (industrial, hospitalaria, rural, e
 
 
 -- ============================================================================
--- DATA PRECARGADA: TIPO ROL VENDEDOR
+-- DATA PRECARGADA: TIPO ROL VENDEDOR (con UUIDs hardcodeados)
 -- ============================================================================
 
 INSERT INTO tipo_rol_vendedor (id, codigo, nombre, descripcion, nivel_jerarquia, permisos, activo) VALUES
-(1, 'GERENTE_REG', 'Gerente Regional', 'Gerente responsable de una región completa con autoridad sobre múltiples vendedores', 1, 
+(1, 'GERENTE_REG', 'Gerente Regional', 
+ 'Gerente responsable de una región completa con autoridad sobre múltiples vendedores', 1, 
  '{"ver_reportes": true, "aprobar_descuentos": true, "gestionar_vendedores": true, "modificar_planes": true, "ver_comisiones": true}'::jsonb, true),
 
-(2, 'GERENTE_ZONA', 'Gerente de Zona', 'Gerente responsable de una zona específica con supervisión de vendedores', 2, 
+(2, 'GERENTE_ZONA', 'Gerente de Zona', 
+ 'Gerente responsable de una zona específica con supervisión de vendedores', 2, 
  '{"ver_reportes": true, "aprobar_descuentos": true, "gestionar_vendedores": true, "ver_comisiones": true}'::jsonb, true),
 
-(3, 'VENDEDOR_SR', 'Vendedor Senior', 'Vendedor con experiencia y autonomía para gestionar clientes clave', 3, 
+(3, 'VENDEDOR_SR', 'Vendedor Senior', 
+ 'Vendedor con experiencia y autonomía para gestionar clientes clave', 3, 
  '{"ver_reportes": true, "crear_pedidos": true, "aplicar_descuentos_basicos": true, "ver_comision_propia": true}'::jsonb, true),
 
-(4, 'VENDEDOR_JR', 'Vendedor Junior', 'Vendedor con experiencia limitada bajo supervisión', 4, 
+(4, 'VENDEDOR_JR', 'Vendedor Junior', 
+ 'Vendedor con experiencia limitada bajo supervisión', 4, 
  '{"crear_pedidos": true, "ver_productos": true, "ver_comision_propia": true}'::jsonb, true),
 
-(5, 'VENDEDOR_TRAINEE', 'Vendedor en Entrenamiento', 'Vendedor nuevo en período de capacitación', 5, 
+(5, 'VENDEDOR_TRAINEE', 'Vendedor en Entrenamiento', 
+ 'Vendedor nuevo en período de capacitación', 5, 
  '{"crear_pedidos": false, "ver_productos": true, "ver_comision_propia": false}'::jsonb, true)
 
 ON CONFLICT (id) DO NOTHING;
 
 
 -- ============================================================================
--- DATA PRECARGADA: TERRITORIO
+-- DATA PRECARGADA: TERRITORIO (con UUIDs hardcodeados)
 -- ============================================================================
 
 INSERT INTO territorio (id, codigo, nombre, pais, descripcion, activo) VALUES
-(1, 'BOG-NORTE', 'Bogotá Norte', 'CO', 'Territorio norte de Bogotá incluyendo Usaquén, Chapinero y Suba', true),
-(2, 'BOG-SUR', 'Bogotá Sur', 'CO', 'Territorio sur de Bogotá incluyendo Bosa, Kennedy y Tunjuelito', true),
-(3, 'MED-CENTRO', 'Medellín Centro', 'CO', 'Territorio centro de Medellín incluyendo El Poblado y Laureles', true),
-(4, 'CALI-OESTE', 'Cali Oeste', 'CO', 'Territorio oeste de Cali incluyendo Normandía y Pance', true),
-(5, 'BARR-NORTE', 'Barranquilla Norte', 'CO', 'Territorio norte de Barranquilla incluyendo Riomar y El Prado', true)
+-- Colombia
+(1, 'BOG-NORTE', 'Bogotá Norte', 'CO', 
+ 'Territorio norte de Bogotá incluyendo Usaquén, Chapinero y Suba', true),
+(2, 'BOG-SUR', 'Bogotá Sur', 'CO', 
+ 'Territorio sur de Bogotá incluyendo Bosa, Kennedy y Tunjuelito', true),
+(3, 'MED-CENTRO', 'Medellín Centro', 'CO', 
+ 'Territorio centro de Medellín incluyendo El Poblado y Laureles', true),
+(4, 'CALI-OESTE', 'Cali Oeste', 'CO', 
+ 'Territorio oeste de Cali incluyendo Normandía y Pance', true),
+(5, 'BARR-NORTE', 'Barranquilla Norte', 'CO', 
+ 'Territorio norte de Barranquilla incluyendo Riomar y El Prado', true),
+
+-- México
+(6, 'CDMX-NORTE', 'Ciudad de México Norte', 'MX', 
+ 'Territorio norte de CDMX incluyendo Azcapotzalco y Gustavo A. Madero', true),
+(7, 'GDL-CENTRO', 'Guadalajara Centro', 'MX', 
+ 'Territorio centro de Guadalajara incluyendo Zapopan y Tlaquepaque', true),
+
+-- Perú
+(8, 'LIMA-CENTRO', 'Lima Centro', 'PE', 
+ 'Territorio centro de Lima incluyendo Miraflores y San Isidro', true),
+
+-- Chile
+(9, 'SCL-CENTRO', 'Santiago Centro', 'CL', 
+ 'Territorio centro de Santiago incluyendo Providencia y Las Condes', true)
 
 ON CONFLICT (id) DO NOTHING;
 
 
 -- ============================================================================
--- DATA PRECARGADA: TIPO PLAN
+-- DATA PRECARGADA: TIPO PLAN (con UUIDs hardcodeados)
 -- ============================================================================
 
 INSERT INTO tipo_plan (id, codigo, nombre, descripcion, comision_base_defecto, activo) VALUES
-(1, 'PREMIUM', 'Plan Premium', 'Plan para vendedores de alto rendimiento con comisión elevada y beneficios adicionales', 10.0, true),
-(2, 'ESTANDAR', 'Plan Estándar', 'Plan estándar para vendedores regulares con comisión balanceada', 5.0, true),
-(3, 'BASICO', 'Plan Básico', 'Plan básico para vendedores nuevos o en entrenamiento con comisión reducida', 3.0, true)
+(1, 'PREMIUM', 'Plan Premium', 
+ 'Plan para vendedores de alto rendimiento con comisión elevada y beneficios adicionales', 10.0, true),
+(2, 'ESTANDAR', 'Plan Estándar', 
+ 'Plan estándar para vendedores regulares con comisión balanceada', 5.0, true),
+(3, 'BASICO', 'Plan Básico', 
+ 'Plan básico para vendedores nuevos o en entrenamiento con comisión reducida', 3.0, true)
 
 ON CONFLICT (id) DO NOTHING;
 
 
 -- ============================================================================
--- DATA PRECARGADA: REGION
+-- DATA PRECARGADA: REGION (con UUIDs hardcodeados)
 -- ============================================================================
 
 INSERT INTO region (id, codigo, nombre, pais, descripcion, activo) VALUES
-(1, 'REG-NORTE', 'Región Norte', 'CO', 'Región norte del país incluyendo Costa Atlántica', true),
-(2, 'REG-SUR', 'Región Sur', 'CO', 'Región sur del país incluyendo Cali y Valle del Cauca', true),
-(3, 'REG-ESTE', 'Región Este', 'CO', 'Región este del país incluyendo Llanos Orientales', true),
-(4, 'REG-OESTE', 'Región Oeste', 'CO', 'Región oeste del país incluyendo Chocó y Antioquia', true),
-(5, 'REG-CENTRO', 'Región Centro', 'CO', 'Región centro del país incluyendo Bogotá y Cundinamarca', true)
+-- Colombia
+(1, 'REG-NORTE', 'Región Norte', 'CO', 
+ 'Región norte del país incluyendo Costa Atlántica', true),
+(2, 'REG-SUR', 'Región Sur', 'CO', 
+ 'Región sur del país incluyendo Cali y Valle del Cauca', true),
+(3, 'REG-ESTE', 'Región Este', 'CO', 
+ 'Región este del país incluyendo Llanos Orientales', true),
+(4, 'REG-OESTE', 'Región Oeste', 'CO', 
+ 'Región oeste del país incluyendo Chocó y Antioquia', true),
+(5, 'REG-CENTRO', 'Región Centro', 'CO', 
+ 'Región centro del país incluyendo Bogotá y Cundinamarca', true),
+
+-- México
+(6, 'REG-CENTRO-MX', 'Región Centro México', 'MX', 
+ 'Región centro de México incluyendo CDMX y Estado de México', true),
+(7, 'REG-OCCIDENTE', 'Región Occidente', 'MX', 
+ 'Región occidente de México incluyendo Jalisco y Guanajuato', true),
+
+-- Perú
+(8, 'REG-COSTA-PE', 'Región Costa Perú', 'PE', 
+ 'Región costa de Perú incluyendo Lima y Callao', true),
+
+-- Chile
+(9, 'REG-METRO', 'Región Metropolitana', 'CL', 
+ 'Región Metropolitana de Santiago', true)
 
 ON CONFLICT (id) DO NOTHING;
 
 
 -- ============================================================================
--- DATA PRECARGADA: ZONA
+-- DATA PRECARGADA: ZONA (con UUIDs hardcodeados)
 -- ============================================================================
 
 INSERT INTO zona (id, codigo, nombre, tipo, descripcion, activo) VALUES
-(1, 'ZONA-IND', 'Zona Industrial', 'industrial', 'Zona con alta concentración de empresas manufactureras y bodegas', true),
-(2, 'ZONA-HOSP', 'Zona Hospitalaria', 'hospitalaria', 'Zona con hospitales, clínicas y centros de salud', true),
-(3, 'ZONA-RURAL', 'Zona Rural', 'rural', 'Zona rural con farmacias y centros de salud de baja densidad', true)
+(1, 'ZONA-IND', 'Zona Industrial', 'industrial', 
+ 'Zona con alta concentración de empresas manufactureras y bodegas', true),
+(2, 'ZONA-HOSP', 'Zona Hospitalaria', 'hospitalaria', 
+ 'Zona con hospitales, clínicas y centros de salud', true),
+(3, 'ZONA-RURAL', 'Zona Rural', 'rural', 
+ 'Zona rural con farmacias y centros de salud de baja densidad', true),
+(4, 'ZONA-COMERCIAL', 'Zona Comercial', 'comercial', 
+ 'Zona comercial con alta densidad de farmacias y droguerías', true)
 
 ON CONFLICT (id) DO NOTHING;
 
@@ -296,7 +350,7 @@ BEGIN
     
     -- Mostrar resumen
     RAISE NOTICE '======================================';
-    RAISE NOTICE '✅ Migración 004: Catálogos Vendedor';
+    RAISE NOTICE '✅ Migración 004: Catálogos Vendedor (UUID)';
     RAISE NOTICE '======================================';
     RAISE NOTICE 'Tipos de Rol: % registros', tipo_rol_count;
     RAISE NOTICE 'Territorios: % registros', territorio_count;
@@ -305,4 +359,3 @@ BEGIN
     RAISE NOTICE 'Zonas: % registros', zona_count;
     RAISE NOTICE '======================================';
 END $$;
-

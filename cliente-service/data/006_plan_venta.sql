@@ -26,7 +26,7 @@ $$ LANGUAGE plpgsql;
 CREATE TABLE IF NOT EXISTS plan_venta (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     vendedor_id UUID NOT NULL UNIQUE, -- 1:1 con vendedor
-    tipo_plan_id UUID, -- FK a tipo_plan (opcional)
+    tipo_plan_id INTEGER, -- FK a tipo_plan (opcional)
     nombre_plan VARCHAR(255) NOT NULL,
     fecha_inicio DATE NOT NULL,
     fecha_fin DATE NOT NULL,
@@ -150,86 +150,229 @@ ALTER TABLE plan_zona ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
 
 COMMENT ON TABLE plan_zona IS 'Zonas especiales asignadas a un plan de venta';
 
--- ----------------------------------------------------------------------------
--- DATOS DE EJEMPLO (Opcional - Para Testing)
--- ----------------------------------------------------------------------------
--- Insertar un plan de venta de ejemplo para el primer vendedor
+-- ============================================================================
+-- DATOS REALISTAS DE PLANES DE VENTA PARA LOS 6 VENDEDORES
+-- ============================================================================
+-- Cada vendedor tiene un plan activo con productos, regiones y zonas asignadas
+-- Los UUIDs de productos corresponden a los del catálogo-service
 
+-- Plan 1: Carlos Mendoza (Vendedor Senior - Colombia - Bogotá Norte)
+INSERT INTO plan_venta (
+    id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
+    meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
+) VALUES (
+    'plan0001-0001-0001-0001-000000000001',
+    '11111111-1111-1111-1111-111111111111',  -- Carlos Mendoza
+    1,  -- PREMIUM
+    'Plan Q4 2025 - Carlos Mendoza',
+    '2025-10-01',
+    '2025-12-31',
+    250000000.00,  -- $250M COP
+    10.0,
+    '{"70": 2, "90": 5, "100": 12}'::jsonb,
+    'Plan premium con foco en hospitales de Bogotá Norte',
+    true
+) ON CONFLICT (vendedor_id) DO NOTHING;
+
+-- Productos para Carlos Mendoza (UUIDs reales del catálogo)
+INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
+('plan0001-0001-0001-0001-000000000001', '11111111-1111-1111-1111-000000000001', 200, 1500.00),  -- Amoxicilina
+('plan0001-0001-0001-0001-000000000001', '22222222-2222-2222-2222-000000000007', 150, 1800.00),  -- Acetaminofén
+('plan0001-0001-0001-0001-000000000001', '11111111-1111-1111-1111-000000000002', 100, 2200.00)   -- Ibuprofeno
+ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
+
+-- Regiones y Zonas para Carlos Mendoza
+INSERT INTO plan_region (plan_venta_id, region_id) VALUES
+('plan0001-0001-0001-0001-000000000001', 5)  -- REG-CENTRO
+ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
+
+INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
+('plan0001-0001-0001-0001-000000000001', 2)  -- ZONA-HOSP
+ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
+
+
+-- Plan 2: María López (Vendedora Junior - Colombia - Medellín)
+INSERT INTO plan_venta (
+    id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
+    meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
+) VALUES (
+    'plan0002-0002-0002-0002-000000000002',
+    '22222222-2222-2222-2222-222222222222',  -- María López
+    2,  -- ESTANDAR
+    'Plan Q4 2025 - María López',
+    '2025-10-01',
+    '2025-12-31',
+    180000000.00,  -- $180M COP
+    5.0,
+    '{"70": 1, "90": 3, "100": 8}'::jsonb,
+    'Plan estándar enfocado en farmacias independientes',
+    true
+) ON CONFLICT (vendedor_id) DO NOTHING;
+
+-- Productos para María López
+INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
+('plan0002-0002-0002-0002-000000000002', '11111111-1111-1111-1111-000000000003', 120, 3500.00),  -- Omeprazol
+('plan0002-0002-0002-0002-000000000002', '11111111-1111-1111-1111-000000000004', 80, 800.00),   -- Loratadina
+('plan0002-0002-0002-0002-000000000002', '22222222-2222-2222-2222-000000000007', 100, 1800.00)   -- Acetaminofén
+ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
+
+-- Regiones y Zonas para María López
+INSERT INTO plan_region (plan_venta_id, region_id) VALUES
+('plan0002-0002-0002-0002-000000000002', 4)  -- REG-OESTE
+ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
+
+INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
+('plan0002-0002-0002-0002-000000000002', 4)  -- ZONA-COMERCIAL
+ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
+
+
+-- Plan 3: José Hernández (Vendedor Senior - México - CDMX)
+INSERT INTO plan_venta (
+    id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
+    meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
+) VALUES (
+    'plan0003-0003-0003-0003-000000000003',
+    '33333333-3333-3333-3333-333333333333',  -- José Hernández
+    1,  -- PREMIUM
+    'Plan Q4 2025 - José Hernández',
+    '2025-10-01',
+    '2025-12-31',
+    800000.00,  -- $800K MXN
+    10.0,
+    '{"70": 2, "90": 5, "100": 12}'::jsonb,
+    'Plan premium para cadenas de farmacias en CDMX',
+    true
+) ON CONFLICT (vendedor_id) DO NOTHING;
+
+-- Productos para José Hernández
+INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
+('plan0003-0003-0003-0003-000000000003', '22222222-2222-2222-2222-000000000008', 180, 4200.00),  -- Losartán
+('plan0003-0003-0003-0003-000000000003', '22222222-2222-2222-2222-000000000009', 150, 8500.00),  -- Atorvastatina
+('plan0003-0003-0003-0003-000000000003', '22222222-2222-2222-2222-000000000010', 120, 5200.00)   -- Metformina
+ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
+
+-- Regiones y Zonas para José Hernández
+INSERT INTO plan_region (plan_venta_id, region_id) VALUES
+('plan0003-0003-0003-0003-000000000003', 6)  -- REG-CENTRO-MX
+ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
+
+INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
+('plan0003-0003-0003-0003-000000000003', 4)  -- ZONA-COMERCIAL
+ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
+
+
+-- Plan 4: Ana González (Vendedora Junior - México - Guadalajara)
+INSERT INTO plan_venta (
+    id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
+    meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
+) VALUES (
+    'plan0004-0004-0004-0004-000000000004',
+    '44444444-4444-4444-4444-444444444444',  -- Ana González
+    2,  -- ESTANDAR
+    'Plan Q4 2025 - Ana González',
+    '2025-10-01',
+    '2025-12-31',
+    600000.00,  -- $600K MXN
+    5.0,
+    '{"70": 1, "90": 3, "100": 8}'::jsonb,
+    'Plan estándar para distribución regional en Jalisco',
+    true
+) ON CONFLICT (vendedor_id) DO NOTHING;
+
+-- Productos para Ana González
+INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
+('plan0004-0004-0004-0004-000000000004', '33333333-3333-3333-3333-000000000011', 90, 6800.00),   -- Levotiroxina
+('plan0004-0004-0004-0004-000000000004', '33333333-3333-3333-3333-000000000012', 70, 12500.00),  -- Insulina
+('plan0004-0004-0004-0004-000000000004', '22222222-2222-2222-2222-000000000007', 100, 1800.00)   -- Acetaminofén
+ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
+
+-- Regiones y Zonas para Ana González
+INSERT INTO plan_region (plan_venta_id, region_id) VALUES
+('plan0004-0004-0004-0004-000000000004', 7)  -- REG-OCCIDENTE
+ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
+
+INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
+('plan0004-0004-0004-0004-000000000004', 1)  -- ZONA-IND
+ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
+
+
+-- Plan 5: Miguel Torres (Gerente de Zona - Perú - Lima)
+INSERT INTO plan_venta (
+    id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
+    meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
+) VALUES (
+    'plan0005-0005-0005-0005-000000000005',
+    '55555555-5555-5555-5555-555555555555',  -- Miguel Torres
+    1,  -- PREMIUM
+    'Plan Q4 2025 - Miguel Torres',
+    '2025-10-01',
+    '2025-12-31',
+    50000.00,  -- S/50K PEN
+    10.0,
+    '{"70": 2, "90": 5, "100": 12}'::jsonb,
+    'Plan premium de gerencia con supervisión de 8 vendedores',
+    true
+) ON CONFLICT (vendedor_id) DO NOTHING;
+
+-- Productos para Miguel Torres
+INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
+('plan0005-0005-0005-0005-000000000005', '33333333-3333-3333-3333-000000000013', 120, 1200.00),  -- Salbutamol
+('plan0005-0005-0005-0005-000000000005', '33333333-3333-3333-3333-000000000014', 100, 3800.00),  -- Montelukast
+('plan0005-0005-0005-0005-000000000005', '33333333-3333-3333-3333-000000000015', 80, 4500.00)    -- Enalapril
+ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
+
+-- Regiones y Zonas para Miguel Torres
+INSERT INTO plan_region (plan_venta_id, region_id) VALUES
+('plan0005-0005-0005-0005-000000000005', 8)  -- REG-COSTA-PE
+ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
+
+INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
+('plan0005-0005-0005-0005-000000000005', 2)  -- ZONA-HOSP
+ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
+
+
+-- Plan 6: Carolina Silva (Vendedora Senior - Chile - Santiago)
+INSERT INTO plan_venta (
+    id, vendedor_id, tipo_plan_id, nombre_plan, fecha_inicio, fecha_fin,
+    meta_ventas, comision_base, estructura_bonificaciones, observaciones, activo
+) VALUES (
+    'plan0006-0006-0006-0006-000000000006',
+    '66666666-6666-6666-6666-666666666666',  -- Carolina Silva
+    1,  -- PREMIUM
+    'Plan Q4 2025 - Carolina Silva',
+    '2025-10-01',
+    '2025-12-31',
+    15000000.00,  -- $15M CLP
+    10.0,
+    '{"70": 2, "90": 5, "100": 12}'::jsonb,
+    'Plan premium especializado en clínicas privadas de Santiago',
+    true
+) ON CONFLICT (vendedor_id) DO NOTHING;
+
+-- Productos para Carolina Silva
+INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
+('plan0006-0006-0006-0006-000000000006', '44444444-4444-4444-4444-000000000016', 100, 9500.00),  -- Prednisona
+('plan0006-0006-0006-0006-000000000006', '44444444-4444-4444-4444-000000000017', 80, 6200.00),   -- Diclofenaco
+('plan0006-0006-0006-0006-000000000006', '44444444-4444-4444-4444-000000000018', 90, 7800.00)    -- Captopril
+ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
+
+-- Regiones y Zonas para Carolina Silva
+INSERT INTO plan_region (plan_venta_id, region_id) VALUES
+('plan0006-0006-0006-0006-000000000006', 9)  -- REG-METRO
+ON CONFLICT (plan_venta_id, region_id) DO NOTHING;
+
+INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES
+('plan0006-0006-0006-0006-000000000006', 2)  -- ZONA-HOSP
+ON CONFLICT (plan_venta_id, zona_id) DO NOTHING;
+
+
+-- Log de planes creados
 DO $$
 DECLARE
-    v_vendedor_id UUID;
-    v_tipo_plan_id UUID;
-    v_plan_id UUID;
-    v_region_id UUID;
-    v_zona_id UUID;
     plan_count INTEGER;
 BEGIN
-    -- Obtener ID del primer vendedor (si existe)
-    SELECT id INTO v_vendedor_id FROM vendedor WHERE activo = true LIMIT 1;
-    
-    IF v_vendedor_id IS NULL THEN
-        RAISE NOTICE 'ℹ️  No hay vendedores activos. Saltando creación de plan de ejemplo.';
-        RETURN;
-    END IF;
-    
-    -- Verificar si el vendedor ya tiene un plan
-    SELECT COUNT(*) INTO plan_count FROM plan_venta WHERE vendedor_id = v_vendedor_id;
-    
-    IF plan_count > 0 THEN
-        RAISE NOTICE 'ℹ️  El vendedor ya tiene un plan. Saltando creación de plan de ejemplo.';
-        RETURN;
-    END IF;
-    
-    -- Obtener IDs de catálogos
-    SELECT id INTO v_tipo_plan_id FROM tipo_plan WHERE codigo = 'PLAN_PREMIUM' LIMIT 1;
-    SELECT id INTO v_region_id FROM region WHERE activo = true LIMIT 1;
-    SELECT id INTO v_zona_id FROM zona WHERE activo = true LIMIT 1;
-    
-    -- Crear plan de venta de ejemplo
-    INSERT INTO plan_venta (
-        vendedor_id, 
-        tipo_plan_id, 
-        nombre_plan, 
-        fecha_inicio, 
-        fecha_fin, 
-        meta_ventas, 
-        comision_base, 
-        estructura_bonificaciones,
-        observaciones,
-        activo
-    ) VALUES (
-        v_vendedor_id,
-        v_tipo_plan_id,
-        'Plan Premium Q1 2024',
-        '2024-01-01',
-        '2024-03-31',
-        150000.00,
-        8.0,
-        '{"70": 2, "90": 5, "100": 10}'::jsonb,
-        'Plan de ejemplo con metas agresivas y bonificaciones escalonadas',
-        true
-    ) RETURNING id INTO v_plan_id;
-    
-    -- Insertar productos de ejemplo (solo IDs, frontend consulta catalogo-service para detalles)
-    INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-    (v_plan_id, 'PROD001', 100, 1500.00),
-    (v_plan_id, 'PROD002', 80, 2000.00),
-    (v_plan_id, 'PROD003', 60, 3500.00);
-    
-    -- Insertar regiones asignadas (si existen)
-    IF v_region_id IS NOT NULL THEN
-        INSERT INTO plan_region (plan_venta_id, region_id) VALUES (v_plan_id, v_region_id);
-    END IF;
-    
-    -- Insertar zonas asignadas (si existen)
-    IF v_zona_id IS NOT NULL THEN
-        INSERT INTO plan_zona (plan_venta_id, zona_id) VALUES (v_plan_id, v_zona_id);
-    END IF;
-    
-    RAISE NOTICE '✅ Plan de venta de ejemplo creado para vendedor %', v_vendedor_id;
-    
-EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE '⚠️  No se pudo crear plan de ejemplo: %', SQLERRM;
+    SELECT COUNT(*) INTO plan_count FROM plan_venta;
+    RAISE NOTICE '✅ Planes de venta creados: % registros (6 vendedores con planes completos)', plan_count;
 END $$;
 
 -- ----------------------------------------------------------------------------
