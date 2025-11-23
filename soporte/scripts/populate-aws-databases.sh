@@ -63,18 +63,49 @@ populate_cliente_service() {
         fi
     fi
     
-    # Ejecutar el script SQL de inicialización
-    echo -e "${YELLOW}🔄 Cargando datos iniciales desde 001_init.sql...${NC}"
+    # Ejecutar los scripts SQL en orden
+    echo -e "${YELLOW}🔄 Cargando datos iniciales (6 archivos SQL)...${NC}"
     
+    # 1. Estructura base y clientes
+    echo "   📄 [1/6] 001_init.sql - Estructura base y clientes..."
     PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
         -f cliente-service/data/001_init.sql > /dev/null 2>&1
     
-    # Verificar resultado
+    # 2. Catálogos de soporte (roles, territorios, planes, regiones, zonas)
+    echo "   📄 [2/6] 004_catalogos_vendedor.sql - Catálogos de soporte..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+        -f cliente-service/data/004_catalogos_vendedor.sql > /dev/null 2>&1
+    
+    # 3. Vendedores con datos reales
+    echo "   📄 [3/6] 002_vendedores.sql - Vendedores dummy reales..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+        -f cliente-service/data/002_vendedores.sql > /dev/null 2>&1
+    
+    # 4. Extensión de vendedores (FK a catálogos)
+    echo "   📄 [4/6] 005_vendedor_extended.sql - Extensión de vendedores..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+        -f cliente-service/data/005_vendedor_extended.sql > /dev/null 2>&1
+    
+    # 5. Planes de venta
+    echo "   📄 [5/6] 006_plan_venta.sql - Planes de venta..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+        -f cliente-service/data/006_plan_venta.sql > /dev/null 2>&1
+    
+    # 6. Asignar vendedores a clientes
+    echo "   📄 [6/6] 003_asignar_vendedores_clientes.sql - Asignación vendedores..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+        -f cliente-service/data/003_asignar_vendedores_clientes.sql > /dev/null 2>&1
+    
+    # Verificar resultados
     NEW_COUNT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM cliente;" | tr -d ' ')
+    VENDEDORES_COUNT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM vendedor;" | tr -d ' ')
+    PLANES_COUNT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM plan_venta;" | tr -d ' ')
     COMPRAS_COUNT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM compra_historico;" | tr -d ' ')
     
     echo -e "${GREEN}✅ CLIENTE-SERVICE POBLADO EXITOSAMENTE${NC}"
+    echo "   👥 Vendedores: $VENDEDORES_COUNT"
     echo "   📊 Clientes: $NEW_COUNT"
+    echo "   🎯 Planes de Venta: $PLANES_COUNT"
     echo "   📦 Compras: $COMPRAS_COUNT"
     echo ""
 }
@@ -123,19 +154,50 @@ populate_catalogo_service() {
         fi
     fi
     
-    # Ejecutar el script SQL de inicialización
-    echo -e "${YELLOW}🔄 Cargando datos iniciales desde 001_init.sql...${NC}"
+    # Ejecutar los scripts SQL en orden
+    echo -e "${YELLOW}🔄 Cargando datos iniciales (6 archivos SQL)...${NC}"
     
+    # 1. Estructura base
+    echo "   📄 [1/6] 001_init.sql - Estructura base..."
     PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
         -f catalogo-service/data/001_init.sql > /dev/null 2>&1
     
-    # Verificar resultado
+    # 2. Productos con UUID
+    echo "   📄 [2/6] 002_seed_data.sql - Productos con UUID..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+        -f catalogo-service/data/002_seed_data.sql > /dev/null 2>&1
+    
+    # 3. Movimientos de inventario
+    echo "   📄 [3/6] 002_movimientos.sql - Movimientos de inventario..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+        -f catalogo-service/data/002_movimientos.sql > /dev/null 2>&1
+    
+    # 4. Campos adicionales de proveedor
+    echo "   📄 [4/6] 003_campos_proveedor.sql - Campos adicionales de proveedor..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+        -f catalogo-service/data/003_campos_proveedor.sql > /dev/null 2>&1
+    
+    # 5. Proveedores dummy
+    echo "   📄 [5/6] 004_proveedores.sql - Proveedores dummy..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+        -f catalogo-service/data/004_proveedores.sql > /dev/null 2>&1
+    
+    # 6. Bodegas (NUEVO)
+    echo "   📄 [6/6] 005_bodegas.sql - Bodegas..."
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+        -f catalogo-service/data/005_bodegas.sql > /dev/null 2>&1
+    
+    # Verificar resultados
     NEW_PROD_COUNT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM producto;" | tr -d ' ')
     INV_COUNT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM inventario;" | tr -d ' ')
+    PROV_COUNT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM proveedor;" | tr -d ' ')
+    BODEGA_COUNT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM bodega;" | tr -d ' ')
     
     echo -e "${GREEN}✅ CATALOGO-SERVICE POBLADO EXITOSAMENTE${NC}"
     echo "   📦 Productos: $NEW_PROD_COUNT"
     echo "   🏭 Inventarios: $INV_COUNT"
+    echo "   🏢 Proveedores: $PROV_COUNT"
+    echo "   📍 Bodegas: $BODEGA_COUNT"
     echo ""
 }
 
