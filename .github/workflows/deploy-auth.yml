@@ -50,27 +50,17 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Set build metadata
-        id: metadata
-        run: |
-          echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
-
       - name: Build, tag, and push image
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-          GIT_COMMIT: ${{ github.sha }}
-          BUILD_DATE: ${{ steps.metadata.outputs.build_date }}
         working-directory: ./auth-service
         run: |
           IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
           
           echo "🔨 Building Docker image..."
-          docker build \
-            --build-arg GIT_COMMIT=${GIT_COMMIT} \
-            --build-arg BUILD_DATE=${BUILD_DATE} \
-            -t "${IMAGE_URI}" .
+          docker build -t "${IMAGE_URI}" .
           
           echo "📤 Pushing image with SHA tag..."
           docker push "${IMAGE_URI}"
@@ -81,8 +71,6 @@ jobs:
           
           echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
           echo "✅ Image built and pushed: ${IMAGE_URI}"
-          echo "📝 Git Commit: ${GIT_COMMIT:0:7}"
-          echo "📅 Build Date: ${BUILD_DATE}"
 
       - name: Download current task definition
         run: |
