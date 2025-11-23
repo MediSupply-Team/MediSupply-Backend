@@ -18,26 +18,26 @@ BEGIN
         RAISE NOTICE '  ℹ️  Columna username ya existe';
     END IF;
 
-    -- Agregar columna rol_vendedor_id (FK a tipo_rol_vendedor)
+    -- Agregar columna rol_vendedor_id (FK a tipo_rol_vendedor) - UUID
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'vendedor' AND column_name = 'rol_vendedor_id'
     ) THEN
-        ALTER TABLE vendedor ADD COLUMN rol_vendedor_id INTEGER;
+        ALTER TABLE vendedor ADD COLUMN rol_vendedor_id UUID;
         CREATE INDEX idx_vendedor_rol_vendedor ON vendedor(rol_vendedor_id) WHERE rol_vendedor_id IS NOT NULL;
-        RAISE NOTICE '  ✅ Columna rol_vendedor_id agregada';
+        RAISE NOTICE '  ✅ Columna rol_vendedor_id agregada (UUID)';
     ELSE
         RAISE NOTICE '  ℹ️  Columna rol_vendedor_id ya existe';
     END IF;
 
-    -- Agregar columna territorio_id (FK a territorio)
+    -- Agregar columna territorio_id (FK a territorio) - UUID
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'vendedor' AND column_name = 'territorio_id'
     ) THEN
-        ALTER TABLE vendedor ADD COLUMN territorio_id INTEGER;
+        ALTER TABLE vendedor ADD COLUMN territorio_id UUID;
         CREATE INDEX idx_vendedor_territorio ON vendedor(territorio_id) WHERE territorio_id IS NOT NULL;
-        RAISE NOTICE '  ✅ Columna territorio_id agregada';
+        RAISE NOTICE '  ✅ Columna territorio_id agregada (UUID)';
     ELSE
         RAISE NOTICE '  ℹ️  Columna territorio_id ya existe';
     END IF;
