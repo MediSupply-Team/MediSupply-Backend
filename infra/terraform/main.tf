@@ -569,6 +569,7 @@ module "orders" {
   ecr_image         = "${aws_ecr_repository.orders.repository_url}:latest"
   app_port          = 8000
   db_url_secret_arn = aws_secretsmanager_secret.db_url.arn
+  catalog_db_url_secret_arn = aws_secretsmanager_secret.db_url.arn  # Catálogo usa la misma DB compartida
 
   ecs_cluster_arn = aws_ecs_cluster.orders.arn
 

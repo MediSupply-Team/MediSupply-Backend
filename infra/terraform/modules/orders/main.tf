@@ -114,6 +114,10 @@ resource "aws_ecs_task_definition" "orders" {
         {
           name      = "DB_URL"
           valueFrom = var.db_url_secret_arn
+        },
+        {
+          name      = "CATALOG_DB_URL"
+          valueFrom = var.catalog_db_url_secret_arn
         }
       ]
 

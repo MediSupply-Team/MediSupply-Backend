@@ -6,6 +6,7 @@ from app.db import get_session, Base, engine
 from app.models import IdempotencyRequest, IdemStatus, Order, OutboxEvent, OrderStatus
 from app.schemas import CreateOrderRequest, AcceptedResponse, OrderResponse
 from app.tasks import celery
+from app.catalog_client import catalog_client
 from uuid import uuid4, UUID
 from typing import List
 import logging
@@ -45,6 +46,21 @@ async def create_order(
     key_hash = _sha256(Idempotency_Key)
     body_hash = _sha256(body.model_dump_json())
 
+    # Validar que todos los SKUs existan en el catálogo
+    skus = [item.sku for item in body.items]
+    products = await catalog_client.validate_skus(skus)
+    
+    # Verificar que todos los SKUs existen
+    missing_skus = [sku for sku in skus if sku not in products]
+    if missing_skus:
+        log.warning(f"SKUs no encontrados en catálogo: {missing_skus}")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Los siguientes productos no existen o no están activos en el catálogo: {', '.join(missing_skus)}"
+        )
+    
+    log.info(f"Validación exitosa de {len(skus)} SKUs")
+
     try:
         async with session.begin():
             idem = await session.get(IdempotencyRequest, key_hash)
@@ -60,6 +76,19 @@ async def create_order(
             # Convertir Address a dict si existe
             address_dict = body.address.model_dump() if body.address else None
             
+            # Enriquecer items con precio del catálogo
+            enriched_items = []
+            for item in body.items:
+                item_dict = item.model_dump()
+                # Agregar precio del catálogo
+                if item.sku in products:
+                    item_dict['price'] = products[item.sku]['precio_unitario']
+                    item_dict['product_name'] = products[item.sku]['nombre']
+                else:
+                    # Esto no debería pasar por la validación previa
+                    item_dict['price'] = 0.0
+                enriched_items.append(item_dict)
+            
             order = Order(
                 customer_id=body.customer_id,
                 seller_id=body.seller_id,
@@ -67,7 +96,7 @@ async def create_order(
                 source=body.source,  
                 user_name=body.user_name, 
                 address=address_dict,
-                items=[i.model_dump() for i in body.items]
+                items=enriched_items
             )
             session.add(order)
             await session.flush()
@@ -238,3 +267,11 @@ async def on_startup():
     # Útil en local; en prod idealmente usar migraciones
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    
+    # Conectar al catálogo
+    await catalog_client.connect()
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    # Desconectar del catálogo
+    await catalog_client.disconnect()
