@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import auth
 from app.database import engine, Base
+from app.routes import system 
 
 # ← IMPORTANTE: Importar todos los modelos ANTES de crear las tablas
 from app.models import Role, Permission, User, role_permissions
@@ -24,6 +25,7 @@ app.add_middleware(
 
 # Routes
 app.include_router(auth.router)
+app.include_router(system.router, tags=["System"])
 
 @app.get("/")
 async def root():

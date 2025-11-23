@@ -1,6 +1,11 @@
 # auth-service/Dockerfile
 FROM python:3.11-slim
 
+ARG GIT_COMMIT=unknown
+ARG BUILD_DATE=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+ENV BUILD_DATE=${BUILD_DATE}
+
 WORKDIR /app
 
 # Instalar dependencias del sistema 
