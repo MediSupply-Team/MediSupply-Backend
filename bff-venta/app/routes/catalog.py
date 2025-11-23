@@ -13,20 +13,13 @@ bp = Blueprint('catalog', __name__)
 def get_catalogo_service_url():
     """
     Obtener la URL del servicio de catálogo desde variables de entorno.
-    Remueve el sufijo /catalog si existe, ya que el ALB lo maneja automáticamente.
     """
     url = os.getenv("CATALOGO_SERVICE_URL")
     if not url:
         current_app.logger.error("CATALOGO_SERVICE_URL no está configurada")
         return None
     
-    url = url.rstrip('/')  # Remover trailing slash si existe
-    
-    # Remover /catalog del final si existe, porque el ALB ya lo maneja
-    if url.endswith('/catalog'):
-        url = url.rsplit('/catalog', 1)[0]
-    
-    return url
+    return url.rstrip('/')  # Remover trailing slash si existe
 
 
 @bp.route('/api/v1/catalog/items', methods=['GET'])
@@ -693,10 +686,8 @@ def listar_proveedores():
         if request.args.get('activo'):
             params['activo'] = request.args.get('activo')
         
-        # Construir URL (sin /catalog ya que proveedores está en /api/v1/proveedores/ del ALB)
-        # Remover /catalog del catalogo_url si existe para proveedores
-        base_url = catalogo_url.replace('/catalog', '')
-        url = f"{base_url}/api/v1/proveedores/"
+        # Construir URL
+        url = f"{catalogo_url}/api/v1/proveedores/"
         
         current_app.logger.info(f"Calling catalog service: {url}")
         
@@ -771,9 +762,8 @@ def obtener_proveedor(proveedor_id):
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
     try:
-        # Construir URL (sin /catalog ya que proveedores está en /api/v1/proveedores/ del ALB)
-        base_url = catalogo_url.replace('/catalog', '')
-        url = f"{base_url}/api/v1/proveedores/{proveedor_id}"
+        # Construir URL
+        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Getting proveedor: {url}")
         
@@ -811,9 +801,8 @@ def actualizar_proveedor(proveedor_id):
         if not data:
             return jsonify(error="Body vacío"), 400
         
-        # Construir URL (sin /catalog ya que proveedores está en /api/v1/proveedores/ del ALB)
-        base_url = catalogo_url.replace('/catalog', '')
-        url = f"{base_url}/api/v1/proveedores/{proveedor_id}"
+        # Construir URL
+        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Updating proveedor: {url}")
         
@@ -847,9 +836,8 @@ def eliminar_proveedor(proveedor_id):
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
     try:
-        # Construir URL (sin /catalog ya que proveedores está en /api/v1/proveedores/ del ALB)
-        base_url = catalogo_url.replace('/catalog', '')
-        url = f"{base_url}/api/v1/proveedores/{proveedor_id}"
+        # Construir URL
+        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Deleting proveedor: {url}")
         
@@ -889,9 +877,8 @@ def listar_productos_proveedor(proveedor_id):
         if request.args.get('size'):
             params['size'] = request.args.get('size')
         
-        # Construir URL (sin /catalog ya que proveedores está en /api/v1/proveedores/ del ALB)
-        base_url = catalogo_url.replace('/catalog', '')
-        url = f"{base_url}/api/v1/proveedores/{proveedor_id}/productos"
+        # Construir URL
+        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}/productos"
         
         current_app.logger.info(f"Getting productos for proveedor: {url}")
         
@@ -970,9 +957,8 @@ def bulk_upload_proveedores():
         # Obtener parámetros de query
         reemplazar_duplicados = request.args.get('reemplazar_duplicados', 'false').lower() == 'true'
         
-        # Construir URL con parámetros (sin /catalog ya que proveedores está en /api/v1/proveedores/ del ALB)
-        base_url = catalogo_url.replace('/catalog', '')
-        url = f"{base_url}/api/v1/proveedores/bulk-upload"
+        # Construir URL con parámetros
+        url = f"{catalogo_url}/api/v1/proveedores/bulk-upload"
         params = {
             'reemplazar_duplicados': reemplazar_duplicados
         }
