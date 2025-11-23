@@ -613,27 +613,28 @@ resource "aws_lb_target_group" "catalogo" {
 # ALB LISTENER RULE
 # ============================================================
 
-resource "aws_lb_listener_rule" "catalogo" {
-  listener_arn = var.alb_listener_arn
-  priority     = 200
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.catalogo.arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/api/v1/catalog/*", "/api/v1/inventory/*", "/api/v1/proveedores/*"]
-    }
-  }
-
-  tags = {
-    Service = "catalogo-service"
-    Project = var.project
-    Env     = var.env
-  }
-}
+# COMENTADO: Esta regla bypasseaba el BFF-Venta, ahora todo pasa por BFF primero
+# resource "aws_lb_listener_rule" "catalogo" {
+#   listener_arn = var.alb_listener_arn
+#   priority     = 200
+#
+#   action {
+#     type             = "forward"
+#     target_group_arn = aws_lb_target_group.catalogo.arn
+#   }
+#
+#   condition {
+#     path_pattern {
+#       values = ["/api/v1/catalog/*", "/api/v1/inventory/*", "/api/v1/proveedores/*"]
+#     }
+#   }
+#
+#   tags = {
+#     Service = "catalogo-service"
+#     Project = var.project
+#     Env     = var.env
+#   }
+# }
 
 # ============================================================
 # ECS SERVICE
@@ -674,8 +675,8 @@ resource "aws_ecs_service" "catalogo" {
   }
 
   depends_on = [
-    aws_lb_target_group.catalogo,
-    aws_lb_listener_rule.catalogo
+    aws_lb_target_group.catalogo
+    # aws_lb_listener_rule.catalogo  # Comentado: regla eliminada
   ]
 
   tags = {
