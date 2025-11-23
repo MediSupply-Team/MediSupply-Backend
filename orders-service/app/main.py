@@ -61,7 +61,8 @@ async def create_order(
             address_dict = body.address.model_dump() if body.address else None
             
             order = Order(
-                customer_id=body.customer_id, 
+                customer_id=body.customer_id,
+                seller_id=body.seller_id,
                 created_by_role=body.created_by_role, 
                 source=body.source,  
                 user_name=body.user_name, 
@@ -113,6 +114,7 @@ async def get_all_orders(
         OrderResponse(
             id=str(order.id),
             customer_id=order.customer_id,
+            seller_id=order.seller_id,
             items=order.items,
             status=order.status.value,
             created_by_role=order.created_by_role,
@@ -140,6 +142,7 @@ async def get_order_by_id(
         return OrderResponse(
             id=str(order.id),
             customer_id=order.customer_id,
+            seller_id=order.seller_id,
             items=order.items,
             status=order.status.value,
             created_by_role=order.created_by_role,
@@ -158,7 +161,7 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
     """
     sample_orders = [
         Order(
-            customer_id="Hospital San José",
+            seller_id="399e4160-d04a-4bff-acb4-4758711257c0",
             items=[{"sku": "ACE500", "qty": 2}, {"sku": "AMX500", "qty": 1}],
             status=OrderStatus.NEW,
             created_by_role="seller",
@@ -188,7 +191,7 @@ async def seed_initial_data(session: AsyncSession = Depends(get_session)):
             }
         ),
         Order(
-            customer_id="Farmacia Central",
+            customer_id="1b3e7dde-498d-4468-b15e-9b8ff218c480",
             items=[{"sku": "ASP100", "qty": 3}, {"sku": "ATE50", "qty": 2}],
             status=OrderStatus.NEW,
             created_by_role="seller",

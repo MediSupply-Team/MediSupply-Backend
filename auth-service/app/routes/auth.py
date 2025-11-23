@@ -145,7 +145,10 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
             "email": new_user.email,
             "name": new_user.name,
             "role": role.name,
-            "permissions": permissions
+            "permissions": permissions,
+            "cliente_id": new_user.cliente_id,
+            "venta_id": new_user.venta_id,
+            "hospital_id": new_user.hospital_id
         }
     )
 

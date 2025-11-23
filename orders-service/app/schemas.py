@@ -13,7 +13,8 @@ class Address(BaseModel):
     country: str
 
 class CreateOrderRequest(BaseModel):
-    customer_id: str
+    customer_id: Optional[str] = None
+    seller_id: Optional[str] = None
     items: List[OrderItem]
     created_by_role: str
     source: str
@@ -30,7 +31,8 @@ class CreatedOrderResponse(BaseModel):
 
 class OrderResponse(BaseModel):
     id: str
-    customer_id: str
+    customer_id: Optional[str] = None
+    seller_id: Optional[str] = None
     items: List[dict]
     status: str
     created_by_role: str

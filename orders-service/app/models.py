@@ -63,7 +63,8 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    customer_id = Column(String, nullable=False)
+    customer_id = Column(String, nullable=True)
+    seller_id = Column(String, nullable=True)
     items = Column(JSON, nullable=False)
     status = Column(orderstatus_enum, nullable=False, default=OrderStatus.NEW)
     created_by_role = Column(String, nullable=False)
