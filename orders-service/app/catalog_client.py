@@ -38,8 +38,8 @@ class CatalogClient:
                     self.catalog_database_url,
                     min_size=1,
                     max_size=5,
-                    command_timeout=5,  # Reducido de 30 a 5 segundos
-                    timeout=10  # Timeout para obtener conexión del pool
+                    command_timeout=10,  # Aumentado de 5 a 10 segundos para consultas complejas
+                    timeout=15  # Timeout para obtener conexión del pool
                 )
                 log.info("Conexión a base de datos de catálogo establecida exitosamente")
             except Exception as e:
