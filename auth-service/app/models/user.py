@@ -10,7 +10,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
-    name = Column(String(100), nullable=False)
+    name = Column(String(100), nullable=True)
     role_id = Column(Integer, ForeignKey("roles.id"))
     hospital_id = Column(String(50))
     is_active = Column(Boolean, default=True)

@@ -5,7 +5,7 @@ from typing import Optional, List
 class TokenData(BaseModel):
     user_id: int
     email: str
-    name: str
+    name: Optional[str] = None
     role: str
     hospital_id: Optional[str] = None
     permissions: List[dict] = []
@@ -27,7 +27,7 @@ class LoginResponse(BaseModel):
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    name: str
+    name: Optional[str] = None
     role_id: int
     hospital_id: Optional[str] = None
     cliente_id: Optional[str] = None
