@@ -4,6 +4,8 @@ from typing import List, Optional
 class OrderItem(BaseModel):
     sku: str
     qty: int
+    price: Optional[float] = None  # Precio se enriquece desde catálogo
+    product_name: Optional[str] = None  # Nombre se enriquece desde catálogo
 
 class Address(BaseModel):
     street: str
@@ -13,7 +15,8 @@ class Address(BaseModel):
     country: str
 
 class CreateOrderRequest(BaseModel):
-    customer_id: str
+    customer_id: Optional[str] = None
+    seller_id: Optional[str] = None
     items: List[OrderItem]
     created_by_role: str
     source: str
@@ -30,7 +33,8 @@ class CreatedOrderResponse(BaseModel):
 
 class OrderResponse(BaseModel):
     id: str
-    customer_id: str
+    customer_id: Optional[str] = None
+    seller_id: Optional[str] = None
     items: List[dict]
     status: str
     created_by_role: str

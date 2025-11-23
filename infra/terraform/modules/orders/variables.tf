@@ -29,6 +29,11 @@ variable "db_url_secret_arn" {
   type        = string
 }
 
+variable "catalog_db_url_secret_arn" {
+  description = "ARN del secreto CATALOG_DB_URL en Secrets Manager para validar productos"
+  type        = string
+}
+
 # Roles (pasalos desde tu IAM; si ya los manejas en otro lado, usa sus ARNs)
 variable "ecs_execution_role_arn" {
   description = "IAM Role ARN para ejecucion de tareas ECS (pull de ECR, logs)"

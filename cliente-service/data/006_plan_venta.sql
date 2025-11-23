@@ -105,7 +105,7 @@ COMMENT ON COLUMN plan_producto.producto_id IS 'ID del producto desde catalogo-s
 CREATE TABLE IF NOT EXISTS plan_region (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     plan_venta_id UUID NOT NULL,
-    region_id INTEGER NOT NULL,
+    region_id UUID NOT NULL,  -- Cambiado a UUID
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     
     -- Constraints
@@ -131,7 +131,7 @@ COMMENT ON TABLE plan_region IS 'Regiones principales asignadas a un plan de ven
 CREATE TABLE IF NOT EXISTS plan_zona (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     plan_venta_id UUID NOT NULL,
-    zona_id INTEGER NOT NULL,
+    zona_id UUID NOT NULL,  -- Cambiado a UUID
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     
     -- Constraints

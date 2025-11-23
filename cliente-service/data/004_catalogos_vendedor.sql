@@ -12,7 +12,7 @@
 -- Tabla: tipo_rol_vendedor
 -- Define roles jerárquicos para vendedores con sus permisos
 CREATE TABLE IF NOT EXISTS tipo_rol_vendedor (
-    id INTEGER PRIMARY KEY,
+    id UUID PRIMARY KEY,
     codigo VARCHAR(64) UNIQUE NOT NULL,
     nombre VARCHAR(255) NOT NULL,
     descripcion TEXT,
@@ -40,7 +40,7 @@ COMMENT ON COLUMN tipo_rol_vendedor.permisos IS 'Permisos del rol en formato JSO
 -- Tabla: territorio
 -- Define territorios geográficos asignables a vendedores
 CREATE TABLE IF NOT EXISTS territorio (
-    id INTEGER PRIMARY KEY,
+    id UUID PRIMARY KEY,
     codigo VARCHAR(64) UNIQUE NOT NULL,
     nombre VARCHAR(255) NOT NULL,
     pais CHAR(2) NOT NULL,
@@ -67,7 +67,7 @@ COMMENT ON COLUMN territorio.pais IS 'Código ISO 3166-1 alpha-2 del país';
 -- Tabla: tipo_plan
 -- Define tipos de plan de venta con comisiones base
 CREATE TABLE IF NOT EXISTS tipo_plan (
-    id INTEGER PRIMARY KEY,
+    id UUID PRIMARY KEY,
     codigo VARCHAR(64) UNIQUE NOT NULL,
     nombre VARCHAR(255) NOT NULL,
     descripcion TEXT,
@@ -92,7 +92,7 @@ COMMENT ON COLUMN tipo_plan.comision_base_defecto IS 'Comisión base por defecto
 -- Tabla: region
 -- Define regiones principales para planes de venta
 CREATE TABLE IF NOT EXISTS region (
-    id INTEGER PRIMARY KEY,
+    id UUID PRIMARY KEY,
     codigo VARCHAR(64) UNIQUE NOT NULL,
     nombre VARCHAR(255) NOT NULL,
     pais CHAR(2) NOT NULL,
@@ -119,7 +119,7 @@ COMMENT ON COLUMN region.pais IS 'Código ISO 3166-1 alpha-2 del país';
 -- Tabla: zona
 -- Define zonas especiales por tipo de mercado
 CREATE TABLE IF NOT EXISTS zona (
-    id INTEGER PRIMARY KEY,
+    id UUID PRIMARY KEY,
     codigo VARCHAR(64) UNIQUE NOT NULL,
     nombre VARCHAR(255) NOT NULL,
     tipo VARCHAR(64) NOT NULL,
