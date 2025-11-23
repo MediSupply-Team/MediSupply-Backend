@@ -29,7 +29,7 @@ populate_cliente_service() {
     
     # Obtener credenciales de la base de datos
     echo -e "${YELLOW}📥 Obteniendo credenciales de base de datos...${NC}"
-    SECRET_ARN="${PROJECT}-${ENV}-cliente-service-db-credentials"
+    SECRET_ARN="${PROJECT}-${ENV}-cliente-service-db-credentials-cuentasergio"
     
     DB_CREDS=$(aws secretsmanager get-secret-value \
         --secret-id "$SECRET_ARN" \
@@ -118,20 +118,21 @@ populate_catalogo_service() {
     echo -e "${BLUE}  2. CATALOGO-SERVICE${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
     
-    # Obtener credenciales de la base de datos
-    echo -e "${YELLOW}📥 Obteniendo credenciales de base de datos...${NC}"
-    SECRET_ARN="${PROJECT}-${ENV}-catalogo-db-credentials-v2"
+    # Obtener credenciales de la base de datos (usa la DB compartida de orders)
+    echo -e "${YELLOW}📥 Obteniendo credenciales de base de datos (orders DB)...${NC}"
+    SECRET_ARN="medisupply/dev/orders/DB_URL"
     
-    DB_CREDS=$(aws secretsmanager get-secret-value \
+    DB_URL=$(aws secretsmanager get-secret-value \
         --secret-id "$SECRET_ARN" \
         --region "$REGION" \
         --query SecretString --output text)
     
-    DB_URL=$(echo "$DB_CREDS" | jq -r '.database_url')
-    DB_HOST=$(echo "$DB_CREDS" | jq -r '.endpoint' | cut -d':' -f1)
-    DB_USER=$(echo "$DB_CREDS" | jq -r '.username')
-    DB_PASS=$(echo "$DB_CREDS" | jq -r '.password')
-    DB_NAME=$(echo "$DB_CREDS" | jq -r '.dbname')
+    # Parsear DATABASE_URL format: postgresql://user:pass@host:port/dbname
+    DB_USER=$(echo "$DB_URL" | sed -n 's|postgresql://\([^:]*\):.*|\1|p')
+    DB_PASS=$(echo "$DB_URL" | sed -n 's|postgresql://[^:]*:\([^@]*\)@.*|\1|p')
+    DB_HOST=$(echo "$DB_URL" | sed -n 's|postgresql://[^@]*@\([^:]*\):.*|\1|p')
+    DB_PORT=$(echo "$DB_URL" | sed -n 's|postgresql://[^@]*@[^:]*:\([^/]*\)/.*|\1|p')
+    DB_NAME=$(echo "$DB_URL" | sed -n 's|postgresql://[^@]*@[^/]*/\([^?]*\).*|\1|p')
     
     echo -e "${GREEN}✅ Credenciales obtenidas${NC}"
     echo "   Host: $DB_HOST"

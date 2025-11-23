@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Bodegas"])
 
 
+@router.post("/", response_model=BodegaResponse, status_code=status.HTTP_201_CREATED)
 @router.post("", response_model=BodegaResponse, status_code=status.HTTP_201_CREATED)
 async def crear_bodega(
     bodega: BodegaCreate,
@@ -120,6 +121,7 @@ async def crear_bodega(
         )
 
 
+@router.get("/", response_model=BodegaListResponse)
 @router.get("", response_model=BodegaListResponse)
 async def listar_bodegas(
     pais: Optional[str] = Query(None, description="Filtrar por país (código ISO 2 letras)"),
