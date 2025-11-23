@@ -137,18 +137,22 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
     - Facilita el primer movimiento de INGRESO
     - Si no se especifica, el inventario se crea en el primer INGRESO
     """
-    logger.info(f"📝 Creando producto: {product.id}")
+    # Generar UUID automáticamente si no se proporciona
+    import uuid
+    product_id = product.id if product.id else str(uuid.uuid4())
+    
+    logger.info(f"📝 Creando producto: {product_id}")
     
     try:
         # Verificar si el producto ya existe
         existing = (await session.execute(
-            select(Producto).where(Producto.id == product.id)
+            select(Producto).where(Producto.id == product_id)
         )).scalar_one_or_none()
         
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Producto con id {product.id} ya existe"
+                detail=f"Producto con id {product_id} ya existe"
             )
         
         # Validar proveedorId si se proporciona
@@ -169,7 +173,7 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
         
         # Crear nuevo producto con campos de inventario
         new_product = Producto(
-            id=product.id,
+            id=product_id,
             nombre=product.nombre,
             codigo=product.codigo,
             categoria_id=product.categoria,
@@ -191,14 +195,14 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error creando producto {product.id}: {str(e)}")
+        logger.error(f"❌ Error creando producto {product_id}: {str(e)}")
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
                 "error": "PRODUCT_CREATION_FAILED",
                 "message": f"Error al crear producto: {str(e)}",
-                "product_id": product.id
+                "product_id": product_id
             }
         )
     
@@ -219,7 +223,7 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
             
             # Crear registro de inventario con cantidad = 0
             inventario_inicial = Inventario(
-                producto_id=product.id,
+                producto_id=product_id,
                 pais=bodega.pais,
                 bodega_id=bodega.bodega_id,
                 lote=lote,
@@ -237,7 +241,7 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
     await session.commit()
     await session.refresh(new_product)
     
-    log_msg = f"✅ Producto creado: {product.id}"
+    log_msg = f"✅ Producto creado: {product_id}"
     if bodegas_creadas:
         log_msg += f" con inventario inicial en: {', '.join(bodegas_creadas)}"
     logger.info(log_msg)

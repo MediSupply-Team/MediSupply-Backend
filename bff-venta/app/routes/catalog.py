@@ -666,7 +666,7 @@ def get_bulk_upload_status(task_id: str):
 # ENDPOINTS DE PROVEEDORES (CRUD)
 # ============================================================================
 
-@bp.route('/api/v1/catalog/proveedores', methods=['GET'])
+@bp.route('/api/v1/proveedores', methods=['GET'])
 def listar_proveedores():
     """
     Lista todos los proveedores
@@ -686,8 +686,9 @@ def listar_proveedores():
         if request.args.get('activo'):
             params['activo'] = request.args.get('activo')
         
-        # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/"
+        # Construir URL (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/"
         
         current_app.logger.info(f"Calling catalog service: {url}")
         
@@ -710,7 +711,7 @@ def listar_proveedores():
         return jsonify(error="Error al conectar con servicio de catálogo"), 503
 
 
-@bp.route('/api/v1/catalog/proveedores', methods=['POST'])
+@bp.route('/api/v1/proveedores', methods=['POST'])
 def crear_proveedor():
     """
     Crea un nuevo proveedor
@@ -751,7 +752,7 @@ def crear_proveedor():
         return jsonify(error="Error al conectar con servicio de catálogo"), 503
 
 
-@bp.route('/api/v1/catalog/proveedores/<string:proveedor_id>', methods=['GET'])
+@bp.route('/api/v1/proveedores/<string:proveedor_id>', methods=['GET'])
 def obtener_proveedor(proveedor_id):
     """
     Obtiene un proveedor por ID
@@ -762,8 +763,9 @@ def obtener_proveedor(proveedor_id):
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
     try:
-        # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
+        # Construir URL (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Getting proveedor: {url}")
         
@@ -785,7 +787,7 @@ def obtener_proveedor(proveedor_id):
         return jsonify(error="Error al conectar con servicio de catálogo"), 503
 
 
-@bp.route('/api/v1/catalog/proveedores/<string:proveedor_id>', methods=['PUT'])
+@bp.route('/api/v1/proveedores/<string:proveedor_id>', methods=['PUT'])
 def actualizar_proveedor(proveedor_id):
     """
     Actualiza un proveedor existente
@@ -801,8 +803,9 @@ def actualizar_proveedor(proveedor_id):
         if not data:
             return jsonify(error="Body vacío"), 400
         
-        # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
+        # Construir URL (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Updating proveedor: {url}")
         
@@ -825,7 +828,7 @@ def actualizar_proveedor(proveedor_id):
         return jsonify(error="Error al conectar con servicio de catálogo"), 503
 
 
-@bp.route('/api/v1/catalog/proveedores/<string:proveedor_id>', methods=['DELETE'])
+@bp.route('/api/v1/proveedores/<string:proveedor_id>', methods=['DELETE'])
 def eliminar_proveedor(proveedor_id):
     """
     Elimina (soft delete) un proveedor
@@ -836,8 +839,9 @@ def eliminar_proveedor(proveedor_id):
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
     try:
-        # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
+        # Construir URL (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Deleting proveedor: {url}")
         
@@ -859,7 +863,7 @@ def eliminar_proveedor(proveedor_id):
         return jsonify(error="Error al conectar con servicio de catálogo"), 503
 
 
-@bp.route('/api/v1/catalog/proveedores/<string:proveedor_id>/productos', methods=['GET'])
+@bp.route('/api/v1/proveedores/<string:proveedor_id>/productos', methods=['GET'])
 def listar_productos_proveedor(proveedor_id):
     """
     Lista los productos de un proveedor
@@ -877,8 +881,9 @@ def listar_productos_proveedor(proveedor_id):
         if request.args.get('size'):
             params['size'] = request.args.get('size')
         
-        # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}/productos"
+        # Construir URL (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/{proveedor_id}/productos"
         
         current_app.logger.info(f"Getting productos for proveedor: {url}")
         
@@ -905,7 +910,7 @@ def listar_productos_proveedor(proveedor_id):
 # ENDPOINTS DE CARGA MASIVA DE PROVEEDORES
 # ============================================================================
 
-@bp.route('/api/v1/catalog/proveedores/bulk-upload', methods=['POST'])
+@bp.route('/api/v1/proveedores/bulk-upload', methods=['POST'])
 def bulk_upload_proveedores():
     """
     Carga masiva de proveedores desde Excel o CSV
@@ -957,8 +962,9 @@ def bulk_upload_proveedores():
         # Obtener parámetros de query
         reemplazar_duplicados = request.args.get('reemplazar_duplicados', 'false').lower() == 'true'
         
-        # Construir URL con parámetros
-        url = f"{catalogo_url}/api/v1/proveedores/bulk-upload"
+        # Construir URL con parámetros (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/bulk-upload"
         params = {
             'reemplazar_duplicados': reemplazar_duplicados
         }

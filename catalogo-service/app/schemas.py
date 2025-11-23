@@ -55,7 +55,7 @@ class BodegaInicial(BaseModel):
 
 
 class ProductCreate(BaseModel):
-    id: str
+    id: Optional[str] = Field(None, description="ID del producto (UUID). Si no se proporciona, se genera automáticamente")
     nombre: str
     codigo: str
     categoria: str
