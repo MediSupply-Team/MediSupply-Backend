@@ -10,6 +10,7 @@ from flasgger import Swagger
 from .routes.catalog import bp as catalog_bp
 from .routes.inventory import bp as inventory_bp
 from .routes.route_optimizer import bp as route_optimizer_bp
+from .routes.bodega import bp as bodega_bp
 
 def create_app():
     load_dotenv()
@@ -49,6 +50,7 @@ def create_app():
     app.register_blueprint(catalog_bp)
     app.register_blueprint(inventory_bp)
     app.register_blueprint(route_optimizer_bp)
+    app.register_blueprint(bodega_bp)
 
     # Inicializar servicio SQS
     app.extensions["sqs"] = SQSService(
