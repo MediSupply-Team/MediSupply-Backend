@@ -176,9 +176,9 @@ INSERT INTO plan_venta (
 
 -- Productos para Carlos Mendoza (UUIDs reales del catálogo)
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-('plan0001-0001-0001-0001-000000000001', '11111111-1111-1111-1111-000000000001', 200, 1500.00),  -- Amoxicilina
-('plan0001-0001-0001-0001-000000000001', '22222222-2222-2222-2222-000000000007', 150, 1800.00),  -- Acetaminofén
-('plan0001-0001-0001-0001-000000000001', '11111111-1111-1111-1111-000000000002', 100, 2200.00)   -- Ibuprofeno
+('plan0001-0001-0001-0001-000000000001', '11111111-1111-1111-1111-000000000001', 200, 1250.00),  -- Amoxicilina 500mg
+('plan0001-0001-0001-0001-000000000001', '22222222-2222-2222-2222-000000000007', 150, 180.00),   -- Acetaminofén 500mg
+('plan0001-0001-0001-0001-000000000001', '22222222-2222-2222-2222-000000000006', 100, 320.00)    -- Ibuprofeno 400mg
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para Carlos Mendoza
@@ -211,9 +211,9 @@ INSERT INTO plan_venta (
 
 -- Productos para María López
 INSERT INTO plan_producto (plan_venta_id, producto_id, meta_cantidad, precio_unitario) VALUES
-('plan0002-0002-0002-0002-000000000002', '11111111-1111-1111-1111-000000000003', 120, 3500.00),  -- Omeprazol
-('plan0002-0002-0002-0002-000000000002', '11111111-1111-1111-1111-000000000004', 80, 800.00),   -- Loratadina
-('plan0002-0002-0002-0002-000000000002', '22222222-2222-2222-2222-000000000007', 100, 1800.00)   -- Acetaminofén
+('plan0002-0002-0002-0002-000000000002', '55555555-5555-5555-5555-000000000021', 120, 520.00),   -- Omeprazol 20mg
+('plan0002-0002-0002-0002-000000000002', '44444444-4444-4444-4444-000000000017', 80, 180.00),    -- Loratadina 10mg
+('plan0002-0002-0002-0002-000000000002', '22222222-2222-2222-2222-000000000007', 100, 180.00)    -- Acetaminofén 500mg
 ON CONFLICT (plan_venta_id, producto_id) DO NOTHING;
 
 -- Regiones y Zonas para María López

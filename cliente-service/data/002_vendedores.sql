@@ -97,7 +97,7 @@ COMMENT ON COLUMN vendedor.created_by_user_id IS 'ID del usuario que creó el re
 -- ============================================================================
 
 INSERT INTO vendedor (
-    id, identificacion, nombre_completo, email, telefono, pais, rol, activo, username,
+    id, identificacion, nombre_completo, email, telefono, pais, plan_de_ventas, rol, activo, username,
     rol_vendedor_id, territorio_id, supervisor_id, fecha_ingreso, observaciones,
     password_hash, created_by_user_id, created_at, updated_at
 ) VALUES
