@@ -64,15 +64,14 @@ def generar_visitas_desde_cliente_service():
         
         # Obtener clientes asociados al vendedor desde cliente-service
         with Session(cliente_engine) as cliente_session:
-            # Query para obtener clientes del vendedor específico usando la tabla de asociación
+            # Query para obtener clientes del vendedor específico (relación directa en tabla cliente)
             from sqlalchemy import text
             result = cliente_session.execute(text("""
-                SELECT c.id::text, c.nombre, c.direccion, c.ciudad
-                FROM cliente c
-                INNER JOIN vendedor_cliente vc ON c.id = vc.cliente_id
-                WHERE vc.vendedor_id = :vendedor_id
-                  AND c.activo = true 
-                ORDER BY c.nombre
+                SELECT id::text, nombre, direccion, ciudad
+                FROM cliente
+                WHERE vendedor_id = :vendedor_id
+                  AND activo = true 
+                ORDER BY nombre
             """), {"vendedor_id": vendedor_id})
             clientes = result.fetchall()
             
