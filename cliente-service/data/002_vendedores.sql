@@ -98,8 +98,8 @@ COMMENT ON COLUMN vendedor.created_by_user_id IS 'ID del usuario que creó el re
 
 INSERT INTO vendedor (
     id, identificacion, nombre_completo, email, telefono, pais, rol, activo, username,
-    rol_vendedor_id, territorio_id, fecha_ingreso, observaciones,
-    created_at, updated_at
+    rol_vendedor_id, territorio_id, supervisor_id, fecha_ingreso, observaciones,
+    password_hash, created_by_user_id, created_at, updated_at
 ) VALUES
 
 -- ========== COLOMBIA (2 vendedores) ==========
@@ -115,8 +115,11 @@ INSERT INTO vendedor (
  'cmendoza',
  3,  -- VENDEDOR_SR
  1,  -- BOG-NORTE
+ NULL,  -- Sin supervisor (es senior)
  '2023-01-15',
  'Vendedor senior con 5 años de experiencia en sector hospitalario',
+ '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5jtI3z.6FvHKi',  -- Password: MediSupply2024!
+ 'SYSTEM_INIT',
  CURRENT_TIMESTAMP,
  CURRENT_TIMESTAMP),
 
@@ -132,8 +135,11 @@ INSERT INTO vendedor (
  'mlopez',
  4,  -- VENDEDOR_JR
  3,  -- MED-CENTRO
+ '11111111-1111-1111-1111-111111111111',  -- Supervisor: Carlos Mendoza
  '2024-03-20',
  'Vendedora junior enfocada en farmacias independientes',
+ '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5jtI3z.6FvHKi',  -- Password: MediSupply2024!
+ 'SYSTEM_INIT',
  CURRENT_TIMESTAMP,
  CURRENT_TIMESTAMP),
 
@@ -150,8 +156,11 @@ INSERT INTO vendedor (
  'jhernandez',
  3,  -- VENDEDOR_SR
  6,  -- CDMX-NORTE
+ NULL,  -- Sin supervisor (es senior)
  '2022-06-10',
  'Vendedor senior especializado en cadenas de farmacias',
+ '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5jtI3z.6FvHKi',  -- Password: MediSupply2024!
+ 'SYSTEM_INIT',
  CURRENT_TIMESTAMP,
  CURRENT_TIMESTAMP),
 
@@ -167,8 +176,11 @@ INSERT INTO vendedor (
  'agonzalez',
  4,  -- VENDEDOR_JR
  7,  -- GDL-CENTRO
+ '33333333-3333-3333-3333-333333333333',  -- Supervisor: José Luis Hernández
  '2024-02-01',
  'Vendedora junior con experiencia en distribución regional',
+ '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5jtI3z.6FvHKi',  -- Password: MediSupply2024!
+ 'SYSTEM_INIT',
  CURRENT_TIMESTAMP,
  CURRENT_TIMESTAMP),
 
@@ -185,8 +197,11 @@ INSERT INTO vendedor (
  'mtorres',
  2,  -- GERENTE_ZONA
  8,  -- LIMA-CENTRO
+ NULL,  -- Sin supervisor (es gerente)
  '2021-09-01',
  'Gerente de zona con supervisión de 8 vendedores',
+ '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5jtI3z.6FvHKi',  -- Password: MediSupply2024!
+ 'SYSTEM_INIT',
  CURRENT_TIMESTAMP,
  CURRENT_TIMESTAMP),
 
@@ -203,8 +218,11 @@ INSERT INTO vendedor (
  'csilva',
  3,  -- VENDEDOR_SR
  9,  -- SCL-CENTRO
+ NULL,  -- Sin supervisor (es senior)
  '2023-04-15',
  'Vendedora senior con expertise en clínicas privadas',
+ '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5jtI3z.6FvHKi',  -- Password: MediSupply2024!
+ 'SYSTEM_INIT',
  CURRENT_TIMESTAMP,
  CURRENT_TIMESTAMP)
 
