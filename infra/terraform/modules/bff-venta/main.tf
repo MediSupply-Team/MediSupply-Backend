@@ -15,7 +15,7 @@ locals {
   # Catálogo: /api/v1/catalog/*, /api/v1/inventory/*, /api/v1/proveedores/*
   computed_catalogo_url = (
     var.catalogo_service_url == "" || var.catalogo_service_url == "placeholder-will-be-updated-after-deploy"
-    ? "http://${aws_lb.alb.dns_name}"
+    ? "http://${aws_lb.alb.dns_name}/catalog"
     : var.catalogo_service_url
   )
   

@@ -613,6 +613,8 @@ resource "aws_lb_target_group" "catalogo" {
 # ALB LISTENER RULE
 # ============================================================
 
+# Regla del ALB para acceso directo al catalogo-service
+# Esta regla es necesaria para comunicación interna desde BFF-Venta
 resource "aws_lb_listener_rule" "catalogo" {
   listener_arn = var.alb_listener_arn
   priority     = 200

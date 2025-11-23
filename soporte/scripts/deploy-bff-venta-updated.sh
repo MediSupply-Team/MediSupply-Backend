@@ -9,7 +9,7 @@ echo "=================================================="
 # Variables de configuración
 AWS_REGION="us-east-1"
 ECR_REPO_NAME="medisupply-dev-bff-venta"
-ECS_CLUSTER="medisupply-dev-cluster"
+ECS_CLUSTER="orders-cluster"
 ECS_SERVICE="medisupply-dev-bff-venta-svc"
 IMAGE_TAG="latest"
 

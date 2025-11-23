@@ -11,11 +11,14 @@ bp = Blueprint('catalog', __name__)
 
 
 def get_catalogo_service_url():
-    """Obtener la URL del servicio de catálogo desde variables de entorno"""
+    """
+    Obtener la URL del servicio de catálogo desde variables de entorno.
+    """
     url = os.getenv("CATALOGO_SERVICE_URL")
     if not url:
         current_app.logger.error("CATALOGO_SERVICE_URL no está configurada")
         return None
+    
     return url.rstrip('/')  # Remover trailing slash si existe
 
 
@@ -723,8 +726,9 @@ def crear_proveedor():
         if not data:
             return jsonify(error="Body vacío"), 400
         
-        # Construir URL 
-        url = f"{catalogo_url}/api/v1/proveedores/"
+        # Construir URL (sin /catalog ya que proveedores está en /api/v1/proveedores/ del ALB)
+        base_url = catalogo_url.replace('/catalog', '')
+        url = f"{base_url}/api/v1/proveedores/"
         
         current_app.logger.info(f"Creating proveedor at: {url}")
         
