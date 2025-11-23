@@ -686,8 +686,9 @@ def listar_proveedores():
         if request.args.get('activo'):
             params['activo'] = request.args.get('activo')
         
-        # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/"
+        # Construir URL (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/"
         
         current_app.logger.info(f"Calling catalog service: {url}")
         
@@ -762,8 +763,9 @@ def obtener_proveedor(proveedor_id):
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
     try:
-        # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
+        # Construir URL (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Getting proveedor: {url}")
         
@@ -801,8 +803,9 @@ def actualizar_proveedor(proveedor_id):
         if not data:
             return jsonify(error="Body vacío"), 400
         
-        # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
+        # Construir URL (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Updating proveedor: {url}")
         
@@ -836,8 +839,9 @@ def eliminar_proveedor(proveedor_id):
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
     try:
-        # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}"
+        # Construir URL (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/{proveedor_id}"
         
         current_app.logger.info(f"Deleting proveedor: {url}")
         
@@ -877,8 +881,9 @@ def listar_productos_proveedor(proveedor_id):
         if request.args.get('size'):
             params['size'] = request.args.get('size')
         
-        # Construir URL
-        url = f"{catalogo_url}/api/v1/proveedores/{proveedor_id}/productos"
+        # Construir URL (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/{proveedor_id}/productos"
         
         current_app.logger.info(f"Getting productos for proveedor: {url}")
         
@@ -957,8 +962,9 @@ def bulk_upload_proveedores():
         # Obtener parámetros de query
         reemplazar_duplicados = request.args.get('reemplazar_duplicados', 'false').lower() == 'true'
         
-        # Construir URL con parámetros
-        url = f"{catalogo_url}/api/v1/proveedores/bulk-upload"
+        # Construir URL con parámetros (remover /catalog del final porque proveedores no usa ese prefijo)
+        base_url = catalogo_url.replace('/catalog', '') if catalogo_url.endswith('/catalog') else catalogo_url
+        url = f"{base_url}/api/v1/proveedores/bulk-upload"
         params = {
             'reemplazar_duplicados': reemplazar_duplicados
         }
