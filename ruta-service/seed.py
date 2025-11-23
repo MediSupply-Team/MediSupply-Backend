@@ -8,10 +8,11 @@ from sqlmodel import Session, delete, create_engine, select
 from sqlalchemy import text
 from database import engine, init_db
 from models import Visita
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import os
 import random
 from geocoder_service import geocoder_service
+from zoneinfo import ZoneInfo
 
 # Coordenadas de Bogotá para clientes sin geolocalización
 BOGOTA_COORDS = [
@@ -88,7 +89,9 @@ def generar_visitas_desde_cliente_service():
         return
     
     # Generar visitas distribuyendo clientes desde hoy en adelante (máximo 2 por día)
-    hoy = date.today()
+    # Usar zona horaria de Colombia (UTC-5) para calcular "hoy"
+    colombia_tz = ZoneInfo("America/Bogota")
+    hoy = datetime.now(colombia_tz).date()
     visitas = []
     clientes_por_dia = 2  # Máximo 2 clientes por día
     
