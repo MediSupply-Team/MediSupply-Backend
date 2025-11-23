@@ -38,7 +38,7 @@ def health():
 @app.get("/api/ruta")
 def obtener_ruta(
     fecha: date = Query(...),
-    vendedor_id: int = Query(...),
+    vendedor_id: str = Query(...),
     session: Session = Depends(get_session)
 ):
     """
