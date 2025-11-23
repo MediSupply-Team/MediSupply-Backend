@@ -38,8 +38,11 @@ def listar_bodegas():
     if not catalogo_url:
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
-    # Construir URL - igual que otros endpoints que funcionan
-    url = f"{catalogo_url}/api/v1/bodegas"
+    # Remover /catalog del final si existe (para que coincida con regla ALB)
+    base_url = catalogo_url
+    if base_url.endswith('/catalog'):
+        base_url = base_url[:-8]
+    url = f"{base_url}/api/v1/bodegas"
     
     # Extraer todos los query parameters
     params = {key: value for key, value in request.args.items()}
@@ -123,8 +126,11 @@ def crear_bodega():
     if not catalogo_url:
         return jsonify(error="Servicio de catálogo no disponible"), 503
     
-    # Construir URL - igual que otros endpoints que funcionan
-    url = f"{catalogo_url}/api/v1/bodegas"
+    # Remover /catalog del final si existe (para que coincida con regla ALB)
+    base_url = catalogo_url
+    if base_url.endswith('/catalog'):
+        base_url = base_url[:-8]
+    url = f"{base_url}/api/v1/bodegas"
     
     # Obtener datos del body
     try:
