@@ -5,6 +5,7 @@ Conecta con la BD de cliente-service para obtener clientes reales
 Usa Mapbox para geocodificar direcciones reales
 """
 from sqlmodel import Session, delete, create_engine, select
+from sqlalchemy import text
 from database import engine, init_db
 from models import Visita
 from datetime import date, timedelta
@@ -138,6 +139,30 @@ def generar_visitas_desde_cliente_service():
     
     # Guardar en la base de datos de rutas
     with Session(engine) as session:
+        # Migración: Alterar tipo de columna vendedor_id si es necesario
+        try:
+            print("🔄 Verificando tipo de columna vendedor_id...")
+            session.exec(text("""
+                DO $$ 
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'visita' 
+                        AND column_name = 'vendedor_id' 
+                        AND data_type = 'integer'
+                    ) THEN
+                        ALTER TABLE visita ALTER COLUMN vendedor_id TYPE VARCHAR USING vendedor_id::text;
+                        RAISE NOTICE 'Columna vendedor_id migrada a VARCHAR';
+                    END IF;
+                END $$;
+            """))
+            session.commit()
+            print("✅ Tipo de columna verificado/actualizado")
+        except Exception as e:
+            print(f"⚠️  Error en migración de columna: {e}")
+            session.rollback()
+        
         # Limpiar visitas anteriores
         session.exec(delete(Visita))
         session.commit()
