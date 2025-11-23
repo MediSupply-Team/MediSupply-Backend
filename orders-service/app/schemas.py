@@ -4,6 +4,8 @@ from typing import List, Optional
 class OrderItem(BaseModel):
     sku: str
     qty: int
+    price: Optional[float] = None  # Precio se enriquece desde catálogo
+    product_name: Optional[str] = None  # Nombre se enriquece desde catálogo
 
 class Address(BaseModel):
     street: str
