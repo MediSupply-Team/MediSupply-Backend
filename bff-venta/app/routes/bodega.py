@@ -42,7 +42,7 @@ def listar_bodegas():
     base_url = catalogo_url
     if base_url.endswith('/catalog'):
         base_url = base_url[:-8]
-    url = f"{base_url}/api/v1/bodegas"
+    url = f"{base_url}/api/v1/bodegas/"
     
     # Extraer todos los query parameters
     params = {key: value for key, value in request.args.items()}
@@ -130,7 +130,7 @@ def crear_bodega():
     base_url = catalogo_url
     if base_url.endswith('/catalog'):
         base_url = base_url[:-8]
-    url = f"{base_url}/api/v1/bodegas"
+    url = f"{base_url}/api/v1/bodegas/"
     
     # Obtener datos del body
     try:
