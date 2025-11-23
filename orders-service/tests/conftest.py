@@ -1,4 +1,62 @@
 # tests/conftest.py
+import sys
+from unittest.mock import MagicMock
+
+# ========================================
+# CRITICAL: Este mock DEBE estar ANTES de cualquier import de app.main
+# ========================================
+
+class MockCatalogClient:
+    """Mock del CatalogClient que siempre retorna SKUs válidos"""
+    
+    def __init__(self):
+        self.pool = None
+        self.connected = False
+    
+    async def connect(self):
+        """Simula conexión exitosa"""
+        self.connected = True
+        print("🟢 MockCatalogClient.connect() llamado")
+    
+    async def disconnect(self):
+        """Simula desconexión sin errores"""
+        self.connected = False
+        print("🔴 MockCatalogClient.disconnect() llamado")
+    
+    async def validate_skus(self, skus: list) -> dict:
+        """
+        Mock que retorna TODOS los SKUs como válidos.
+        Retorna formato: {sku: {"precio_unitario": float, "nombre": str}}
+        """
+        print(f"🔍 MockCatalogClient.validate_skus llamado con: {skus}")
+        result = {
+            sku: {
+                "precio_unitario": 100.0,
+                "nombre": f"Producto {sku}",
+                "activo": True
+            }
+            for sku in skus
+        }
+        print(f"✅ MockCatalogClient.validate_skus retornando: {list(result.keys())}")
+        return result
+
+# Crear instancia del mock
+mock_catalog_client_instance = MockCatalogClient()
+
+# Crear módulo mock ANTES de que se importe app.catalog_client
+mock_catalog_module = MagicMock()
+mock_catalog_module.catalog_client = mock_catalog_client_instance
+mock_catalog_module.CatalogClient = MockCatalogClient
+
+# Insertar en sys.modules ANTES de cualquier import
+sys.modules['app.catalog_client'] = mock_catalog_module
+
+print("✅ Mock de catalog_client inyectado en sys.modules")
+
+# ========================================
+# AHORA SÍ podemos importar el resto
+# ========================================
+
 import importlib
 import pytest
 from fastapi.testclient import TestClient
@@ -15,18 +73,22 @@ from app.models import Base
 def client(test_engine, monkeypatch):
     """
     TestClient con lifespan + engine parcheado a SQLite en memoria.
-    Evita conexiones a Postgres durante el on_startup.
     """
     import app.main as main_mod
     import app.db as db_mod
 
-    # Parchar ambos módulos a usar el engine de pruebas
+    # Parchar engine
     monkeypatch.setattr(main_mod, "engine", test_engine, raising=True)
     monkeypatch.setattr(db_mod, "engine", test_engine, raising=True)
+    
+    # Verificar que catalog_client es el mock
+    print(f"🔍 catalog_client en main.py es: {type(main_mod.catalog_client)}")
+    assert isinstance(main_mod.catalog_client, MockCatalogClient), \
+        f"catalog_client NO es el mock! Es: {type(main_mod.catalog_client)}"
 
-    # Lifespan activo para que cuenten líneas de startup/shutdown en cobertura
     with TestClient(fastapi_app) as c:
         yield c
+
 # -----------------------------
 # Engine SQLite en memoria
 # -----------------------------
@@ -53,9 +115,7 @@ async def test_session(test_engine):
             await s.rollback()
 
 # -----------------------------
-# OVERRIDE por REQUEST (clave)
-#   - Crea una AsyncSession NUEVA por request del cliente
-#   - No reutiliza test_session
+# OVERRIDE por REQUEST
 # -----------------------------
 @pytest.fixture(autouse=True)
 def override_db(test_engine, monkeypatch):
@@ -65,10 +125,7 @@ def override_db(test_engine, monkeypatch):
         async with Session() as s:
             yield s
 
-    # FastAPI Depends(...)
     fastapi_app.dependency_overrides[get_session] = _override
-
-    # Si algún módulo importa app.db.get_session directamente, lo forzamos también
     dbmod = importlib.import_module("app.db")
     monkeypatch.setattr(dbmod, "get_session", _override)
 
@@ -86,7 +143,7 @@ def fake_redis(monkeypatch):
     return r
 
 # -----------------------------
-# Celery dummy (evita kombu/redis reales)
+# Celery dummy
 # -----------------------------
 @pytest.fixture(autouse=True)
 def _replace_celery_object(monkeypatch):

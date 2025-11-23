@@ -42,7 +42,7 @@ def test_get_all_orders_after_seed():
     # Verificar estructura de respuesta
     for order in data:
         assert "id" in order
-        assert "customer_id" in order
+        assert "customer_id" in order or "seller_id" in order  # ✅ Al menos uno debe existir
         assert "items" in order
         assert "status" in order
         assert "created_by_role" in order
@@ -97,7 +97,8 @@ def test_get_order_by_id_success():
     assert r.status_code == 200
     data = r.json()
     assert data["id"] == order_id
-    assert "customer_id" in data
+    # ✅ Verificar que al menos uno de los campos existe
+    assert data.get("customer_id") is not None or data.get("seller_id") is not None
     assert "items" in data
     assert "address" in data
 
@@ -141,11 +142,22 @@ def test_seed_data_creates_orders():
     orders = r_list.json()
     assert len(orders) == 3
     
-    # Verificar datos específicos
-    customer_ids = {order["customer_id"] for order in orders}
-    assert "Hospital San José" in customer_ids
+    # ✅ Verificar que hay 1 orden con seller_id y 2 con customer_id
+    orders_with_seller = [o for o in orders if o.get("seller_id")]
+    orders_with_customer = [o for o in orders if o.get("customer_id")]
+    
+    assert len(orders_with_seller) >= 1, "Debe haber al menos 1 orden con seller_id"
+    assert len(orders_with_customer) >= 2, "Debe haber al menos 2 órdenes con customer_id"
+    
+    # ✅ Verificar customer_ids específicos de las órdenes que tienen customer_id
+    customer_ids = [o["customer_id"] for o in orders_with_customer if o.get("customer_id")]
     assert "Clínica del Norte" in customer_ids
-    assert "Farmacia Central" in customer_ids
+    # La tercera orden tiene un UUID como customer_id
+    assert any("1b3e7dde" in str(cid) for cid in customer_ids if cid)
+    
+    # ✅ Verificar que la orden con seller_id tiene el UUID correcto
+    seller_ids = [o["seller_id"] for o in orders_with_seller if o.get("seller_id")]
+    assert any("399e4160" in str(sid) for sid in seller_ids if sid)
     
     # Verificar direcciones de Bogotá
     for order in orders:
@@ -238,8 +250,9 @@ def test_full_workflow_with_new_endpoints():
     assert r_get.status_code == 200
     assert r_get.json()["id"] == order_id
     
-    # 6. Crear una nueva orden
+    # 6. Crear una nueva orden con seller_id
     new_order_body = {
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",
         "customer_id": "Hospital Universitario",
         "items": [{"sku": "MED-001", "qty": 10}],
         "created_by_role": "seller",
@@ -279,6 +292,7 @@ def test_orders_list_ordered_by_created_at_desc():
     # Crear una orden adicional después
     new_order = {
         "customer_id": "Nueva Clínica",
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",
         "items": [{"sku": "NEW-001", "qty": 1}],
         "created_by_role": "seller",
         "source": "bff-cliente",
@@ -307,3 +321,112 @@ def test_orders_list_ordered_by_created_at_desc():
     # Verificar que las fechas están en orden descendente
     created_dates = [order["created_at"] for order in orders]
     assert created_dates == sorted(created_dates, reverse=True)
+
+
+def test_create_order_with_only_seller_id():
+    """
+    Test: Crear orden solo con seller_id (sin customer_id)
+    """
+    client.delete("/clear-all")
+    
+    order_body = {
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",
+        "items": [{"sku": "PROD-001", "qty": 5}],
+        "created_by_role": "seller",
+        "source": "bff-cliente",
+        "user_name": "vendedor_test",
+        "address": {
+            "street": "Calle Test #1-1",
+            "city": "Bogotá",
+            "state": "Cundinamarca",
+            "zip_code": "110111",
+            "country": "Colombia"
+        }
+    }
+    
+    r = client.post(
+        "/orders",
+        headers={"Idempotency-Key": "test-seller-only"},
+        json=order_body
+    )
+    assert r.status_code == 202
+    
+    # Verificar que se creó
+    r_list = client.get("/orders")
+    orders = r_list.json()
+    assert len(orders) == 1
+    assert orders[0]["seller_id"] == "399e4160-d04a-4bff-acb4-4758711257c0"
+    assert orders[0]["customer_id"] is None
+
+
+def test_create_order_with_only_customer_id():
+    """
+    Test: Crear orden solo con customer_id (sin seller_id)
+    """
+    client.delete("/clear-all")
+    
+    order_body = {
+        "customer_id": "Hospital Central",
+        "items": [{"sku": "PROD-002", "qty": 3}],
+        "created_by_role": "admin",
+        "source": "bff-admin",
+        "user_name": "admin_test",
+        "address": {
+            "street": "Avenida Test #2-2",
+            "city": "Bogotá",
+            "state": "Cundinamarca",
+            "zip_code": "110222",
+            "country": "Colombia"
+        }
+    }
+    
+    r = client.post(
+        "/orders",
+        headers={"Idempotency-Key": "test-customer-only"},
+        json=order_body
+    )
+    assert r.status_code == 202
+    
+    # Verificar que se creó
+    r_list = client.get("/orders")
+    orders = r_list.json()
+    assert len(orders) == 1
+    assert orders[0]["customer_id"] == "Hospital Central"
+    assert orders[0]["seller_id"] is None
+
+
+def test_create_order_with_both_seller_and_customer():
+    """
+    Test: Crear orden con ambos seller_id y customer_id
+    """
+    client.delete("/clear-all")
+    
+    order_body = {
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",
+        "customer_id": "Farmacia Norte",
+        "items": [{"sku": "PROD-003", "qty": 10}],
+        "created_by_role": "seller",
+        "source": "bff-cliente",
+        "user_name": "vendedor_mixto",
+        "address": {
+            "street": "Carrera Mixta #3-3",
+            "city": "Bogotá",
+            "state": "Cundinamarca",
+            "zip_code": "110333",
+            "country": "Colombia"
+        }
+    }
+    
+    r = client.post(
+        "/orders",
+        headers={"Idempotency-Key": "test-both-ids"},
+        json=order_body
+    )
+    assert r.status_code == 202
+    
+    # Verificar que se creó
+    r_list = client.get("/orders")
+    orders = r_list.json()
+    assert len(orders) == 1
+    assert orders[0]["seller_id"] == "399e4160-d04a-4bff-acb4-4758711257c0"
+    assert orders[0]["customer_id"] == "Farmacia Norte"

@@ -1,0 +1,8 @@
+[run]
+# Sólo medimos cobertura del paquete app
+source = app
+
+# Excluimos módulos que siempre se mockean o son scripts de arranque
+omit =
+    app/catalog_client.py
+    app/create_orders_db.py

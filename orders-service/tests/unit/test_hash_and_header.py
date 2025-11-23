@@ -12,7 +12,8 @@ def test_sha256():
 def test_get_idempotency_key_generated_when_missing():
     # Sin header: debe generarse un UUID (string no vacío)
     r = client.post("/orders", json={
-        "customer_id": "C1", 
+        "customer_id": "C1",
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",  # ✅ Agregado
         "items": [],
         "created_by_role": "seller",
         "source": "bff-cliente",
