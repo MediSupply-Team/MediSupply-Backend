@@ -106,7 +106,7 @@ def post_message():
             f"{orders_url}/orders",
             json=enriched_body,
             headers={"Idempotency-Key": event_id},
-            timeout=20  # Reducido a 20s con caché, aumentado desde 15s original
+            timeout=10  # Con caché y consultas optimizadas debe ser rápido
         )
         
         # Si la validación falla, retornar el error inmediatamente

@@ -27,10 +27,10 @@ class CatalogClient:
         self.pool: Optional[asyncpg.Pool] = None
         self.enabled = True
         
-        # Caché simple en memoria para productos (TTL: 5 minutos)
+        # Caché en memoria para productos (TTL: 30 minutos)
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._cache_expiry: Dict[str, datetime] = {}
-        self._cache_ttl = timedelta(minutes=5)
+        self._cache_ttl = timedelta(minutes=30)
     
     async def connect(self):
         """Establece el pool de conexiones a la base de datos de catálogo"""
@@ -42,10 +42,10 @@ class CatalogClient:
                 log.info(f"Conectando a catálogo: {self.catalog_database_url[:50]}...")
                 self.pool = await asyncpg.create_pool(
                     self.catalog_database_url,
-                    min_size=1,
-                    max_size=5,
-                    command_timeout=10,  # Aumentado de 5 a 10 segundos para consultas complejas
-                    timeout=15  # Timeout para obtener conexión del pool
+                    min_size=2,
+                    max_size=10,  # Más conexiones para manejo concurrente
+                    command_timeout=3,  # Reducido a 3s - fallar rápido si hay problema
+                    timeout=5  # Timeout para obtener conexión
                 )
                 log.info("Conexión a base de datos de catálogo establecida exitosamente")
             except Exception as e:
@@ -98,15 +98,16 @@ class CatalogClient:
             # Crear placeholders para la consulta optimizada
             placeholders = ', '.join(f'${i+1}' for i in range(len(skus_to_fetch)))
             
-            # Consulta optimizada: solo campos necesarios, con índice en codigo
+            # Consulta optimizada con prepared statement
             query = f"""
                 SELECT codigo, nombre, precio_unitario
                 FROM producto
-                WHERE codigo IN ({placeholders}) AND activo = true
+                WHERE codigo = ANY($1) AND activo = true
             """
             
             async with self.pool.acquire() as conn:
-                rows = await conn.fetch(query, *skus_to_fetch)
+                # Usar ANY con array es más rápido que IN con múltiples parámetros
+                rows = await conn.fetch(query, skus_to_fetch)
                 
                 # Procesar resultados y actualizar caché
                 expiry = now + self._cache_ttl
