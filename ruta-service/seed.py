@@ -78,8 +78,8 @@ def generar_visitas_desde_cliente_service():
             
             print(f"✅ Encontrados {len(clientes)} clientes activos")
         
-        # Usar vendedor_id = 1 por defecto (compatible con endpoint actual)
-        vendedor_id = 1
+        # Usar UUID de vendedor por defecto (compatible con nuevo schema)
+        vendedor_id = "3c479f61-8eba-48b8-9c42-88dea377215b"
         print(f"👤 Usando vendedor_id: {vendedor_id}")
         
     except Exception as e:
