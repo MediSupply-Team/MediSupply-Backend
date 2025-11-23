@@ -84,7 +84,8 @@ data "aws_iam_policy_document" "secrets_policy" {
     ]
     resources = [
       var.db_url_secret_arn,
-      var.cliente_db_url_secret_arn
+      var.cliente_db_url_secret_arn,
+      var.mapbox_token_secret_arn
     ]
   }
 }
@@ -243,6 +244,10 @@ resource "aws_ecs_task_definition" "this" {
         {
           name      = "CLIENTE_DB_URL"
           valueFrom = "${var.cliente_db_url_secret_arn}:database_url::"
+        },
+        {
+          name      = "MAPBOX_ACCESS_TOKEN"
+          valueFrom = var.mapbox_token_secret_arn
         }
       ]
 
