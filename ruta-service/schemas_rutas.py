@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 
 
@@ -7,6 +7,8 @@ from typing import Optional, List, Dict, Any
 
 class RutaCreate(BaseModel):
     """Schema para crear una ruta (del optimizador)"""
+    id_cliente: Optional[str] = Field(None, description="UUID del cliente que solicita la ruta")
+    fecha_entrega: Optional[date] = Field(None, description="Fecha programada de entrega (YYYY-MM-DD)")
     secuencia_entregas: List[Dict[str, Any]] = Field(..., description="Array de entregas optimizadas")
     resumen: Dict[str, Any] = Field(..., description="Resumen con distancia, tiempo, costo, etc")
     geometria: Optional[Dict[str, Any]] = Field(None, description="GeoJSON con coordenadas de la ruta")
@@ -42,6 +44,10 @@ class RutaListItemResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
+    # ✅ ID del cliente y fecha de entrega
+    id_cliente: Optional[str] = None
+    fecha_entrega: Optional[date] = None
+    
     # Datos principales (sin geometría)
     secuencia_entregas: List[Dict[str, Any]]
     resumen: Dict[str, Any]
@@ -65,6 +71,10 @@ class RutaResponse(BaseModel):
     id: str
     created_at: datetime
     updated_at: datetime
+    
+    # ✅ ID del cliente y fecha de entrega
+    id_cliente: Optional[str] = None
+    fecha_entrega: Optional[date] = None
     
     # Datos completos (con geometría)
     secuencia_entregas: List[Dict[str, Any]]
