@@ -36,6 +36,12 @@ class Ruta(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
+    # ✅ NUEVO: ID del cliente que solicitó la ruta
+    id_cliente: Optional[str] = Field(
+        default=None,
+        description="UUID del cliente que solicitó la optimización"
+    )
+    
     # Datos del optimizador (JSONB completo)
     secuencia_entregas: List[Dict[str, Any]] = Field(
         sa_column=Column(JSON),

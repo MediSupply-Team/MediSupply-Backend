@@ -31,6 +31,7 @@ def create_ruta(ruta_data: RutaCreate):
     """
     Crear una nueva ruta optimizada:
     
+    - **id_cliente**: (Opcional) UUID del cliente que solicita la ruta
     - **secuencia_entregas**: Array con las entregas ordenadas (cliente, dirección, coordenadas, etc.)
     - **resumen**: Objeto con distancia total, tiempo, costo, capacidad usada, etc.
     - **geometria**: (Opcional) GeoJSON LineString con las coordenadas de la ruta completa
@@ -68,7 +69,8 @@ def create_ruta(ruta_data: RutaCreate):
 def list_rutas(
     skip: int = Query(0, ge=0, description="Número de registros a saltar"),
     limit: int = Query(100, ge=1, le=100, description="Cantidad máxima de rutas a retornar"),
-    status: str | None = Query(None, description="Filtrar por estado (pending, in_progress, completed, cancelled)")
+    status: str | None = Query(None, description="Filtrar por estado (pending, in_progress, completed, cancelled)"),
+    id_cliente: str | None = Query(None, description="Filtrar por ID de cliente")
 ):
     """
     Listar todas las rutas con paginación y filtros opcionales:
@@ -76,6 +78,7 @@ def list_rutas(
     - **skip**: Número de registros a saltar (para paginación)
     - **limit**: Cantidad máxima de rutas a retornar (máx: 100)
     - **status**: Filtrar por estado específico
+    - **id_cliente**: Filtrar por ID de cliente específico
     
     **Optimización**: La geometría NO se incluye en las listas para reducir el tamaño.
     Para obtener la geometría completa, use `GET /rutas/{id}`
@@ -85,6 +88,10 @@ def list_rutas(
         
         if status:
             query = query.where(Ruta.status == status)
+        
+        # ✅ NUEVO: Filtro por cliente
+        if id_cliente:
+            query = query.where(Ruta.id_cliente == id_cliente)
         
         # Obtener total
         total = len(session.exec(query).all())
@@ -129,6 +136,34 @@ def get_ruta(ruta_id: str):
                 detail="Route not found"
             )
         return RutaResponse.model_validate(ruta)
+
+
+@router.get(
+    "/cliente/{id_cliente}",
+    response_model=RutaListResponse,
+    summary="Rutas por cliente",
+    description="Obtiene todas las rutas de un cliente específico (sin geometría)",
+    response_description="Lista de rutas del cliente sin geometría"
+)
+def get_rutas_by_cliente(id_cliente: str):
+    """
+    Obtener todas las rutas de un cliente:
+    
+    - **id_cliente**: UUID del cliente
+    
+    Retorna todas las rutas asociadas a este cliente, sin importar su estado.
+    
+    ⚡ **Optimización**: La geometría NO se incluye. Use `GET /rutas/{id}` para geometría completa.
+    """
+    with Session(engine) as session:
+        query = select(Ruta).where(Ruta.id_cliente == id_cliente)
+        rutas = session.exec(query).all()
+        
+        # ✅ Usar schema sin geometría
+        return RutaListResponse(
+            total=len(rutas),
+            routes=[RutaListItemResponse.model_validate(r) for r in rutas]
+        )
 
 
 @router.patch(
@@ -261,7 +296,7 @@ def delete_ruta(ruta_id: str):
     
     - **ruta_id**: ID único de la ruta a eliminar
     
-      Esta acción es permanente y no se puede deshacer.
+    ⚠️ Esta acción es permanente y no se puede deshacer.
     """
     with Session(engine) as session:
         ruta = session.get(Ruta, ruta_id)
