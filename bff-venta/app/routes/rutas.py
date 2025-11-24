@@ -34,6 +34,15 @@ def create_ruta():
             - secuencia_entregas
             - resumen
           properties:
+            id_cliente:
+              type: string
+              description: UUID del cliente que solicita la ruta
+              example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+            fecha_entrega:
+              type: string
+              format: date
+              description: Fecha programada de entrega (YYYY-MM-DD)
+              example: "2024-05-05"
             secuencia_entregas:
               type: array
               items:
@@ -43,6 +52,8 @@ def create_ruta():
                     type: integer
                   id_pedido:
                     type: string
+                  descripcion:
+                    type: string
                   cliente:
                     type: string
                   direccion:
@@ -51,6 +62,12 @@ def create_ruta():
                     type: number
                   lon:
                     type: number
+                  ventana_inicio:
+                    type: string
+                    example: "10:00"
+                  ventana_fin:
+                    type: string
+                    example: "11:00"
                   hora_estimada:
                     type: string
                   cajas:
@@ -107,6 +124,14 @@ def create_ruta():
         # Validar campos minimos
         if 'secuencia_entregas' not in data or 'resumen' not in data:
             return jsonify(error="secuencia_entregas y resumen son requeridos"), 400
+        
+        # ✅ NUEVO: Validar formato de fecha_entrega si está presente
+        if 'fecha_entrega' in data and data['fecha_entrega']:
+            from datetime import datetime
+            try:
+                datetime.strptime(data['fecha_entrega'], '%Y-%m-%d')
+            except ValueError:
+                return jsonify(error="fecha_entrega debe estar en formato YYYY-MM-DD"), 400
         
         # Enviar al ruta-service
         url = f"{rutas_url}/rutas"
@@ -179,6 +204,30 @@ def list_rutas():
         type: string
         required: false
         description: Filtrar por estado (pending, in_progress, completed, cancelled)
+      - in: query
+        name: id_cliente
+        type: string
+        required: false
+        description: Filtrar por ID de cliente
+      - in: query
+        name: fecha_entrega
+        type: string
+        format: date
+        required: false
+        description: Filtrar por fecha de entrega exacta (YYYY-MM-DD)
+        example: "2024-05-05"
+      - in: query
+        name: fecha_desde
+        type: string
+        format: date
+        required: false
+        description: Filtrar rutas desde esta fecha de entrega (YYYY-MM-DD)
+      - in: query
+        name: fecha_hasta
+        type: string
+        format: date
+        required: false
+        description: Filtrar rutas hasta esta fecha de entrega (YYYY-MM-DD)
     responses:
       200:
         description: Lista de rutas
@@ -203,12 +252,31 @@ def list_rutas():
             'limit': request.args.get('limit', 10, type=int)
         }
         
+        # ✅ Filtros existentes
         status = request.args.get('status')
         if status:
             params['status'] = status
         
+        # ✅ NUEVO: Filtros por cliente
+        id_cliente = request.args.get('id_cliente')
+        if id_cliente:
+            params['id_cliente'] = id_cliente
+        
+        # ✅ NUEVO: Filtros por fecha de entrega
+        fecha_entrega = request.args.get('fecha_entrega')
+        if fecha_entrega:
+            params['fecha_entrega'] = fecha_entrega
+        
+        fecha_desde = request.args.get('fecha_desde')
+        if fecha_desde:
+            params['fecha_desde'] = fecha_desde
+        
+        fecha_hasta = request.args.get('fecha_hasta')
+        if fecha_hasta:
+            params['fecha_hasta'] = fecha_hasta
+        
         url = f"{rutas_url}/rutas"
-        current_app.logger.info(f"Listing routes: {url}")
+        current_app.logger.info(f"Listing routes: {url} with params: {params}")
         
         response = requests.get(
             url,
@@ -257,6 +325,24 @@ def get_ruta(ruta_id):
     responses:
       200:
         description: Ruta encontrada
+        schema:
+          type: object
+          properties:
+            id:
+              type: string
+            id_cliente:
+              type: string
+            fecha_entrega:
+              type: string
+              format: date
+            secuencia_entregas:
+              type: array
+            resumen:
+              type: object
+            geometria:
+              type: object
+            status:
+              type: string
       404:
         description: Ruta no encontrada
       503:
@@ -275,7 +361,6 @@ def get_ruta(ruta_id):
             timeout=10,
             headers={
                 "User-Agent": "BFF-Venta/1.0",
-                "X-Request-ID": request.headers.get("X-Request-ID", "no-id"),
             }
         )
         
@@ -299,10 +384,10 @@ def get_ruta(ruta_id):
         return jsonify(error="Error interno"), 500
 
 
-@bp.patch("/api/v1/rutas/<ruta_id>/assign-driver")
-def assign_driver(ruta_id):
+@bp.patch("/api/v1/rutas/<ruta_id>")
+def update_ruta(ruta_id):
     """
-    Asignar conductor a una ruta
+    Actualizar ruta
     ---
     tags:
       - Rutas
@@ -311,23 +396,20 @@ def assign_driver(ruta_id):
         name: ruta_id
         type: string
         required: true
-        description: ID de la ruta
       - in: body
         name: body
-        required: true
         schema:
           type: object
-          required:
-            - driver_id
-            - driver_name
           properties:
-            driver_id:
-              type: string
-            driver_name:
+            geometria:
+              type: object
+            alertas:
+              type: array
+            notes:
               type: string
     responses:
       200:
-        description: Conductor asignado
+        description: Ruta actualizada
       404:
         description: Ruta no encontrada
       503:
@@ -339,8 +421,140 @@ def assign_driver(ruta_id):
     
     try:
         data = request.get_json()
-        if not data or 'driver_id' not in data or 'driver_name' not in data:
-            return jsonify(error="driver_id y driver_name son requeridos"), 400
+        if not data:
+            return jsonify(error="Datos requeridos"), 400
+        
+        url = f"{rutas_url}/rutas/{ruta_id}"
+        current_app.logger.info(f"Updating route: {url}")
+        
+        response = requests.patch(
+            url,
+            json=data,
+            timeout=10,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "BFF-Venta/1.0",
+            }
+        )
+        
+        if response.status_code >= 400:
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(error="Error al actualizar ruta", details=error_data), response.status_code
+        
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        return jsonify(error="Timeout"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error de conexion"), 503
+    except Exception as e:
+        current_app.logger.error(f"Error: {e}", exc_info=True)
+        return jsonify(error="Error interno"), 500
+
+
+@bp.delete("/api/v1/rutas/<ruta_id>")
+def delete_ruta(ruta_id):
+    """
+    Eliminar ruta
+    ---
+    tags:
+      - Rutas
+    parameters:
+      - in: path
+        name: ruta_id
+        type: string
+        required: true
+    responses:
+      200:
+        description: Ruta eliminada
+      404:
+        description: Ruta no encontrada
+      503:
+        description: Servicio no disponible
+    """
+    rutas_url = get_rutas_service_url()
+    if not rutas_url:
+        return jsonify(error="Servicio de rutas no disponible"), 503
+    
+    try:
+        url = f"{rutas_url}/rutas/{ruta_id}"
+        current_app.logger.info(f"Deleting route: {url}")
+        
+        response = requests.delete(
+            url,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+            }
+        )
+        
+        if response.status_code >= 400:
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(error="Error al eliminar ruta", details=error_data), response.status_code
+        
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        return jsonify(error="Timeout"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error de conexion"), 503
+    except Exception as e:
+        current_app.logger.error(f"Error: {e}", exc_info=True)
+        return jsonify(error="Error interno"), 500
+
+
+@bp.patch("/api/v1/rutas/<ruta_id>/assign-driver")
+def assign_driver(ruta_id):
+    """
+    Asignar conductor a ruta
+    ---
+    tags:
+      - Rutas
+    parameters:
+      - in: path
+        name: ruta_id
+        type: string
+        required: true
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - driver_id
+          properties:
+            driver_id:
+              type: string
+            driver_name:
+              type: string
+    responses:
+      200:
+        description: Conductor asignado
+      400:
+        description: Datos invalidos
+      404:
+        description: Ruta no encontrada
+      503:
+        description: Servicio no disponible
+    """
+    rutas_url = get_rutas_service_url()
+    if not rutas_url:
+        return jsonify(error="Servicio de rutas no disponible"), 503
+    
+    try:
+        data = request.get_json()
+        if not data or 'driver_id' not in data:
+            return jsonify(error="driver_id es requerido"), 400
         
         url = f"{rutas_url}/rutas/{ruta_id}/assign-driver"
         current_app.logger.info(f"Assigning driver: {url}")
@@ -378,7 +592,7 @@ def assign_driver(ruta_id):
 @bp.patch("/api/v1/rutas/<ruta_id>/status")
 def update_status(ruta_id):
     """
-    Actualizar estado de una ruta
+    Actualizar estado de ruta
     ---
     tags:
       - Rutas
@@ -387,7 +601,6 @@ def update_status(ruta_id):
         name: ruta_id
         type: string
         required: true
-        description: ID de la ruta
       - in: body
         name: body
         required: true
@@ -402,6 +615,8 @@ def update_status(ruta_id):
     responses:
       200:
         description: Estado actualizado
+      400:
+        description: Estado invalido
       404:
         description: Ruta no encontrada
       503:
@@ -503,6 +718,128 @@ def get_rutas_by_driver(driver_id):
                 error_data = {"message": response.text[:200]}
             
             return jsonify(error="Error al obtener rutas del conductor", details=error_data), response.status_code
+        
+        return jsonify(response.json()), response.status_code
+        
+    except Timeout:
+        return jsonify(error="Timeout"), 504
+    except RequestException as e:
+        current_app.logger.error(f"Error: {e}")
+        return jsonify(error="Error de conexion"), 503
+    except Exception as e:
+        current_app.logger.error(f"Error: {e}", exc_info=True)
+        return jsonify(error="Error interno"), 500
+
+
+# ✅ NUEVO: Endpoint dedicado para rutas de un cliente
+@bp.get("/api/v1/rutas/cliente/<cliente_id>")
+def get_rutas_by_cliente(cliente_id):
+    """
+    Obtener todas las rutas de un cliente (para vista de calendario)
+    ---
+    tags:
+      - Rutas
+    parameters:
+      - in: path
+        name: cliente_id
+        type: string
+        required: true
+        description: ID del cliente
+      - in: query
+        name: fecha_entrega
+        type: string
+        format: date
+        required: false
+        description: Filtrar por fecha de entrega exacta (YYYY-MM-DD)
+        example: "2024-05-05"
+      - in: query
+        name: fecha_desde
+        type: string
+        format: date
+        required: false
+        description: Filtrar desde esta fecha de entrega (YYYY-MM-DD)
+      - in: query
+        name: fecha_hasta
+        type: string
+        format: date
+        required: false
+        description: Filtrar hasta esta fecha de entrega (YYYY-MM-DD)
+      - in: query
+        name: status
+        type: string
+        required: false
+        description: Filtrar por estado (pending, in_progress, completed, cancelled)
+    responses:
+      200:
+        description: Rutas del cliente
+        schema:
+          type: object
+          properties:
+            total:
+              type: integer
+            routes:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  fecha_entrega:
+                    type: string
+                    format: date
+                  secuencia_entregas:
+                    type: array
+                  status:
+                    type: string
+      503:
+        description: Servicio no disponible
+    """
+    rutas_url = get_rutas_service_url()
+    if not rutas_url:
+        return jsonify(error="Servicio de rutas no disponible"), 503
+    
+    try:
+        # Construir query params para filtros opcionales
+        params = {}
+        
+        fecha_entrega = request.args.get('fecha_entrega')
+        if fecha_entrega:
+            params['fecha_entrega'] = fecha_entrega
+        
+        fecha_desde = request.args.get('fecha_desde')
+        if fecha_desde:
+            params['fecha_desde'] = fecha_desde
+        
+        fecha_hasta = request.args.get('fecha_hasta')
+        if fecha_hasta:
+            params['fecha_hasta'] = fecha_hasta
+        
+        status = request.args.get('status')
+        if status:
+            params['status'] = status
+        
+        url = f"{rutas_url}/rutas/cliente/{cliente_id}"
+        current_app.logger.info(f"Getting cliente routes: {url} with params: {params}")
+        
+        response = requests.get(
+            url,
+            params=params,
+            timeout=10,
+            headers={
+                "User-Agent": "BFF-Venta/1.0",
+            }
+        )
+        
+        if response.status_code >= 400:
+            try:
+                error_data = response.json()
+            except:
+                error_data = {"message": response.text[:200]}
+            
+            return jsonify(
+                error="Error al obtener rutas del cliente", 
+                details=error_data
+            ), response.status_code
         
         return jsonify(response.json()), response.status_code
         
