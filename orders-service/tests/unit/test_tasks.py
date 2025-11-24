@@ -50,7 +50,8 @@ async def test_tasks_happy_flow_updates_order_and_idempotency(
     _patch_sessionlocal_to_test_engine(test_engine, monkeypatch)
 
     order = Order(
-        customer_id="C-TASK", 
+        customer_id="C-TASK",
+        seller_id="399e4160-d04a-4bff-acb4-4758711257c0",  # ✅ Agregado
         items=[{"sku": "X1", "qty": 1}],
         created_by_role="seller",
         source="bff-cliente",

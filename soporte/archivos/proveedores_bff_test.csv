@@ -1,0 +1,5 @@
+nombre,nit,email,telefono,contacto_nombre,direccion,pais,activo
+BFF Farmacia 1,900222333-1,bff1@farmacia.com,+57 317 1111111,Juan BFF Test,Dirección BFF 1,CO,true
+BFF Droguería 2,900222333-2,bff2@drogueria.com,+57 317 2222222,Ana BFF Test,Dirección BFF 2,CO,true
+BFF Suministros 3,900222333-3,bff3@suministros.com,+57 317 3333333,Luis BFF Test,Dirección BFF 3,CO,false
+

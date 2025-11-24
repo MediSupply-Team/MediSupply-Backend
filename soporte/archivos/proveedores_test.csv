@@ -1,0 +1,7 @@
+nombre,nit,email,telefono,contacto_nombre,direccion,pais,activo
+Farmacéutica Innovadora SA,900111222-4,innovadora@farmacia.com,+57 312 3456789,María García Gómez,Carrera 45 #12-34 Bogotá,CO,true
+Droguería La Salud,900111333-5,salud@drogueria.com,+57 313 4567890,Carlos López,Avenida 90 #23-45 Cali,CO,true
+Suministros Médicos Global,900111444-6,global@suministros.com,+57 314 5678901,Ana Martínez,Calle 67 #89-01 Medellín,CO,false
+Distribuidora Farma Plus,900111555-7,farmaplus@distribuidora.com,+57 315 6789012,Pedro Rodríguez,Transversal 34 #56-78 Barranquilla,CO,true
+Equipos Clínicos Ltda,900111666-8,ventas@equiposclinicos.com,+57 316 7890123,Laura Sánchez,Diagonal 12 #34-56 Cartagena,CO,true
+

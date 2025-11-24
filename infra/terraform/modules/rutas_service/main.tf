@@ -82,7 +82,11 @@ data "aws_iam_policy_document" "secrets_policy" {
     actions = [
       "secretsmanager:GetSecretValue"
     ]
-    resources = [var.db_url_secret_arn]
+    resources = [
+      var.db_url_secret_arn,
+      var.cliente_db_url_secret_arn,
+      var.mapbox_token_secret_arn
+    ]
   }
 }
 
@@ -236,6 +240,14 @@ resource "aws_ecs_task_definition" "this" {
         {
           name      = "DATABASE_URL"
           valueFrom = var.db_url_secret_arn
+        },
+        {
+          name      = "CLIENTE_DB_URL"
+          valueFrom = "${var.cliente_db_url_secret_arn}:database_url::"
+        },
+        {
+          name      = "MAPBOX_ACCESS_TOKEN"
+          valueFrom = var.mapbox_token_secret_arn
         }
       ]
 
@@ -314,7 +326,12 @@ resource "aws_lb_listener_rule" "rutas_path" {
 
   condition {
     path_pattern {
-      values = ["/api/ruta/*", "/api/ruta"]  
+      values = [
+        "/api/ruta/*", 
+        "/api/ruta",
+        "/rutas/*",
+        "/rutas"
+      ]
     }
   }
 }

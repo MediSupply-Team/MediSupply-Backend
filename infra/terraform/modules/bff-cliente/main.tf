@@ -174,6 +174,7 @@ resource "aws_ecs_task_definition" "td" {
       
       portMappings = [
         { 
+          name          = "bff-cliente-http",  # ✅ REQUERIDO para Service Connect
           containerPort = var.bff_app_port, 
           hostPort      = var.bff_app_port, 
           protocol      = "tcp" 
@@ -217,7 +218,7 @@ resource "aws_ecs_service" "svc" {
   name            = "${local.bff_id}-svc"
   cluster         = var.ecs_cluster_arn
   task_definition = aws_ecs_task_definition.td.arn
-  desired_count   = 2
+  desired_count   = 1  # Reducido de 2 a 1 para optimizar costos
 
   launch_type = "FARGATE"
 

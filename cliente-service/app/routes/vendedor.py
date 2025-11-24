@@ -1,0 +1,1210 @@
+"""
+Rutas para gestión de Vendedores - Fase 3 Completo
+HU: Registrar Vendedor - CRUD completo con Plan de Venta en cascada
+"""
+from fastapi import APIRouter, Depends, Query, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, or_
+from sqlalchemy.orm import selectinload
+from app.db import get_session
+from app.models.client_model import Vendedor, Cliente
+from app.models.catalogo_model import TipoRolVendedor, Territorio, TipoPlan, Region, Zona
+from app.models.plan_venta_model import PlanVenta, PlanProducto, PlanRegion, PlanZona
+from app.schemas import (
+    VendedorCreate,
+    VendedorUpdate,
+    VendedorResponse,
+    VendedorDetalleResponse,
+    VendedorListResponse,
+    ClienteBasicoResponse,
+    AsociarClientesRequest,
+    AsociarClientesResponse
+)
+from typing import Optional, List
+from uuid import UUID
+import time
+import logging
+import secrets
+import string
+import bcrypt
+
+router = APIRouter(tags=["vendedores"])
+logger = logging.getLogger(__name__)
+
+
+def generate_random_password(length: int = 12) -> str:
+    """Genera una contraseña aleatoria segura (max 12 chars para bcrypt)"""
+    # Usar solo caracteres ASCII simples para evitar problemas de codificación
+    # Caracteres especiales de 1 byte
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    # Limitar a 12 caracteres para evitar el límite de 72 bytes de bcrypt
+    safe_length = min(length, 12)
+    password = ''.join(secrets.choice(alphabet) for _ in range(safe_length))
+    return password
+
+
+@router.post("/", response_model=VendedorResponse, status_code=status.HTTP_201_CREATED)
+async def crear_vendedor(
+    vendedor: VendedorCreate,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Crear un nuevo vendedor (ID se genera automáticamente)
+    
+    **Criterios de aceptación:**
+    - Identificación debe ser única
+    - Email debe ser único
+    - Registro en ≤ 1 segundo
+    - Trazabilidad completa
+    - Opcionalmente puede asociar clientes que NO tengan vendedor asignado
+    
+    **Validaciones de asociación de clientes (TODO O NADA):**
+    - Si `clientes_ids` es vacío o null → Vendedor se crea normalmente
+    - Si se envía con IDs, TODOS los clientes deben cumplir:
+      * Existir en la base de datos (error 404 si no existe)
+      * NO tener vendedor asignado (error 409 si ya tiene vendedor)
+      * Estar activos (error 400 si está inactivo)
+      * Tener UUID válido (error 400 si es inválido)
+    - Si CUALQUIER cliente NO cumple → La operación se ABORTA completamente
+    
+    **Retorna:**
+    - 201: Vendedor creado exitosamente (con todos los clientes asociados)
+    - 400: ID de cliente inválido o cliente inactivo
+    - 404: Uno o más clientes no existen
+    - 409: Identificación/email duplicado O cliente ya tiene vendedor
+    - 500: Error interno
+    """
+    logger.info(f"📝 Creando vendedor: {vendedor.nombre_completo}")
+    started = time.perf_counter_ns()
+    
+    try:
+        # 🔹 GENERAR CONTRASEÑA AUTOMÁTICAMENTE SI NO SE PROPORCIONA
+        generated_password = None
+        if not vendedor.username:
+            # Generar username automático basado en email
+            vendedor.username = vendedor.email.split('@')[0].lower()
+        
+        # Si no tiene password_hash, generar contraseña automática
+        if not vendedor.password_hash:
+            generated_password = generate_random_password()
+            logger.info(f"🔐 Generando contraseña automática para {vendedor.email}")
+            logger.info(f"🔐 Contraseña generada: longitud={len(generated_password)} bytes={len(generated_password.encode('utf-8'))}")
+            # Hashear password con bcrypt directamente (límite de 72 bytes)
+            password_bytes = generated_password.encode('utf-8')[:72]
+            salt = bcrypt.gensalt()
+            vendedor.password_hash = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
+            logger.info(f"🔐 Contraseña hasheada exitosamente")
+        else:
+            logger.info(f"🔐 password_hash recibido: longitud={len(vendedor.password_hash)}")
+            # Si viene password_hash, verificar que no sea demasiado largo (probablemente ya está hasheado)
+            # Si es muy largo (>100 chars), asumir que ya está hasheado
+            # Si es corto, hashear
+            if len(vendedor.password_hash) < 100:
+                logger.info(f"🔐 Hasheando password recibido (longitud < 100)")
+                # Es una contraseña en texto plano, hashear con bcrypt
+                password_bytes = vendedor.password_hash.encode('utf-8')[:72]
+                salt = bcrypt.gensalt()
+                vendedor.password_hash = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
+                logger.info(f"🔐 Contraseña hasheada para {vendedor.username}")
+            else:
+                logger.info(f"🔐 password_hash ya está hasheado (longitud >= 100)")
+        
+        # Verificar si la identificación ya existe
+        existing_by_id = (await session.execute(
+            select(Vendedor).where(Vendedor.identificacion == vendedor.identificacion)
+        )).scalar_one_or_none()
+        
+        if existing_by_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "IDENTIFICACION_ALREADY_EXISTS",
+                    "message": f"Vendedor con identificación {vendedor.identificacion} ya existe",
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                }
+            )
+        
+        # Verificar si el email ya existe
+        existing_by_email = (await session.execute(
+            select(Vendedor).where(Vendedor.email == vendedor.email)
+        )).scalar_one_or_none()
+        
+        if existing_by_email:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "EMAIL_ALREADY_EXISTS",
+                    "message": f"Vendedor con email {vendedor.email} ya existe",
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                }
+            )
+        
+        # Verificar si el username ya existe (si se proporciona)
+        if vendedor.username:
+            existing_by_username = (await session.execute(
+                select(Vendedor).where(Vendedor.username == vendedor.username)
+            )).scalar_one_or_none()
+            
+            if existing_by_username:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": "USERNAME_ALREADY_EXISTS",
+                        "message": f"Username '{vendedor.username}' ya está en uso",
+                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    }
+                )
+        
+        # Validar FK: rol_vendedor_id (si se proporciona)
+        if vendedor.rol_vendedor_id:
+            tipo_rol = await session.get(TipoRolVendedor, vendedor.rol_vendedor_id)
+            if not tipo_rol or not tipo_rol.activo:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "error": "TIPO_ROL_NOT_FOUND",
+                        "message": f"Tipo de rol con ID '{vendedor.rol_vendedor_id}' no encontrado o inactivo"
+                    }
+                )
+        
+        # Validar FK: territorio_id (si se proporciona)
+        if vendedor.territorio_id:
+            territorio = await session.get(Territorio, vendedor.territorio_id)
+            if not territorio or not territorio.activo:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "error": "TERRITORIO_NOT_FOUND",
+                        "message": f"Territorio con ID '{vendedor.territorio_id}' no encontrado o inactivo"
+                    }
+                )
+        
+        # Validar FK: supervisor_id (si se proporciona)
+        supervisor_uuid = None
+        if vendedor.supervisor_id:
+            try:
+                supervisor_uuid = UUID(vendedor.supervisor_id)
+                supervisor = await session.get(Vendedor, supervisor_uuid)
+                if not supervisor or not supervisor.activo:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail={
+                            "error": "SUPERVISOR_NOT_FOUND",
+                            "message": f"Supervisor con ID '{vendedor.supervisor_id}' no encontrado o inactivo"
+                        }
+                    )
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "INVALID_UUID", "message": f"supervisor_id '{vendedor.supervisor_id}' no es un UUID válido"}
+                )
+        
+        # Crear nuevo vendedor (ID se genera automáticamente)
+        new_vendedor = Vendedor(
+            identificacion=vendedor.identificacion,
+            nombre_completo=vendedor.nombre_completo,
+            email=vendedor.email,
+            telefono=vendedor.telefono,
+            pais=vendedor.pais,
+            username=vendedor.username,
+            password_hash=vendedor.password_hash,
+            rol=vendedor.rol,
+            rol_vendedor_id=vendedor.rol_vendedor_id,
+            territorio_id=vendedor.territorio_id,
+            supervisor_id=supervisor_uuid,
+            fecha_ingreso=vendedor.fecha_ingreso,
+            observaciones=vendedor.observaciones,
+            activo=vendedor.activo,
+            created_by_user_id=vendedor.created_by_user_id
+        )
+        
+        session.add(new_vendedor)
+        await session.flush()  # Flush para obtener el ID del vendedor sin hacer commit
+        
+        # 🔹 CREAR PLAN DE VENTA EN CASCADA (si se envió)
+        if vendedor.plan_venta:
+            logger.info(f"📦 Creando Plan de Venta para vendedor {new_vendedor.id}")
+            plan_data = vendedor.plan_venta
+            
+            # Validar tipo_plan_id (si se proporciona)
+            if plan_data.tipo_plan_id:
+                tipo_plan = await session.get(TipoPlan, plan_data.tipo_plan_id)
+                if not tipo_plan or not tipo_plan.activo:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail={
+                            "error": "TIPO_PLAN_NOT_FOUND",
+                            "message": f"Tipo de plan con ID '{plan_data.tipo_plan_id}' no encontrado o inactivo"
+                        }
+                    )
+            
+            # Crear el Plan de Venta
+            new_plan = PlanVenta(
+                vendedor_id=new_vendedor.id,  # ← ID del vendedor recién creado
+                tipo_plan_id=plan_data.tipo_plan_id,
+                nombre_plan=plan_data.nombre_plan,
+                fecha_inicio=plan_data.fecha_inicio,
+                fecha_fin=plan_data.fecha_fin,
+                meta_ventas=plan_data.meta_ventas,
+                comision_base=plan_data.comision_base,
+                estructura_bonificaciones=plan_data.estructura_bonificaciones,
+                observaciones=plan_data.observaciones,
+                activo=plan_data.activo,
+                created_by_user_id=plan_data.created_by_user_id
+            )
+            session.add(new_plan)
+            await session.flush()  # Flush para obtener el ID del plan
+            
+            # Crear productos asignados
+            if plan_data.productos:
+                for producto_item in plan_data.productos:
+                    plan_producto = PlanProducto(
+                        plan_venta_id=new_plan.id,
+                        producto_id=producto_item.producto_id,  # Solo ID, frontend consulta catalogo-service
+                        meta_cantidad=producto_item.meta_cantidad,
+                        precio_unitario=producto_item.precio_unitario
+                    )
+                    session.add(plan_producto)
+                logger.info(f"   ✅ {len(plan_data.productos)} productos asignados")
+            
+            # Crear regiones asignadas
+            if plan_data.region_ids:
+                for region_id in plan_data.region_ids:
+                    # Validar que la región exista y esté activa
+                    region = await session.get(Region, region_id)
+                    if not region or not region.activo:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail={
+                                "error": "REGION_NOT_FOUND",
+                                "message": f"Región con ID '{region_id}' no encontrada o inactiva"
+                            }
+                        )
+                    
+                    plan_region = PlanRegion(
+                        plan_venta_id=new_plan.id,
+                        region_id=region_id
+                    )
+                    session.add(plan_region)
+                logger.info(f"   ✅ {len(plan_data.region_ids)} regiones asignadas")
+            
+            # Crear zonas asignadas
+            if plan_data.zona_ids:
+                for zona_id in plan_data.zona_ids:
+                    # Validar que la zona exista y esté activa
+                    zona = await session.get(Zona, zona_id)
+                    if not zona or not zona.activo:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail={
+                                "error": "ZONA_NOT_FOUND",
+                                "message": f"Zona con ID '{zona_id}' no encontrada o inactiva"
+                            }
+                        )
+                    
+                    plan_zona = PlanZona(
+                        plan_venta_id=new_plan.id,
+                        zona_id=zona_id
+                    )
+                    session.add(plan_zona)
+                logger.info(f"   ✅ {len(plan_data.zona_ids)} zonas asignadas")
+        
+        # 🔹 VALIDAR Y ASOCIAR CLIENTES (si se enviaron)
+        clientes_asociados_count = 0
+        clientes_asociados_list = []
+        clientes_con_vendedor_previo = []
+        clientes_no_encontrados = []
+        
+        if vendedor.clientes_ids:
+            logger.info(f"👥 Validando {len(vendedor.clientes_ids)} clientes para asociar al vendedor")
+            
+            # PRIMERO: Validar que TODOS los IDs de clientes existan y NO tengan vendedor
+            for cliente_id_str in vendedor.clientes_ids:
+                try:
+                    cliente_uuid = UUID(cliente_id_str)
+                    # Buscar el cliente
+                    cliente = await session.get(Cliente, cliente_uuid)
+                    
+                    if not cliente:
+                        # Si un cliente no existe, ABORTAR la creación del vendedor
+                        await session.rollback()
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail={
+                                "error": "CLIENTE_NOT_FOUND",
+                                "message": f"Cliente con ID '{cliente_id_str}' no existe. No se puede crear el vendedor con clientes inexistentes.",
+                                "cliente_id": cliente_id_str
+                            }
+                        )
+                    
+                    # Validar que el cliente NO tenga vendedor asignado
+                    if cliente.vendedor_id is not None:
+                        # Si un cliente ya tiene vendedor, ABORTAR la creación del vendedor
+                        # Guardar valores antes del rollback para evitar lazy loading
+                        vendedor_actual_id = str(cliente.vendedor_id)
+                        cliente_nombre = cliente.nombre
+                        await session.rollback()
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail={
+                                "error": "CLIENTE_ALREADY_HAS_VENDEDOR",
+                                "message": f"Cliente con ID '{cliente_id_str}' ya tiene un vendedor asignado (ID: {vendedor_actual_id}). No se puede crear el vendedor.",
+                                "cliente_id": cliente_id_str,
+                                "vendedor_actual": vendedor_actual_id,
+                                "cliente_nombre": cliente_nombre
+                            }
+                        )
+                    
+                    # Validar que el cliente esté activo
+                    if not cliente.activo:
+                        # Si un cliente está inactivo, ABORTAR la creación del vendedor
+                        # Guardar valores antes del rollback para evitar lazy loading
+                        cliente_nombre = cliente.nombre
+                        await session.rollback()
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail={
+                                "error": "CLIENTE_INACTIVE",
+                                "message": f"Cliente con ID '{cliente_id_str}' está inactivo. No se puede crear el vendedor con clientes inactivos.",
+                                "cliente_id": cliente_id_str,
+                                "cliente_nombre": cliente_nombre
+                            }
+                        )
+                    
+                except ValueError:
+                    # Si un ID es inválido, ABORTAR la creación del vendedor
+                    await session.rollback()
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "error": "INVALID_CLIENTE_UUID",
+                            "message": f"ID de cliente '{cliente_id_str}' no es un UUID válido. No se puede crear el vendedor con IDs inválidos.",
+                            "cliente_id": cliente_id_str
+                        }
+                    )
+            
+            # SEGUNDO: Si todos los clientes son válidos (existen, sin vendedor, activos), proceder con la asociación
+            logger.info(f"✅ Todos los clientes son válidos. Procediendo con asociación...")
+            
+            clientes_asociados_list = []
+            for cliente_id_str in vendedor.clientes_ids:
+                cliente_uuid = UUID(cliente_id_str)
+                cliente = await session.get(Cliente, cliente_uuid)
+                
+                # Asociar el cliente al vendedor
+                cliente.vendedor_id = new_vendedor.id
+                clientes_asociados_count += 1
+                clientes_asociados_list.append(cliente_id_str)
+                logger.info(f"   ✅ Cliente {cliente.nombre} asociado")
+            
+            logger.info(f"👥 Asociación completada: {clientes_asociados_count} clientes asociados")
+        
+        # Commit de toda la transacción (vendedor + plan + productos + regiones + zonas + clientes)
+        await session.commit()
+        await session.refresh(new_vendedor)
+        
+        took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+        logger.info(f"✅ Vendedor creado: {new_vendedor.id} en {took_ms}ms")
+        
+        # Obtener plan_venta_id si se creó
+        plan_venta_id = new_plan.id if vendedor.plan_venta else None
+        
+        # Construir response con plan_venta_id y datos de asociación de clientes
+        vendedor_dict = {
+            "id": new_vendedor.id,
+            "identificacion": new_vendedor.identificacion,
+            "nombre_completo": new_vendedor.nombre_completo,
+            "email": new_vendedor.email,
+            "telefono": new_vendedor.telefono,
+            "pais": new_vendedor.pais,
+            "username": new_vendedor.username,
+            "rol": new_vendedor.rol,
+            "rol_vendedor_id": new_vendedor.rol_vendedor_id,
+            "territorio_id": new_vendedor.territorio_id,
+            "supervisor_id": new_vendedor.supervisor_id,
+            "fecha_ingreso": new_vendedor.fecha_ingreso,
+            "observaciones": new_vendedor.observaciones,
+            "activo": new_vendedor.activo,
+            "created_at": new_vendedor.created_at,
+            "updated_at": new_vendedor.updated_at,
+            "created_by_user_id": new_vendedor.created_by_user_id,
+            "plan_venta_id": plan_venta_id,  # Solo el ID del plan
+            "generated_password": generated_password,  # Contraseña generada (o None si no se generó)
+            # Información de clientes asociados (si se enviaron)
+            "clientes_asociados": clientes_asociados_list if vendedor.clientes_ids else None,
+            "clientes_con_vendedor_previo": None,  # Ya no aplica porque se valida antes de crear
+            "clientes_no_encontrados": None  # Ya no aplica porque se valida antes de crear
+        }
+        
+        return VendedorResponse(**vendedor_dict)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error creando vendedor: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "INTERNAL_SERVER_ERROR",
+                "message": "Error interno al crear vendedor",
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            }
+        )
+
+
+@router.get("/", response_model=VendedorListResponse)
+async def listar_vendedores(
+    q: Optional[str] = Query(None, description="Búsqueda por nombre o identificación"),
+    pais: Optional[str] = Query(None, min_length=2, max_length=2, description="Filtrar por país (código ISO)"),
+    activo: Optional[bool] = Query(None, description="Filtrar por estado activo/inactivo"),
+    page: int = Query(1, ge=1, description="Número de página"),
+    size: int = Query(50, ge=1, le=200, description="Tamaño de página"),
+    sort: str = Query("nombre_completo", pattern="^(nombre_completo|identificacion|created_at)$", description="Campo de ordenamiento"),
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Listar vendedores con filtros y paginación
+    
+    **Filtros disponibles:**
+    - q: Búsqueda por nombre o identificación
+    - pais: Código ISO del país
+    - activo: true/false
+    
+    **Retorna:**
+    - Lista de vendedores con metadata de paginación
+    """
+    logger.info(f"🔍 Listando vendedores: q={q}, pais={pais}, activo={activo}, page={page}")
+    started = time.perf_counter_ns()
+    
+    try:
+        # Construir query base
+        stmt = select(Vendedor)
+        
+        # Aplicar filtros
+        if q:
+            stmt = stmt.where(
+                or_(
+                    func.lower(Vendedor.nombre_completo).like(f"%{q.lower()}%"),
+                    func.lower(Vendedor.identificacion).like(f"%{q.lower()}%")
+                )
+            )
+        
+        if pais:
+            stmt = stmt.where(Vendedor.pais == pais.upper())
+        
+        if activo is not None:
+            stmt = stmt.where(Vendedor.activo == activo)
+        
+        # Contar total
+        count_stmt = select(func.count()).select_from(Vendedor)
+        if q:
+            count_stmt = count_stmt.where(
+                or_(
+                    func.lower(Vendedor.nombre_completo).like(f"%{q.lower()}%"),
+                    func.lower(Vendedor.identificacion).like(f"%{q.lower()}%")
+                )
+            )
+        if pais:
+            count_stmt = count_stmt.where(Vendedor.pais == pais.upper())
+        if activo is not None:
+            count_stmt = count_stmt.where(Vendedor.activo == activo)
+        
+        total = (await session.execute(count_stmt)).scalar_one()
+        
+        # Aplicar ordenamiento
+        if sort == "identificacion":
+            stmt = stmt.order_by(Vendedor.identificacion.asc())
+        elif sort == "created_at":
+            stmt = stmt.order_by(Vendedor.created_at.desc())
+        else:  # nombre_completo (default)
+            stmt = stmt.order_by(Vendedor.nombre_completo.asc())
+        
+        # Aplicar paginación
+        stmt = stmt.offset((page - 1) * size).limit(size)
+        
+        # Ejecutar query
+        result = await session.execute(stmt)
+        vendedores = result.scalars().all()
+        
+        # Construir responses con IDs de clientes para cada vendedor
+        vendedores_response = []
+        for v in vendedores:
+            # Obtener IDs de clientes asociados
+            clientes_ids_result = await session.execute(
+                select(Cliente.id).where(Cliente.vendedor_id == v.id)
+            )
+            clientes_ids = [str(cid) for cid in clientes_ids_result.scalars().all()]
+            
+            # Obtener plan_venta_id si existe
+            plan_venta_id = (await session.execute(
+                select(PlanVenta.id).where(PlanVenta.vendedor_id == v.id)
+            )).scalar_one_or_none()
+            
+            vendedor_dict = {
+                "id": v.id,
+                "identificacion": v.identificacion,
+                "nombre_completo": v.nombre_completo,
+                "email": v.email,
+                "telefono": v.telefono,
+                "pais": v.pais,
+                "username": v.username,
+                "rol": v.rol,
+                "rol_vendedor_id": v.rol_vendedor_id,
+                "territorio_id": v.territorio_id,
+                "supervisor_id": v.supervisor_id,
+                "fecha_ingreso": v.fecha_ingreso,
+                "observaciones": v.observaciones,
+                "activo": v.activo,
+                "created_at": v.created_at,
+                "updated_at": v.updated_at,
+                "created_by_user_id": v.created_by_user_id,
+                "plan_venta_id": plan_venta_id,
+                "clientes_asociados": clientes_ids,
+                "clientes_con_vendedor_previo": None,
+                "clientes_no_encontrados": None
+            }
+            vendedores_response.append(VendedorResponse(**vendedor_dict))
+        
+        took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+        logger.info(f"✅ {len(vendedores)} vendedores encontrados en {took_ms}ms")
+        
+        return VendedorListResponse(
+            items=vendedores_response,
+            total=total,
+            page=page,
+            size=size,
+            took_ms=took_ms
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Error listando vendedores: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al listar vendedores"
+        )
+
+
+@router.get("/{vendedor_id}", response_model=VendedorResponse)
+async def obtener_vendedor(
+    vendedor_id: str,  # Recibe como string desde URL
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Obtener un vendedor por ID
+    
+    **Retorna:**
+    - 200: Vendedor encontrado
+    - 400: ID inválido
+    - 404: Vendedor no encontrado
+    """
+    logger.info(f"🔍 Obteniendo vendedor: {vendedor_id}")
+    
+    try:
+        # Convertir string a UUID
+        uuid_id = UUID(vendedor_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "INVALID_UUID",
+                "message": f"ID '{vendedor_id}' no es un UUID válido"
+            }
+        )
+    
+    vendedor = (await session.execute(
+        select(Vendedor).where(Vendedor.id == uuid_id)
+    )).scalar_one_or_none()
+    
+    if not vendedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "VENDEDOR_NOT_FOUND",
+                "message": f"Vendedor {vendedor_id} no encontrado"
+            }
+        )
+    
+    # Obtener plan_venta_id si existe
+    plan_venta = (await session.execute(
+        select(PlanVenta.id).where(PlanVenta.vendedor_id == uuid_id)
+    )).scalar_one_or_none()
+    
+    # Obtener IDs de clientes asociados
+    clientes_ids_result = await session.execute(
+        select(Cliente.id).where(Cliente.vendedor_id == uuid_id)
+    )
+    clientes_ids = [str(cid) for cid in clientes_ids_result.scalars().all()]
+    
+    # Construir response con plan_venta_id y clientes_asociados
+    vendedor_dict = {
+        "id": vendedor.id,
+        "identificacion": vendedor.identificacion,
+        "nombre_completo": vendedor.nombre_completo,
+        "email": vendedor.email,
+        "telefono": vendedor.telefono,
+        "pais": vendedor.pais,
+        "username": vendedor.username,
+        "rol": vendedor.rol,
+        "rol_vendedor_id": vendedor.rol_vendedor_id,
+        "territorio_id": vendedor.territorio_id,
+        "supervisor_id": vendedor.supervisor_id,
+        "fecha_ingreso": vendedor.fecha_ingreso,
+        "observaciones": vendedor.observaciones,
+        "activo": vendedor.activo,
+        "created_at": vendedor.created_at,
+        "updated_at": vendedor.updated_at,
+        "created_by_user_id": vendedor.created_by_user_id,
+        "plan_venta_id": plan_venta,  # Solo el ID del plan
+        "clientes_asociados": clientes_ids
+    }
+    
+    return VendedorResponse(**vendedor_dict)
+
+
+@router.get("/{vendedor_id}/detalle", response_model=VendedorDetalleResponse)
+async def obtener_vendedor_detalle(
+    vendedor_id: str,  # Recibe como string desde URL
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Obtener DETALLE COMPLETO de un vendedor con TODO su plan de venta
+    
+    Incluye:
+    - Información del vendedor
+    - Plan de venta completo con:
+        - Tipo de plan (objeto completo)
+        - Productos asignados (solo IDs, frontend consulta catalogo-service)
+        - Regiones asignadas (objetos completos)
+        - Zonas asignadas (objetos completos)
+        - Estructura de bonificaciones
+    
+    **Retorna:**
+    - 200: Vendedor con plan completo encontrado
+    - 400: ID inválido
+    - 404: Vendedor no encontrado
+    """
+    logger.info(f"🔍 Obteniendo DETALLE COMPLETO de vendedor: {vendedor_id}")
+    started = time.perf_counter_ns()
+    
+    try:
+        # Convertir string a UUID
+        uuid_id = UUID(vendedor_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "INVALID_UUID",
+                "message": f"ID '{vendedor_id}' no es un UUID válido"
+            }
+        )
+    
+    # Cargar vendedor CON todas las relaciones del plan (eager loading)
+    vendedor = (await session.execute(
+        select(Vendedor)
+        .options(
+            selectinload(Vendedor.plan_venta)
+            .selectinload(PlanVenta.tipo_plan)
+        )
+        .options(
+            selectinload(Vendedor.plan_venta)
+            .selectinload(PlanVenta.productos_asignados)
+        )
+        .options(
+            selectinload(Vendedor.plan_venta)
+            .selectinload(PlanVenta.regiones_asignadas)
+            .selectinload(PlanRegion.region)
+        )
+        .options(
+            selectinload(Vendedor.plan_venta)
+            .selectinload(PlanVenta.zonas_asignadas)
+            .selectinload(PlanZona.zona)
+        )
+        .where(Vendedor.id == uuid_id)
+    )).scalar_one_or_none()
+    
+    if not vendedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "VENDEDOR_NOT_FOUND",
+                "message": f"Vendedor {vendedor_id} no encontrado"
+            }
+        )
+    
+    # Construir respuesta transformando las relaciones M2M
+    vendedor_dict = {
+        "id": vendedor.id,
+        "identificacion": vendedor.identificacion,
+        "nombre_completo": vendedor.nombre_completo,
+        "email": vendedor.email,
+        "telefono": vendedor.telefono,
+        "pais": vendedor.pais,
+        "username": vendedor.username,
+        "rol": vendedor.rol,
+        "rol_vendedor_id": vendedor.rol_vendedor_id,
+        "territorio_id": vendedor.territorio_id,
+        "supervisor_id": vendedor.supervisor_id,
+        "fecha_ingreso": vendedor.fecha_ingreso,
+        "observaciones": vendedor.observaciones,
+        "activo": vendedor.activo,
+        "created_at": vendedor.created_at,
+        "updated_at": vendedor.updated_at,
+        "created_by_user_id": vendedor.created_by_user_id,
+        "plan_venta": None
+    }
+    
+    # Si tiene plan de venta, construir el objeto completo
+    if vendedor.plan_venta:
+        plan = vendedor.plan_venta
+        vendedor_dict["plan_venta"] = {
+            "id": plan.id,
+            "vendedor_id": plan.vendedor_id,
+            "tipo_plan_id": plan.tipo_plan_id,
+            "nombre_plan": plan.nombre_plan,
+            "fecha_inicio": plan.fecha_inicio,
+            "fecha_fin": plan.fecha_fin,
+            "meta_ventas": plan.meta_ventas,
+            "comision_base": plan.comision_base,
+            "estructura_bonificaciones": plan.estructura_bonificaciones,
+            "observaciones": plan.observaciones,
+            "activo": plan.activo,
+            "created_at": plan.created_at,
+            "updated_at": plan.updated_at,
+            "created_by_user_id": plan.created_by_user_id,
+            "tipo_plan": plan.tipo_plan,  # Ya es un objeto TipoPlan
+            "productos_asignados": plan.productos_asignados,  # Ya es List[PlanProducto]
+            "regiones_asignadas": [pr.region for pr in plan.regiones_asignadas],  # Extraer Region de PlanRegion
+            "zonas_asignadas": [pz.zona for pz in plan.zonas_asignadas]  # Extraer Zona de PlanZona
+        }
+    
+    took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+    logger.info(f"✅ Detalle de vendedor cargado en {took_ms}ms (plan completo incluido)")
+    
+    return VendedorDetalleResponse.model_validate(vendedor_dict)
+
+
+@router.put("/{vendedor_id}", response_model=VendedorResponse)
+async def actualizar_vendedor(
+    vendedor_id: str,  # Recibe como string desde URL
+    vendedor_data: VendedorUpdate,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Actualizar un vendedor existente
+    
+    **Retorna:**
+    - 200: Vendedor actualizado
+    - 400: ID inválido
+    - 404: Vendedor no encontrado
+    - 409: Identificación o email duplicado
+    """
+    logger.info(f"✏️ Actualizando vendedor: {vendedor_id}")
+    started = time.perf_counter_ns()
+    
+    try:
+        # Convertir string a UUID
+        uuid_id = UUID(vendedor_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "INVALID_UUID", "message": f"ID '{vendedor_id}' no es un UUID válido"}
+        )
+    
+    try:
+        # Buscar vendedor
+        vendedor = (await session.execute(
+            select(Vendedor).where(Vendedor.id == uuid_id)
+        )).scalar_one_or_none()
+        
+        if not vendedor:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "VENDEDOR_NOT_FOUND", "message": f"Vendedor {vendedor_id} no encontrado"}
+            )
+        
+        # Validar identificación única (si se actualiza)
+        if vendedor_data.identificacion and vendedor_data.identificacion != vendedor.identificacion:
+            existing_id = (await session.execute(
+                select(Vendedor).where(Vendedor.identificacion == vendedor_data.identificacion)
+            )).scalar_one_or_none()
+            if existing_id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"error": "IDENTIFICACION_ALREADY_EXISTS", "message": f"Identificación {vendedor_data.identificacion} ya existe"}
+                )
+        
+        # Validar email único (si se actualiza)
+        if vendedor_data.email and vendedor_data.email != vendedor.email:
+            existing_email = (await session.execute(
+                select(Vendedor).where(Vendedor.email == vendedor_data.email)
+            )).scalar_one_or_none()
+            if existing_email:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"error": "EMAIL_ALREADY_EXISTS", "message": f"Email {vendedor_data.email} ya existe"}
+                )
+        
+        # Validar username único (si se actualiza)
+        if vendedor_data.username and vendedor_data.username != vendedor.username:
+            existing_username = (await session.execute(
+                select(Vendedor).where(Vendedor.username == vendedor_data.username)
+            )).scalar_one_or_none()
+            if existing_username:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"error": "USERNAME_ALREADY_EXISTS", "message": f"Username '{vendedor_data.username}' ya está en uso"}
+                )
+        
+        # Actualizar campos y validar FK
+        update_data = vendedor_data.model_dump(exclude_unset=True)
+        
+        # Validar y convertir FK antes de asignar
+        if "rol_vendedor_id" in update_data and update_data["rol_vendedor_id"]:
+            tipo_rol = await session.get(TipoRolVendedor, update_data["rol_vendedor_id"])
+            if not tipo_rol or not tipo_rol.activo:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"error": "TIPO_ROL_NOT_FOUND", "message": f"Tipo de rol no encontrado o inactivo"}
+                )
+        
+        if "territorio_id" in update_data and update_data["territorio_id"]:
+            territorio = await session.get(Territorio, update_data["territorio_id"])
+            if not territorio or not territorio.activo:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"error": "TERRITORIO_NOT_FOUND", "message": f"Territorio no encontrado o inactivo"}
+                )
+        
+        if "supervisor_id" in update_data and update_data["supervisor_id"]:
+            try:
+                supervisor_uuid = UUID(update_data["supervisor_id"])
+                # Evitar ciclo: el vendedor no puede ser su propio supervisor
+                if supervisor_uuid == uuid_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={"error": "SELF_SUPERVISION_NOT_ALLOWED", "message": "Un vendedor no puede ser su propio supervisor"}
+                    )
+                supervisor = await session.get(Vendedor, supervisor_uuid)
+                if not supervisor or not supervisor.activo:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail={"error": "SUPERVISOR_NOT_FOUND", "message": f"Supervisor no encontrado o inactivo"}
+                    )
+                update_data["supervisor_id"] = supervisor_uuid
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "INVALID_UUID", "message": "supervisor_id no es un UUID válido"}
+                )
+        
+        # Aplicar cambios
+        for key, value in update_data.items():
+            setattr(vendedor, key, value)
+        
+        await session.commit()
+        await session.refresh(vendedor)
+        
+        took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+        logger.info(f"✅ Vendedor actualizado: {vendedor_id} en {took_ms}ms")
+        
+        # Obtener plan_venta_id si existe
+        plan_venta_id_result = (await session.execute(
+            select(PlanVenta.id).where(PlanVenta.vendedor_id == uuid_id)
+        )).scalar_one_or_none()
+        
+        # Construir response con plan_venta_id
+        vendedor_dict = {
+            "id": vendedor.id,
+            "identificacion": vendedor.identificacion,
+            "nombre_completo": vendedor.nombre_completo,
+            "email": vendedor.email,
+            "telefono": vendedor.telefono,
+            "pais": vendedor.pais,
+            "username": vendedor.username,
+            "rol": vendedor.rol,
+            "rol_vendedor_id": vendedor.rol_vendedor_id,
+            "territorio_id": vendedor.territorio_id,
+            "supervisor_id": vendedor.supervisor_id,
+            "fecha_ingreso": vendedor.fecha_ingreso,
+            "observaciones": vendedor.observaciones,
+            "activo": vendedor.activo,
+            "created_at": vendedor.created_at,
+            "updated_at": vendedor.updated_at,
+            "created_by_user_id": vendedor.created_by_user_id,
+            "plan_venta_id": plan_venta_id_result  # Solo el ID del plan
+        }
+        
+        return VendedorResponse(**vendedor_dict)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error actualizando vendedor: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al actualizar vendedor"
+        )
+
+
+@router.delete("/{vendedor_id}", status_code=status.HTTP_200_OK)
+async def desactivar_vendedor(
+    vendedor_id: str,  # Recibe como string desde URL
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Desactivar un vendedor (soft delete)
+    
+    No se eliminan físicamente los vendedores, solo se marcan como inactivos.
+    
+    **Retorna:**
+    - 200: Vendedor desactivado
+    - 400: ID inválido
+    - 404: Vendedor no encontrado
+    """
+    logger.info(f"🗑️ Desactivando vendedor: {vendedor_id}")
+    
+    try:
+        uuid_id = UUID(vendedor_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "INVALID_UUID", "message": f"ID '{vendedor_id}' no es un UUID válido"}
+        )
+    
+    vendedor = (await session.execute(
+        select(Vendedor).where(Vendedor.id == uuid_id)
+    )).scalar_one_or_none()
+    
+    if not vendedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "VENDEDOR_NOT_FOUND", "message": f"Vendedor {vendedor_id} no encontrado"}
+        )
+    
+    vendedor.activo = False
+    await session.commit()
+    
+    logger.info(f"✅ Vendedor desactivado: {vendedor_id}")
+    
+    return {"message": f"Vendedor {vendedor_id} desactivado exitosamente"}
+
+
+@router.get("/{vendedor_id}/clientes", response_model=dict)
+async def obtener_clientes_vendedor(
+    vendedor_id: str,  # Recibe como string desde URL
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Obtener todos los clientes de un vendedor
+    
+    **Retorna:**
+    - Lista de clientes del vendedor
+    - 400: ID inválido
+    - 404: Vendedor no encontrado
+    """
+    logger.info(f"🔍 Obteniendo clientes del vendedor: {vendedor_id}")
+    
+    try:
+        uuid_id = UUID(vendedor_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "INVALID_UUID", "message": f"ID '{vendedor_id}' no es un UUID válido"}
+        )
+    
+    # Verificar que el vendedor existe
+    vendedor = (await session.execute(
+        select(Vendedor).where(Vendedor.id == uuid_id)
+    )).scalar_one_or_none()
+    
+    if not vendedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "VENDEDOR_NOT_FOUND", "message": f"Vendedor {vendedor_id} no encontrado"}
+        )
+    
+    # Obtener clientes
+    clientes = (await session.execute(
+        select(Cliente).where(Cliente.vendedor_id == uuid_id)
+    )).scalars().all()
+    
+    return {
+        "vendedor_id": str(vendedor_id),
+        "vendedor_nombre": vendedor.nombre_completo,
+        "total_clientes": len(clientes),
+        "clientes": [
+            {
+                "id": str(c.id),
+                "nit": c.nit,
+                "nombre": c.nombre,
+                "codigo_unico": c.codigo_unico,
+                "activo": c.activo
+            }
+            for c in clientes
+        ]
+    }
+
+
+@router.post("/{vendedor_id}/clientes/asociar", response_model=AsociarClientesResponse, status_code=status.HTTP_200_OK)
+async def asociar_clientes_a_vendedor(
+    vendedor_id: str,
+    payload: AsociarClientesRequest,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Asociar múltiples clientes a un vendedor
+    
+    **Validaciones estrictas (TODO O NADA):**
+    - El vendedor debe existir y estar activo
+    - TODOS los clientes deben cumplir:
+      * Existir en la base de datos (error 404 si no existe)
+      * NO tener vendedor asignado (error 409 si ya tiene vendedor)
+      * Estar activos (error 400 si está inactivo)
+      * Tener UUID válido (error 400 si es inválido)
+    - Si CUALQUIER cliente NO cumple → La operación se ABORTA completamente
+    - No se permite lista vacía de clientes
+    
+    **Retorna:**
+    - 200: Todos los clientes asociados exitosamente
+    - 400: ID inválido, lista vacía o cliente inactivo
+    - 404: Vendedor o cliente no encontrado
+    - 409: Cliente ya tiene vendedor asignado
+    """
+    logger.info(f"🔗 Asociando {len(payload.clientes_ids)} clientes al vendedor: {vendedor_id}")
+    started = time.perf_counter_ns()
+    
+    # Validar que la lista no esté vacía
+    if not payload.clientes_ids or len(payload.clientes_ids) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "EMPTY_CLIENTES_LIST",
+                "message": "La lista de clientes no puede estar vacía"
+            }
+        )
+    
+    # Validar UUID del vendedor
+    try:
+        vendedor_uuid = UUID(vendedor_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "INVALID_VENDEDOR_UUID",
+                "message": f"ID de vendedor '{vendedor_id}' no es un UUID válido"
+            }
+        )
+    
+    # Verificar que el vendedor existe y está activo
+    vendedor = (await session.execute(
+        select(Vendedor).where(Vendedor.id == vendedor_uuid)
+    )).scalar_one_or_none()
+    
+    if not vendedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "VENDEDOR_NOT_FOUND",
+                "message": f"Vendedor {vendedor_id} no encontrado"
+            }
+        )
+    
+    if not vendedor.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "VENDEDOR_INACTIVE",
+                "message": f"Vendedor {vendedor.nombre_completo} está inactivo y no puede tener clientes asociados"
+            }
+        )
+    
+    # FASE 1: VALIDAR que TODOS los clientes cumplan los requisitos (sin modificar nada)
+    logger.info(f"👥 Validando {len(payload.clientes_ids)} clientes antes de asociar...")
+    
+    for cliente_id_str in payload.clientes_ids:
+        # Validar UUID del cliente
+        try:
+            cliente_uuid = UUID(cliente_id_str)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "INVALID_CLIENTE_UUID",
+                    "message": f"ID de cliente '{cliente_id_str}' no es un UUID válido",
+                    "cliente_id": cliente_id_str
+                }
+            )
+        
+        # Buscar el cliente
+        cliente = await session.get(Cliente, cliente_uuid)
+        
+        if not cliente:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "CLIENTE_NOT_FOUND",
+                    "message": f"Cliente con ID '{cliente_id_str}' no existe",
+                    "cliente_id": cliente_id_str
+                }
+            )
+        
+        # Validar que el cliente esté activo
+        if not cliente.activo:
+            cliente_nombre = cliente.nombre
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "CLIENTE_INACTIVE",
+                    "message": f"Cliente '{cliente_nombre}' (ID: {cliente_id_str}) está inactivo",
+                    "cliente_id": cliente_id_str,
+                    "cliente_nombre": cliente_nombre
+                }
+            )
+        
+        # Validar que el cliente NO tenga vendedor asignado
+        if cliente.vendedor_id is not None:
+            vendedor_actual_id = str(cliente.vendedor_id)
+            cliente_nombre = cliente.nombre
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "CLIENTE_ALREADY_HAS_VENDEDOR",
+                    "message": f"Cliente '{cliente_nombre}' (ID: {cliente_id_str}) ya tiene un vendedor asignado (ID: {vendedor_actual_id})",
+                    "cliente_id": cliente_id_str,
+                    "vendedor_actual": vendedor_actual_id,
+                    "cliente_nombre": cliente_nombre
+                }
+            )
+    
+    # FASE 2: Si todas las validaciones pasaron, ASOCIAR todos los clientes
+    logger.info(f"✅ Todas las validaciones pasaron. Asociando clientes...")
+    clientes_asociados = 0
+    
+    for cliente_id_str in payload.clientes_ids:
+        cliente_uuid = UUID(cliente_id_str)
+        cliente = await session.get(Cliente, cliente_uuid)
+        
+        # Asociar el cliente al vendedor
+        cliente.vendedor_id = vendedor_uuid
+        clientes_asociados += 1
+        logger.info(f"  ✅ Cliente '{cliente.nombre}' asociado correctamente")
+    
+    # Guardar cambios
+    await session.commit()
+    
+    took_ms = int((time.perf_counter_ns() - started) / 1_000_000)
+    
+    mensaje = f"{clientes_asociados} cliente(s) asociado(s) exitosamente al vendedor {vendedor.nombre_completo}"
+    
+    logger.info(f"✅ Asociación completada en {took_ms}ms: {mensaje}")
+    
+    return AsociarClientesResponse(
+        vendedor_id=vendedor_uuid,
+        vendedor_nombre=vendedor.nombre_completo,
+        clientes_asociados=clientes_asociados,
+        clientes_no_encontrados=[],  # Ya no aplica porque se valida antes
+        clientes_inactivos=[],  # Ya no aplica porque se valida antes
+        clientes_con_vendedor=[],  # Ya no aplica porque se valida antes
+        mensaje=mensaje
+    )
+

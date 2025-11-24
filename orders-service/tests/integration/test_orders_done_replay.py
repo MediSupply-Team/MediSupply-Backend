@@ -18,7 +18,8 @@ async def test_orders_replay_done_returns_cached_and_no_side_effects(
     client, test_session, override_db, monkeypatch
 ):
     body = {
-        "customer_id": "C-REPLAY", 
+        "customer_id": "C-REPLAY",
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",  # ✅ Agregado
         "items": [{"sku": "X1", "qty": 1}],  
         "created_by_role": "seller", 
         "source": "bff-cliente",
@@ -81,7 +82,8 @@ async def test_orders_replay_pending_creates_only_once(
     Test: Si el registro está en PENDING y hacemos replay, debe manejarse correctamente
     """
     body = {
-        "customer_id": "C-PENDING-REPLAY", 
+        "customer_id": "C-PENDING-REPLAY",
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",  # ✅ Agregado
         "items": [{"sku": "Y1", "qty": 2}],  
         "created_by_role": "admin", 
         "source": "bff-admin",

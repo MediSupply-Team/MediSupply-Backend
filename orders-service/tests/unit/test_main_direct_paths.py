@@ -19,7 +19,8 @@ async def _count(session, model):
 @pytest.mark.anyio
 async def test_direct_pending_same_body_enters_try_and_creates_order(test_session, monkeypatch):
     body = {
-        "customer_id": "C-PEND-DIRECT", 
+        "customer_id": "C-PEND-DIRECT",
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",  # ✅ Agregado
         "items": [{"sku": "PD1", "qty": 1}],
         "created_by_role": "seller",
         "source": "bff-cliente",
@@ -75,7 +76,8 @@ async def test_direct_done_returns_cached_early_return(test_session, monkeypatch
     Cubre: rama DONE + response_body (líneas 48–49) => return temprano.
     """
     body = {
-        "customer_id": "C-DONE-DIRECT", 
+        "customer_id": "C-DONE-DIRECT",
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",  # ✅ Agregado
         "items": [{"sku": "D1", "qty": 1}],
         "created_by_role": "seller",
         "source": "bff-cliente",
@@ -122,7 +124,8 @@ async def test_direct_conflict_same_key_different_payload_raises_409(test_sessio
     Cubre: raise HTTPException(409) (línea 46).
     """
     body1 = {
-        "customer_id": "C-PEND-DIRECT", 
+        "customer_id": "C-PEND-DIRECT",
+        "seller_id": "seller-id-1",  # ✅ Agregado
         "items": [{"sku": "PD1", "qty": 1}],
         "created_by_role": "seller",
         "source": "bff-cliente",
@@ -136,7 +139,8 @@ async def test_direct_conflict_same_key_different_payload_raises_409(test_sessio
         }
     }
     body2 = {
-        "customer_id": "C-DONE-DIRECT", 
+        "customer_id": "C-DONE-DIRECT",
+        "seller_id": "seller-id-2",  # ✅ Agregado diferente
         "items": [{"sku": "D1", "qty": 1}],
         "created_by_role": "seller",
         "source": "bff-cliente",

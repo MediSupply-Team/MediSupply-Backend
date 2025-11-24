@@ -363,13 +363,13 @@ class DatabaseClient:
     
     async def get_products_by_skus(self, skus: List[str]) -> Dict[str, Dict[str, Any]]:
         """
-        Obtiene productos del catálogo por sus SKUs
+        Obtiene productos del catálogo por sus códigos (SKUs)
         
         Args:
-            skus: Lista de SKUs de productos
+            skus: Lista de códigos de productos
             
         Returns:
-            Diccionario con SKU como clave y datos del producto como valor
+            Diccionario con código como clave y datos del producto como valor
         """
         if not self.catalog_pool:
             await self.connect()
@@ -382,21 +382,17 @@ class DatabaseClient:
         
         query = f"""
             SELECT 
-                sku,
-                name,
-                description,
-                price,
-                category,
-                brand,
-                stock_quantity,
-                min_stock_level,
-                max_stock_level,
-                unit_of_measure,
-                is_active,
-                created_at,
-                updated_at
-            FROM products
-            WHERE sku IN ({placeholders})
+                codigo,
+                nombre,
+                categoria_id,
+                presentacion,
+                precio_unitario,
+                stock_minimo,
+                stock_critico,
+                activo,
+                proveedor_id
+            FROM producto
+            WHERE codigo IN ({placeholders})
         """
         
         async with self.catalog_pool.acquire() as conn:
@@ -405,15 +401,11 @@ class DatabaseClient:
             products = {}
             for row in rows:
                 product = dict(row)
-                # Convertir decimal a float para price
-                if product.get('price'):
-                    product['price'] = float(product['price'])
-                # Convertir datetime a ISO format
-                for date_field in ['created_at', 'updated_at']:
-                    if product.get(date_field):
-                        product[date_field] = product[date_field].isoformat()
+                # Convertir decimal a float para precio_unitario
+                if product.get('precio_unitario'):
+                    product['precio_unitario'] = float(product['precio_unitario'])
                 
-                products[product['sku']] = product
+                products[product['codigo']] = product
             
             return products
 

@@ -1,4 +1,4 @@
-name: Update Nginx Config (Oracle Cloud)
+name: 🛰️ Update Nginx (Oracle Cloud)
 
 on:
   # Se dispara automáticamente después de deploy exitoso
@@ -21,6 +21,13 @@ on:
         - develop
       paths:
         - '.github/workflows/update-nginx-oracle.yml'
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch/Tag/Commit a desplegar"
+        required: false
+        type: string
+        default: "develop"
 
 env:
   AWS_REGION: us-east-1

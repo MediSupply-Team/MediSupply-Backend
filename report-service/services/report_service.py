@@ -34,16 +34,19 @@ def _calculate_order_revenue(order: Dict[str, Any], products: Dict[str, Dict[str
     items = order.get("items", [])
     total = 0.0
     for item in items:
-        sku = item.get("sku")
+        # El campo puede ser 'sku' o 'codigo' dependiendo de la fuente
+        codigo = item.get("sku") or item.get("codigo")
         quantity = item.get("qty", 0)
         
         # Obtener precio del catálogo si existe, sino usar el precio del item
         price = 0.0
-        if sku and sku in products:
-            price = products[sku].get("price", 0.0)
+        if codigo and codigo in products:
+            price = products[codigo].get("precio_unitario", 0.0)
+            logger.info(f"Producto {codigo}: qty={quantity}, precio={price}, subtotal={quantity * price}")
         else:
-            # Fallback al precio en el item si no está en catálogo
+            # Fallback al precio en el item
             price = item.get("price", 0.0)
+            logger.warning(f"Producto {codigo} no encontrado en catálogo, usando precio del item: {price}")
         
         total += quantity * price
     return round(total, 2)
@@ -96,17 +99,26 @@ async def get_sales_performance(
             end_date=end_datetime
         )
         
-        # Filtrar por fechas (validación adicional)
-        orders = _filter_orders_by_date(all_orders, period_from, period_to)
+        logger.info(f"Roles en órdenes: {[order.get('created_by_role') for order in all_orders]}")
+        
+        # Filtrar solo órdenes de vendedores (seller) y por fechas
+        orders = [
+            order for order in all_orders 
+            if order.get("created_by_role", "").lower() == "seller"
+        ]
+        orders = _filter_orders_by_date(orders, period_from, period_to)
+        
+        logger.info(f"Órdenes de seller después de filtrar: {len(orders)}")
         
         # Obtener todos los SKUs únicos de las órdenes
         all_skus = set()
         for order in orders:
             items = order.get("items", [])
             for item in items:
-                sku = item.get("sku")
-                if sku:
-                    all_skus.add(sku)
+                # El campo puede ser 'sku' o 'codigo' 
+                codigo = item.get("sku") or item.get("codigo")
+                if codigo:
+                    all_skus.add(codigo)
         
         # Obtener productos del catálogo
         logger.info(f"Obteniendo productos del catálogo para {len(all_skus)} SKUs")
@@ -128,6 +140,7 @@ async def get_sales_performance(
         
         # -------- SUMMARY: Total Sales --------
         total_sales = sum(_calculate_order_revenue(order, products) for order in orders)
+        logger.info(f"Total sales calculado: {total_sales}, de {len(orders)} órdenes")
         
         # -------- SUMMARY: Pending Orders --------
         pending_orders = sum(
@@ -153,6 +166,11 @@ async def get_sales_performance(
             start_date=prev_start_datetime,
             end_date=prev_end_datetime
         )
+        # Filtrar solo órdenes de vendedores (seller)
+        prev_orders = [
+            order for order in prev_orders 
+            if order.get("created_by_role", "").lower() == "seller"
+        ]
         prev_orders = _filter_orders_by_date(prev_orders, prev_from, prev_to)
         prev_total = sum(_calculate_order_revenue(order, products) for order in prev_orders)
         
@@ -198,24 +216,25 @@ async def get_sales_performance(
         for order in orders:
             items = order.get("items", [])
             for item in items:
-                sku = item.get("sku")
-                if not sku:
+                # El campo puede ser 'sku' o 'codigo'
+                codigo = item.get("sku") or item.get("codigo")
+                if not codigo:
                     continue
                     
                 quantity = item.get("qty", 0)
                 
-                # Obtener precio del catálogo
+                # Obtener precio y nombre del catálogo
                 price = 0.0
-                if sku in products:
-                    price = products[sku].get("price", 0.0)
-                    product_names[sku] = products[sku].get("name", f"Producto {sku}")
+                if codigo in products:
+                    price = products[codigo].get("precio_unitario", 0.0)
+                    product_names[codigo] = products[codigo].get("nombre", f"Producto {codigo}")
                 else:
                     # Fallback al precio en el item
                     price = item.get("price", 0.0)
-                    product_names[sku] = item.get("product_name", f"Producto {sku}")
+                    product_names[codigo] = item.get("product_name", f"Producto {codigo}")
                 
                 revenue = quantity * price
-                product_sales[sku] += revenue
+                product_sales[codigo] += revenue
         
         # Ordenar y tomar top N
         sorted_products = sorted(
@@ -238,19 +257,20 @@ async def get_sales_performance(
         # -------- TABLE: Rows (órdenes individuales) --------
         table_rows: List[TableRow] = []
         for order in orders:
-            vendor_name = order.get("user_name", "N/A")
+            vendor_name = order.get("user_name") or "Vendedor desconocido"
             items = order.get("items", [])
             status = order.get("status", "COMPLETED")
             
             # Crear una fila por cada item en la orden
             for item in items:
-                sku = item.get("sku")
+                # El campo puede ser 'sku' o 'codigo'
+                codigo = item.get("sku") or item.get("codigo")
                 quantity = item.get("qty", 0)
                 
                 # Obtener nombre y precio del catálogo
-                if sku and sku in products:
-                    product_name = products[sku].get("name", "Producto desconocido")
-                    price = products[sku].get("price", 0.0)
+                if codigo and codigo in products:
+                    product_name = products[codigo].get("nombre", "Producto desconocido")
+                    price = products[codigo].get("precio_unitario", 0.0)
                 else:
                     product_name = item.get("product_name", "Producto desconocido")
                     price = item.get("price", 0.0)

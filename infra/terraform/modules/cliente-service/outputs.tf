@@ -15,7 +15,7 @@ output "service_connect_port" {
 
 output "service_connect_url" {
   description = "Full Service Connect URL for internal communication"
-  value       = "http://cliente.svc.local:${var.container_port}"
+  value       = "http://cliente:${var.container_port}"
 }
 
 output "service_name" {
@@ -31,6 +31,16 @@ output "cloudwatch_log_group_name" {
 output "db_credentials_secret_arn" {
   description = "Database credentials secret ARN"
   value       = aws_secretsmanager_secret.cliente_db_credentials.arn
+}
+
+output "db_url_secret_arn" {
+  description = "Database URL secret ARN (for other services to access cliente DB)"
+  value       = aws_secretsmanager_secret.cliente_db_credentials.arn
+}
+
+output "db_security_group_id" {
+  description = "Security group ID of the cliente database"
+  value       = aws_security_group.cliente_db_sg.id
 }
 
 # ============================================================

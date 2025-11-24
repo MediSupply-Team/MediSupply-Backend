@@ -2,7 +2,7 @@ name: Deploy Orders Service
 
 on:
   push:
-    branches: [ "develop", "report-service" ]
+    branches: [ "develop", "report-service","ajuste_orders" ]
     paths:
       - "orders-service/**"
       - ".github/workflows/deploy-orders.yml"
@@ -18,7 +18,7 @@ on:
         description: "Branch/Tag/Commit a desplegar"
         required: false
         type: string
-        default: "main"
+        default: "develop"
 
 env:
   AWS_REGION: us-east-1

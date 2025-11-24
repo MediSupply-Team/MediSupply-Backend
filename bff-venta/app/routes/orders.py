@@ -23,7 +23,7 @@ def get_orders_service_url():
 @bp.post("/api/v1/orders")
 def post_message():
     """
-    Create a new order (async via SQS)
+    Create a new order (validated synchronously, then processed async via SQS)
     ---
     tags:
       - Orders
@@ -43,8 +43,8 @@ def post_message():
               example:
                 customer_id: "123"
                 items:
-                  - product_id: "ABC"
-                    quantity: 2
+                  - sku: "ABC"
+                    qty: 2
             group_id:
               type: string
               description: SQS Message Group ID
@@ -76,6 +76,11 @@ def post_message():
             error:
               type: string
               example: "Falta 'body' en el JSON"
+            detail:
+              type: string
+              example: "Los siguientes productos no existen: SKU123"
+      503:
+        description: Service unavailable
     """
     data = request.get_json(silent=True) or {}
     body = data.get("body")
@@ -83,11 +88,15 @@ def post_message():
         return jsonify(error="Falta 'body' en el JSON"), 400
     
     enriched_body = {
-    **body,  # Mantener todos los campos originales
-    "created_by_role": "vendor", 
-    "source": "bff-venta"
+        **body,  # Mantener todos los campos originales
+        "created_by_role": "seller", 
+        "source": "bff-venta"
     }
+    
     event_id = str(uuid.uuid4())
+    
+    # Enviar directamente a SQS sin validación síncrona para respuesta rápida
+    # La validación se hará de forma asíncrona en el servicio de órdenes
     sqs_message = {
         "event_id": event_id,
         "order": enriched_body,
@@ -102,7 +111,7 @@ def post_message():
 
     sqs: "SQSService" = current_app.extensions["sqs"]
     
-    # Enviar a SQS de forma asincrona (no bloqueante)
+    # Enviar a SQS de forma asíncrona (no bloqueante)
     future = executor.submit(
         send_sqs_message_async, 
         sqs, 
@@ -111,11 +120,12 @@ def post_message():
         dedup_id
     )
     
-    # Respuesta inmediata sin esperar SQS
+    # Respuesta inmediata - la orden será procesada de forma asíncrona
     return jsonify(
-        messageId=f"async-{event_id}",  # ID temporal
+        messageId=f"async-{event_id}",
         event_id=event_id,
-        status="accepted"
+        status="accepted",
+        validated=False  # Se validará de forma asíncrona
     ), 202
 
 def send_sqs_message_async(sqs, message, group_id, dedup_id):

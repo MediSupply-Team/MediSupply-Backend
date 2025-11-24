@@ -3,7 +3,7 @@ name: "📊 CI - Continuous Integration"
 # Se ejecuta en cada push a main
 on:
   push:
-    branches: [develop, tests-services]
+    branches: [ tests-services]
     paths:
       - 'orders-service/**'
       - 'catalogo-service/**'

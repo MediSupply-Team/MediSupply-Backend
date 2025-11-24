@@ -3,7 +3,7 @@ name: Deploy Cliente Service
 
 on:
   push:
-    branches: [ "develop", "fix-carga-masiva" ]
+    branches: [ "develop", "ajuste_cliente_service", "crear-cliente", "fix_vendedor" ]
     paths:
       - "cliente-service/**"
       - ".github/workflows/deploy-cliente.yml"
@@ -19,7 +19,7 @@ on:
         description: "Branch/Tag/Commit a desplegar"
         required: false
         type: string
-        default: "main"
+        default: "develop"
 
 env:
   AWS_REGION: us-east-1

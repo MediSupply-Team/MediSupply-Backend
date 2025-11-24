@@ -104,3 +104,13 @@ variable "shared_alb_sg_id" {
   type        = string
   description = "Security Group ID del ALB compartido (BFF Venta)"
 }
+
+variable "cliente_db_url_secret_arn" {
+  description = "Cliente Database URL secret ARN from Secrets Manager"
+  type        = string
+}
+
+variable "mapbox_token_secret_arn" {
+  description = "Mapbox access token secret ARN from Secrets Manager"
+  type        = string
+}

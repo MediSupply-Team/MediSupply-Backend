@@ -235,24 +235,26 @@ async def cargar_datos_iniciales(engine) -> bool:
     """
     print("📝 Verificando datos iniciales...")
     
-    # Verificar si ya hay productos
+    # Verificar estado actual de todas las tablas
     async with engine.begin() as conn:
         result = await conn.execute(text("SELECT COUNT(*) FROM producto"))
         count = result.scalar()
         
-        # También verificar inventarios
         result_inv = await conn.execute(text("SELECT COUNT(*) FROM inventario"))
         count_inv = result_inv.scalar()
+        
+        result_bodega = await conn.execute(text("SELECT COUNT(*) FROM bodega"))
+        count_bodega = result_bodega.scalar()
     
-    print(f"   📊 Estado actual: {count} productos, {count_inv} inventarios")
+    print(f"   📊 Estado actual: {count} productos, {count_inv} inventarios, {count_bodega} bodegas")
     
-    if count >= 25:
-        print(f"   ℹ️  Ya existen {count} productos en la base de datos (suficientes)")
+    # Si ya hay datos completos (productos y bodegas), no recargar
+    if count >= 25 and count_bodega >= 21:
+        print(f"   ℹ️  Datos completos ya cargados (productos y bodegas)")
         return True
     
-    if count > 0:
-        print(f"   ⚠️  Existen {count} productos pero es menos de lo esperado (25)")
-        print(f"   🔄 Continuando con carga de datos adicionales...")
+    if count > 0 or count_bodega > 0:
+        print(f"   🔄 Cargando datos faltantes...")
     
     # Cargar datos desde todos los archivos SQL en data/ en orden
     data_dir = Path(__file__).parent.parent / "data"
@@ -382,11 +384,11 @@ async def inicializar_base_datos():
         print("1️⃣ Creando tablas base (SQLAlchemy)...")
         from app.db import Base
         # Importar modelos para que se registren en Base.metadata
-        from app.models.catalogo_model import Producto, Inventario
+        from app.models.catalogo_model import Producto, Inventario, Bodega
         from app.models.movimiento_model import MovimientoInventario, AlertaInventario
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        print("   ✅ Tablas base verificadas\n")
+        print("   ✅ Tablas base verificadas (incluyendo tabla 'bodega')\n")
         
         # Paso 2: Verificar y agregar columnas a 'producto'
         print("2️⃣ Verificando columnas de 'producto'...")
@@ -416,13 +418,15 @@ async def inicializar_base_datos():
                     (SELECT COUNT(*) FROM producto) as productos,
                     (SELECT COUNT(*) FROM inventario) as inventarios,
                     (SELECT COUNT(*) FROM movimiento_inventario) as movimientos,
-                    (SELECT COUNT(*) FROM alerta_inventario) as alertas
+                    (SELECT COUNT(*) FROM alerta_inventario) as alertas,
+                    (SELECT COUNT(*) FROM bodega) as bodegas
             """))
             row = result.one()
             print(f"   📊 Productos: {row.productos}")
             print(f"   📊 Inventarios: {row.inventarios}")
             print(f"   📊 Movimientos: {row.movimientos}")
             print(f"   📊 Alertas: {row.alertas}")
+            print(f"   📊 Bodegas: {row.bodegas}")
         
         print("\n" + "="*70)
         print("✅ INICIALIZACIÓN COMPLETADA EXITOSAMENTE")

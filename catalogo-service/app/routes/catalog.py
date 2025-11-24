@@ -70,7 +70,8 @@ async def list_items(
         if r.id in inv_map:
             item["inventarioResumen"] = {
                 "cantidadTotal": inv_map[r.id]["cantidad"],
-                "paises": sorted(inv_map[r.id]["paises"])  # Ordenar para consistencia
+                "paises": sorted(inv_map[r.id]["paises"]),  # Ordenar para consistencia
+                "bodegas": inv_map[r.id].get("bodegas", [])  # Incluir info de bodegas
             }
         else:
             item["inventarioResumen"] = None
@@ -137,60 +138,126 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
     - Facilita el primer movimiento de INGRESO
     - Si no se especifica, el inventario se crea en el primer INGRESO
     """
-    logger.info(f"📝 Creando producto: {product.id}")
+    # Generar UUID automáticamente si no se proporciona
+    import uuid
+    product_id = product.id if product.id else str(uuid.uuid4())
     
-    # Verificar si el producto ya existe
-    existing = (await session.execute(
-        select(Producto).where(Producto.id == product.id)
-    )).scalar_one_or_none()
+    logger.info(f"📝 Creando producto: {product_id}")
     
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Producto con id {product.id} ya existe"
+    try:
+        # Verificar si el producto ya existe
+        existing = (await session.execute(
+            select(Producto).where(Producto.id == product_id)
+        )).scalar_one_or_none()
+        
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Producto con id {product_id} ya existe"
+            )
+        
+        # Validar proveedorId si se proporciona
+        if product.proveedorId:
+            try:
+                from uuid import UUID
+                UUID(product.proveedorId)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "error": "INVALID_PROVEEDOR_ID",
+                        "message": f"proveedorId '{product.proveedorId}' no es un UUID válido. Debe tener formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+                        "field": "proveedorId",
+                        "received": product.proveedorId
+                    }
+                )
+        
+        # Crear nuevo producto con campos de inventario
+        new_product = Producto(
+            id=product_id,
+            nombre=product.nombre,
+            codigo=product.codigo,
+            categoria_id=product.categoria,
+            presentacion=product.presentacion,
+            precio_unitario=product.precioUnitario,
+            requisitos_almacenamiento=product.requisitosAlmacenamiento,
+            stock_minimo=product.stockMinimo or 10,
+            stock_critico=product.stockCritico or 5,
+            requiere_lote=product.requiereLote or False,
+            requiere_vencimiento=product.requiereVencimiento if product.requiereVencimiento is not None else True,
+            certificado_sanitario=product.certificadoSanitario,
+            tiempo_entrega_dias=product.tiempoEntregaDias,
+            proveedor_id=product.proveedorId
         )
+        
+        session.add(new_product)
+        await session.flush()  # Flush para que el producto exista antes de crear inventarios
     
-    # Crear nuevo producto con campos de inventario
-    new_product = Producto(
-        id=product.id,
-        nombre=product.nombre,
-        codigo=product.codigo,
-        categoria_id=product.categoria,
-        presentacion=product.presentacion,
-        precio_unitario=product.precioUnitario,
-        requisitos_almacenamiento=product.requisitosAlmacenamiento,
-        stock_minimo=product.stockMinimo or 10,
-        stock_critico=product.stockCritico or 5,
-        requiere_lote=product.requiereLote or False,
-        requiere_vencimiento=product.requiereVencimiento if product.requiereVencimiento is not None else True,
-        certificado_sanitario=product.certificadoSanitario,
-        tiempo_entrega_dias=product.tiempoEntregaDias,
-        proveedor_id=product.proveedorId
-    )
-    
-    session.add(new_product)
-    await session.flush()  # Flush para que el producto exista antes de crear inventarios
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error creando producto {product_id}: {str(e)}")
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "PRODUCT_CREATION_FAILED",
+                "message": f"Error al crear producto: {str(e)}",
+                "product_id": product_id
+            }
+        )
     
     # Crear inventarios iniciales si se especificaron bodegas
     bodegas_creadas = []
+    bodegas_omitidas = []
     if product.bodegasIniciales:
-        from app.models.catalogo_model import Inventario
+        from app.models.catalogo_model import Inventario, Bodega
         from datetime import date, datetime
         
-        logger.info(f"   📦 Creando {len(product.bodegasIniciales)} registros de inventario inicial")
+        logger.info(f"   📦 Procesando {len(product.bodegasIniciales)} bodegas iniciales")
         
-        for bodega in product.bodegasIniciales:
+        for bodega_config in product.bodegasIniciales:
+            # Validar que la bodega existe
+            bodega_existente = (await session.execute(
+                select(Bodega).where(Bodega.codigo == bodega_config.bodega_id)
+            )).scalar_one_or_none()
+            
+            if not bodega_existente:
+                logger.warning(f"      ⚠️  Bodega '{bodega_config.bodega_id}' no existe - omitida")
+                bodegas_omitidas.append(f"{bodega_config.bodega_id} (no existe)")
+                continue
+            
+            if not bodega_existente.activo:
+                logger.warning(f"      ⚠️  Bodega '{bodega_config.bodega_id}' está inactiva - omitida")
+                bodegas_omitidas.append(f"{bodega_config.bodega_id} (inactiva)")
+                continue
+            
             # Generar lote si no se proporcionó
-            lote = bodega.lote or f"INICIAL-{datetime.now().strftime('%Y%m%d')}"
+            lote = bodega_config.lote or f"INICIAL-{datetime.now().strftime('%Y%m%d')}"
+            
+            # Verificar si ya existe inventario para este producto + bodega + lote
+            inventario_existe = (await session.execute(
+                select(Inventario).where(
+                    Inventario.producto_id == product_id,
+                    Inventario.bodega_id == bodega_existente.id,  # Usar UUID de la bodega
+                    Inventario.pais == bodega_config.pais,
+                    Inventario.lote == lote
+                )
+            )).scalar_one_or_none()
+            
+            if inventario_existe:
+                logger.info(f"      ℹ️  Inventario ya existe en {bodega_config.bodega_id} ({bodega_config.pais}) - omitido")
+                bodegas_omitidas.append(f"{bodega_config.bodega_id} (ya existe)")
+                continue
             
             # Usar fecha de vencimiento proporcionada o una fecha muy lejana
-            fecha_vence = bodega.fecha_vencimiento or date(2099, 12, 31)
+            fecha_vence = bodega_config.fecha_vencimiento or date(2099, 12, 31)
             
             # Crear registro de inventario con cantidad = 0
             inventario_inicial = Inventario(
-                producto_id=product.id,
-                pais=bodega.pais,
-                bodega_id=bodega.bodega_id,
+                producto_id=product_id,
+                pais=bodega_config.pais,
+                bodega_id=bodega_existente.id,  # Usar UUID de la bodega
                 lote=lote,
                 cantidad=0,  # Stock inicial en 0
                 vence=fecha_vence,
@@ -198,17 +265,19 @@ async def create_product(product: ProductCreate, session=Depends(get_session)):
             )
             
             session.add(inventario_inicial)
-            bodegas_creadas.append(f"{bodega.bodega_id} ({bodega.pais})")
+            bodegas_creadas.append(f"{bodega_existente.nombre} ({bodega_existente.codigo})")
             
-            logger.info(f"      ✓ Inventario inicial creado en {bodega.bodega_id} ({bodega.pais})")
+            logger.info(f"      ✓ Inventario inicial creado en {bodega_existente.nombre} ({bodega_existente.codigo})")
     
     # Commit para guardar los cambios
     await session.commit()
     await session.refresh(new_product)
     
-    log_msg = f"✅ Producto creado: {product.id}"
+    log_msg = f"✅ Producto creado: {product_id}"
     if bodegas_creadas:
         log_msg += f" con inventario inicial en: {', '.join(bodegas_creadas)}"
+    if bodegas_omitidas:
+        log_msg += f" | Bodegas omitidas: {', '.join(bodegas_omitidas)}"
     logger.info(log_msg)
     
     response = {

@@ -305,6 +305,100 @@ services:
     volumes:
       - ./cliente-service:/app
 
+# ---------- Init de DB rutas ----------
+  db-init-rutas:
+    image: python:3.11-slim-bookworm
+    profiles: ["local-db"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/rutas
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./ruta-service/create_rutas_db.py:/app/create_rutas_db.py:ro
+      - ./ruta-service/001_add_rutas_table.sql:/tmp/migration.sql:ro
+    working_dir: /app
+    command: >
+      bash -lc "
+        apt-get update -qq && 
+        apt-get install -y -qq postgresql-client &&
+        pip install -q 'psycopg[binary]>=3.1,<4' && 
+        python create_rutas_db.py &&
+        psql -h db -U ${POSTGRES_USER} -d rutas -f /tmp/migration.sql
+      "
+    restart: "no"
+
+# ---------- Ruta Service ----------
+  ruta-service:
+    build:
+      context: ./ruta-service
+      dockerfile: Dockerfile
+    container_name: ruta-service
+    profiles: ["local-db"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/rutas
+      PORT: 8000
+    working_dir: /app
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./ruta-service:/app
+    restart: unless-stopped
+
+# Agregar después de db-init-rutas en docker-compose.dev.yml
+
+  # ---------- Init de DB auth ----------
+  db-init-auth:
+    image: python:3.11-slim-bookworm
+    profiles: ["local-db"]              # ← Mismo perfil que los demás
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      TARGET_DB: auth_db                # ← Nueva base de datos
+    volumes:
+      - ./auth-service/create_auth_db.py:/app/create_auth_db.py:ro
+    working_dir: /app
+    command: >
+      bash -lc "pip install -q 'psycopg[binary]>=3.1,<4' && python create_auth_db.py"
+    restart: "no"
+
+# Agregar después de ruta-service en docker-compose.dev.yml
+
+  # ---------- Auth Service ----------
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    profiles: ["local-db"]              # ← Mismo perfil
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/auth_db
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production}
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      PORT: 8000
+    working_dir: /app
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init-auth:
+        condition: service_completed_successfully
+    ports:
+      - "8004:8000"                     # ← Puerto local :8004
+    volumes:
+      - ./auth-service:/app
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redis_data:

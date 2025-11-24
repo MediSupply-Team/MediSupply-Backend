@@ -34,7 +34,7 @@ variable "environment" {
 variable "s3_bucket_name" {
   description = "Nombre del bucket S3 compartido para uploads (visitas y bulk-uploads)"
   type        = string
-  default     = "medisupply-dev-visita-uploads"
+  default     = "medisupply-dev-uploads"
 }
 
 # ============================================================
@@ -247,4 +247,24 @@ variable "redis_url" {
   description = "Redis connection URL for async task tracking"
   type        = string
   default     = "redis://redis:6379/1"
+}
+
+variable "additional_db_security_group_ids" {
+  description = "Lista de security group IDs adicionales que necesitan acceder a la base de datos del catálogo"
+  type        = list(string)
+  default     = []
+}
+
+# ============================================================
+# SHARED DATABASE CONFIGURATION (orders-postgres)
+# ============================================================
+
+variable "shared_db_url_secret_arn" {
+  description = "ARN del secret que contiene la DATABASE_URL de la base de datos compartida"
+  type        = string
+}
+
+variable "shared_db_password_secret_arn" {
+  description = "ARN del secret que contiene el password de la base de datos compartida"
+  type        = string
 }

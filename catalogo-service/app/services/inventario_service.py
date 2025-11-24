@@ -12,7 +12,7 @@ Este módulo contiene toda la lógica de negocio para:
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, and_, func, or_
-from app.models.catalogo_model import Producto, Inventario
+from app.models.catalogo_model import Producto, Inventario, Bodega
 from app.models.movimiento_model import MovimientoInventario, AlertaInventario
 from app.schemas import (
     MovimientoCreate, TransferenciaCreate, TipoMovimiento, 
@@ -125,7 +125,7 @@ class InventarioService:
             producto_id: ID del producto
             bodega_id: ID de la bodega
             pais: Código del país
-            lote: Número de lote específico (opcional)
+            lote: Número de lote específico (opcional, se normaliza a "" si no se proporciona)
             for_update: Si True, aplica SELECT FOR UPDATE para prevenir race conditions
             
         Returns:
@@ -137,6 +137,9 @@ class InventarioService:
             el stock al mismo tiempo. Esto es CRÍTICO para operaciones de salida
             donde se valida stock disponible.
         """
+        # Normalizar lote: usar "" si no se proporciona para consistencia con actualizar_inventario
+        lote_normalizado = lote or ""
+        
         if for_update:
             # 🔒 Para operaciones de salida, primero bloqueamos las filas
             # y luego sumamos (no podemos usar FOR UPDATE con SUM directamente)
@@ -144,12 +147,10 @@ class InventarioService:
                 and_(
                     Inventario.producto_id == producto_id,
                     Inventario.bodega_id == bodega_id,
-                    Inventario.pais == pais
+                    Inventario.pais == pais,
+                    Inventario.lote == lote_normalizado  # Siempre filtrar por lote (incluso si es "")
                 )
             )
-            
-            if lote:
-                query_rows = query_rows.where(Inventario.lote == lote)
             
             query_rows = query_rows.with_for_update()
             result = await session.execute(query_rows)
@@ -164,12 +165,10 @@ class InventarioService:
                 and_(
                     Inventario.producto_id == producto_id,
                     Inventario.bodega_id == bodega_id,
-                    Inventario.pais == pais
+                    Inventario.pais == pais,
+                    Inventario.lote == lote_normalizado  # Siempre filtrar por lote (incluso si es "")
                 )
             )
-            
-            if lote:
-                query = query.where(Inventario.lote == lote)
             
             saldo = (await session.execute(query)).scalar_one_or_none()
             return int(saldo or 0)
@@ -216,6 +215,36 @@ class InventarioService:
             movimiento.tipo_movimiento,
             movimiento.motivo
         )
+        
+        # 1.5. Validar que la bodega existe
+        bodega = (await session.execute(
+            select(Bodega).where(Bodega.id == movimiento.bodega_id)
+        )).scalar_one_or_none()
+        
+        if not bodega:
+            logger.error(f"   ❌ Bodega no encontrada: {movimiento.bodega_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "BODEGA_NOT_FOUND",
+                    "message": f"La bodega '{movimiento.bodega_id}' no existe en el sistema",
+                    "bodega_id": movimiento.bodega_id,
+                    "sugerencia": "Verifique el código de bodega o créela primero usando POST /api/v1/bodegas"
+                }
+            )
+        
+        if not bodega.activo:
+            logger.error(f"   ❌ Bodega inactiva: {movimiento.bodega_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "BODEGA_INACTIVE",
+                    "message": f"La bodega '{bodega.nombre}' ({movimiento.bodega_id}) está inactiva",
+                    "bodega_id": movimiento.bodega_id
+                }
+            )
+        
+        logger.info(f"   ✅ Bodega validada: {bodega.nombre} ({bodega.codigo})")
         
         # 2. Obtener saldo actual
         # 🔒 Usar FOR UPDATE para SALIDAS para prevenir race conditions
@@ -358,6 +387,9 @@ class InventarioService:
             movimiento: Datos del movimiento
             saldo_nuevo: Nuevo saldo calculado
         """
+        # Normalizar lote: usar "" si no se proporciona (en vez de generar uno único cada vez)
+        lote_normalizado = movimiento.lote or ""
+        
         # Buscar registro existente
         # 🔒 FOR UPDATE: Aunque ya bloqueamos en obtener_saldo_actual,
         # es buena práctica bloquear aquí también para garantizar atomicidad
@@ -366,7 +398,7 @@ class InventarioService:
                 Inventario.producto_id == movimiento.producto_id,
                 Inventario.bodega_id == movimiento.bodega_id,
                 Inventario.pais == movimiento.pais,
-                Inventario.lote == (movimiento.lote or "")
+                Inventario.lote == lote_normalizado
             )
         )
         
@@ -395,13 +427,13 @@ class InventarioService:
                     producto_id=movimiento.producto_id,
                     pais=movimiento.pais,
                     bodega_id=movimiento.bodega_id,
-                    lote=movimiento.lote or f"LOTE-{datetime.now().strftime('%Y%m%d')}",
+                    lote=lote_normalizado,  # Usar el mismo lote normalizado que en la búsqueda
                     cantidad=saldo_nuevo,
                     vence=movimiento.fecha_vencimiento or date(2099, 12, 31),
                     condiciones="Normal"
                 )
                 session.add(nuevo_inv)
-                logger.info(f"   ➕ Nuevo registro de inventario creado: {nuevo_inv.cantidad} unidades")
+                logger.info(f"   ➕ Nuevo registro de inventario creado: {nuevo_inv.cantidad} unidades (lote: '{lote_normalizado}')")
     
     @staticmethod
     async def verificar_alertas(

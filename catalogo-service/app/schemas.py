@@ -2,10 +2,33 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import date, datetime
 from enum import Enum
+from uuid import UUID
+
+class BodegaInfo(BaseModel):
+    """Información resumida de una bodega con stock"""
+    id: str = Field(..., description="ID único de la bodega (UUID)")
+    codigo: str = Field(..., description="Código de la bodega")
+    nombre: str = Field(..., description="Nombre de la bodega")
+    ciudad: Optional[str] = Field(None, description="Ciudad donde está ubicada")
+    pais: str = Field(..., description="Código del país")
+    cantidad: int = Field(..., description="Cantidad disponible en esta bodega")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "codigo": "BOG_CENTRAL",
+                "nombre": "Bodega Central Bogotá",
+                "ciudad": "Bogotá",
+                "pais": "CO",
+                "cantidad": 500
+            }
+        }
+
 
 class InventarioResumen(BaseModel):
     cantidadTotal: int
     paises: List[str] = []
+    bodegas: List[BodegaInfo] = Field(default_factory=list, description="Bodegas con stock disponible")
 
 class Product(BaseModel):
     id: str
@@ -54,7 +77,7 @@ class BodegaInicial(BaseModel):
 
 
 class ProductCreate(BaseModel):
-    id: str
+    id: Optional[str] = Field(None, description="ID del producto (UUID). Si no se proporciona, se genera automáticamente")
     nombre: str
     codigo: str
     categoria: str
@@ -336,4 +359,168 @@ class SaldoBodega(BaseModel):
 class ReporteSaldosResponse(BaseModel):
     """Reporte de saldos por bodega"""
     items: List[SaldoBodega]
+    meta: Meta
+
+
+# ==========================================
+# SCHEMAS PARA PROVEEDORES (HU: Registrar Proveedor)
+# ==========================================
+
+class ProveedorCreate(BaseModel):
+    """Schema para crear un proveedor (id se genera automáticamente con UUID)"""
+    nit: str = Field(..., min_length=5, max_length=32, description="NIT o identificación fiscal", example="900123456-7")
+    empresa: str = Field(..., min_length=3, max_length=255, description="Nombre de la empresa", example="Suministros Médicos Global")
+    contacto_nombre: str = Field(..., min_length=3, max_length=255, description="Nombre del contacto", example="Ana López")
+    contacto_email: str = Field(..., min_length=5, max_length=255, description="Email del contacto", example="ana.lopez@suministros.com")
+    contacto_telefono: Optional[str] = Field(None, max_length=32, description="Teléfono del contacto", example="+57-1-3456789")
+    contacto_cargo: Optional[str] = Field(None, max_length=128, description="Cargo del contacto", example="Gerente de Ventas")
+    direccion: Optional[str] = Field(None, max_length=512, description="Dirección del proveedor", example="Calle 45 #12-34, Bogotá")
+    pais: str = Field(..., min_length=2, max_length=2, description="Código ISO del país", example="CO")
+    activo: bool = Field(default=True, description="Si el proveedor está activo")
+    notas: Optional[str] = Field(None, description="Notas adicionales sobre el proveedor")
+    created_by_user_id: Optional[str] = Field(None, max_length=64, description="ID del usuario que crea el proveedor")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "nit": "900123456-7",
+                "empresa": "Suministros Médicos Global",
+                "contacto_nombre": "Ana López",
+                "contacto_email": "ana.lopez@suministros.com",
+                "contacto_telefono": "+57-1-3456789",
+                "contacto_cargo": "Gerente de Ventas",
+                "direccion": "Calle 45 #12-34, Bogotá",
+                "pais": "CO",
+                "activo": True,
+                "notas": "Proveedor principal de antibióticos",
+                "created_by_user_id": "ADMIN001"
+            }
+        }
+
+
+class ProveedorUpdate(BaseModel):
+    """Schema para actualizar un proveedor existente"""
+    nit: Optional[str] = Field(None, min_length=5, max_length=32)
+    empresa: Optional[str] = Field(None, min_length=3, max_length=255)
+    contacto_nombre: Optional[str] = Field(None, min_length=3, max_length=255)
+    contacto_email: Optional[str] = Field(None, min_length=5, max_length=255)
+    contacto_telefono: Optional[str] = Field(None, max_length=32)
+    contacto_cargo: Optional[str] = Field(None, max_length=128)
+    direccion: Optional[str] = Field(None, max_length=512)
+    pais: Optional[str] = Field(None, min_length=2, max_length=2)
+    activo: Optional[bool] = None
+    notas: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "contacto_telefono": "+57-1-9876543",
+                "contacto_cargo": "Director Comercial",
+                "activo": True
+            }
+        }
+
+
+class ProveedorResponse(BaseModel):
+    """Schema de respuesta de un proveedor"""
+    id: UUID  # Pydantic lo serializa como string en JSON automáticamente
+    nit: str
+    empresa: str
+    contacto_nombre: str
+    contacto_email: str
+    contacto_telefono: Optional[str]
+    contacto_cargo: Optional[str]
+    direccion: Optional[str]
+    pais: str
+    activo: bool
+    notas: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    created_by_user_id: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+
+class ProveedorListResponse(BaseModel):
+    """Respuesta con lista de proveedores"""
+    items: List[ProveedorResponse]
+    meta: Meta
+
+
+# =====================================================
+# SCHEMAS PARA BODEGA (WAREHOUSE)
+# =====================================================
+
+class BodegaCreate(BaseModel):
+    """Schema para crear una bodega"""
+    codigo: str = Field(..., min_length=1, max_length=64, description="Código único de la bodega")
+    nombre: str = Field(..., min_length=1, max_length=255, description="Nombre de la bodega")
+    pais: str = Field(..., min_length=2, max_length=2, description="Código del país (ISO 2 letras)")
+    direccion: Optional[str] = Field(None, max_length=512, description="Dirección física")
+    ciudad: Optional[str] = Field(None, max_length=128, description="Ciudad")
+    responsable: Optional[str] = Field(None, max_length=255, description="Nombre del responsable")
+    telefono: Optional[str] = Field(None, max_length=32, description="Teléfono de contacto")
+    email: Optional[str] = Field(None, max_length=255, description="Email de contacto")
+    capacidad_m3: Optional[float] = Field(None, ge=0, description="Capacidad en metros cúbicos")
+    tipo: Optional[str] = Field(None, max_length=64, description="Tipo de bodega (PRINCIPAL, SECUNDARIA, TRANSITO)")
+    notas: Optional[str] = Field(None, description="Notas adicionales")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "codigo": "BOG_SUR",
+                "nombre": "Bodega Sur Bogotá",
+                "pais": "CO",
+                "direccion": "Av. Boyacá #45-78",
+                "ciudad": "Bogotá",
+                "responsable": "Juan Pérez",
+                "telefono": "+57 301 555 0123",
+                "email": "bodega.sur@medisupply.com",
+                "tipo": "PRINCIPAL",
+                "notas": "Bodega principal para zona sur"
+            }
+        }
+
+
+class BodegaUpdate(BaseModel):
+    """Schema para actualizar una bodega"""
+    nombre: Optional[str] = Field(None, min_length=1, max_length=255)
+    direccion: Optional[str] = Field(None, max_length=512)
+    ciudad: Optional[str] = Field(None, max_length=128)
+    responsable: Optional[str] = Field(None, max_length=255)
+    telefono: Optional[str] = Field(None, max_length=32)
+    email: Optional[str] = Field(None, max_length=255)
+    activo: Optional[bool] = None
+    capacidad_m3: Optional[float] = Field(None, ge=0)
+    tipo: Optional[str] = Field(None, max_length=64)
+    notas: Optional[str] = None
+
+
+class BodegaResponse(BaseModel):
+    """Schema de respuesta de una bodega"""
+    id: str
+    codigo: str
+    nombre: str
+    pais: str
+    direccion: Optional[str]
+    ciudad: Optional[str]
+    responsable: Optional[str]
+    telefono: Optional[str]
+    email: Optional[str]
+    activo: bool
+    capacidad_m3: Optional[float]
+    tipo: Optional[str]
+    notas: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    created_by_user_id: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+
+class BodegaListResponse(BaseModel):
+    """Respuesta con lista de bodegas"""
+    items: List[BodegaResponse]
     meta: Meta

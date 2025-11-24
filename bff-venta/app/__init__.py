@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_cors import CORS
 from dotenv import load_dotenv
 from .config import Config
 from .services.sqs_client import SQSService
@@ -9,11 +10,21 @@ from flasgger import Swagger
 from .routes.catalog import bp as catalog_bp
 from .routes.inventory import bp as inventory_bp
 from .routes.route_optimizer import bp as route_optimizer_bp
+from .routes.bodega import bp as bodega_bp
 
 def create_app():
     load_dotenv()
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # Configurar CORS - solo con origins="*" para evitar duplicados
+    CORS(app, 
+         origins="*",
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+         expose_headers=["Content-Type"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    )
 
     # ===== SWAGGER =====
     swagger_config = {
@@ -39,6 +50,7 @@ def create_app():
     app.register_blueprint(catalog_bp)
     app.register_blueprint(inventory_bp)
     app.register_blueprint(route_optimizer_bp)
+    app.register_blueprint(bodega_bp)
 
     # Inicializar servicio SQS
     app.extensions["sqs"] = SQSService(

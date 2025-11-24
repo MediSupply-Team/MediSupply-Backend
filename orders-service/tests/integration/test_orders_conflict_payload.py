@@ -15,7 +15,8 @@ async def test_orders_conflict_same_key_different_payload_returns_409(
     key_hash = _sha256(idem_key)
 
     original_body = {
-        "customer_id": "C-ONE", 
+        "customer_id": "C-ONE",
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",  # ✅ Agregado
         "items": [{"sku": "A", "qty": 1}], 
         "created_by_role": "seller", 
         "source": "bff-cliente", 
@@ -49,7 +50,8 @@ async def test_orders_conflict_same_key_different_payload_returns_409(
 
     # Mismo Idempotency-Key pero payload DIFERENTE -> 409
     different_body = {
-        "customer_id": "C-OTHER", 
+        "customer_id": "C-OTHER",
+        "seller_id": "different-seller-id",  # ✅ Agregado diferente
         "items": [{"sku": "B", "qty": 2}],
         "created_by_role": "seller",
         "source": "bff-cliente",
@@ -77,7 +79,8 @@ async def test_orders_conflict_with_same_payload_returns_202(
     key_hash = _sha256(idem_key)
 
     body = {
-        "customer_id": "C-SAME", 
+        "customer_id": "C-SAME",
+        "seller_id": "399e4160-d04a-4bff-acb4-4758711257c0",  # ✅ Agregado
         "items": [{"sku": "X", "qty": 1}], 
         "created_by_role": "seller", 
         "source": "bff-cliente", 
