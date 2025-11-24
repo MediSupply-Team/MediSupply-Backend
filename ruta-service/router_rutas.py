@@ -70,7 +70,10 @@ def list_rutas(
     skip: int = Query(0, ge=0, description="Número de registros a saltar"),
     limit: int = Query(100, ge=1, le=100, description="Cantidad máxima de rutas a retornar"),
     status: str | None = Query(None, description="Filtrar por estado (pending, in_progress, completed, cancelled)"),
-    id_cliente: str | None = Query(None, description="Filtrar por ID de cliente")
+    id_cliente: str | None = Query(None, description="Filtrar por ID de cliente"),
+    fecha_entrega: str | None = Query(None, description="Filtrar por fecha de entrega (YYYY-MM-DD)"),
+    fecha_desde: str | None = Query(None, description="Filtrar rutas desde esta fecha de entrega (YYYY-MM-DD)"),
+    fecha_hasta: str | None = Query(None, description="Filtrar rutas hasta esta fecha de entrega (YYYY-MM-DD)")
 ):
     """
     Listar todas las rutas con paginación y filtros opcionales:
@@ -79,6 +82,9 @@ def list_rutas(
     - **limit**: Cantidad máxima de rutas a retornar (máx: 100)
     - **status**: Filtrar por estado específico
     - **id_cliente**: Filtrar por ID de cliente específico
+    - **fecha_entrega**: Filtrar por fecha de entrega exacta (formato: YYYY-MM-DD)
+    - **fecha_desde**: Filtrar rutas con entrega desde esta fecha (formato: YYYY-MM-DD)
+    - **fecha_hasta**: Filtrar rutas con entrega hasta esta fecha (formato: YYYY-MM-DD)
     
     **Optimización**: La geometría NO se incluye en las listas para reducir el tamaño.
     Para obtener la geometría completa, use `GET /rutas/{id}`
@@ -89,9 +95,41 @@ def list_rutas(
         if status:
             query = query.where(Ruta.status == status)
         
-        # ✅ NUEVO: Filtro por cliente
+        # Filtro por cliente
         if id_cliente:
             query = query.where(Ruta.id_cliente == id_cliente)
+        
+        # ✅ Filtro por fecha de entrega exacta
+        if fecha_entrega:
+            try:
+                fecha_entrega_dt = datetime.strptime(fecha_entrega, "%Y-%m-%d").date()
+                query = query.where(Ruta.fecha_entrega == fecha_entrega_dt)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Formato de fecha_entrega inválido. Use YYYY-MM-DD"
+                )
+        
+        # ✅ Filtros por rango de fechas de entrega
+        if fecha_desde:
+            try:
+                fecha_desde_dt = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+                query = query.where(Ruta.fecha_entrega >= fecha_desde_dt)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Formato de fecha_desde inválido. Use YYYY-MM-DD"
+                )
+        
+        if fecha_hasta:
+            try:
+                fecha_hasta_dt = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+                query = query.where(Ruta.fecha_entrega <= fecha_hasta_dt)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Formato de fecha_hasta inválido. Use YYYY-MM-DD"
+                )
         
         # Obtener total
         total = len(session.exec(query).all())
@@ -145,18 +183,65 @@ def get_ruta(ruta_id: str):
     description="Obtiene todas las rutas de un cliente específico (sin geometría)",
     response_description="Lista de rutas del cliente sin geometría"
 )
-def get_rutas_by_cliente(id_cliente: str):
+def get_rutas_by_cliente(
+    id_cliente: str,
+    fecha_entrega: str | None = Query(None, description="Filtrar por fecha de entrega (YYYY-MM-DD)"),
+    fecha_desde: str | None = Query(None, description="Filtrar desde esta fecha de entrega (YYYY-MM-DD)"),
+    fecha_hasta: str | None = Query(None, description="Filtrar hasta esta fecha de entrega (YYYY-MM-DD)"),
+    status: str | None = Query(None, description="Filtrar por estado")
+):
     """
     Obtener todas las rutas de un cliente:
     
     - **id_cliente**: UUID del cliente
+    - **fecha_entrega**: (Opcional) Filtrar por fecha de entrega exacta (formato: YYYY-MM-DD)
+    - **fecha_desde**: (Opcional) Filtrar rutas desde esta fecha de entrega (formato: YYYY-MM-DD)
+    - **fecha_hasta**: (Opcional) Filtrar rutas hasta esta fecha de entrega (formato: YYYY-MM-DD)
+    - **status**: (Opcional) Filtrar por estado específico
     
-    Retorna todas las rutas asociadas a este cliente, sin importar su estado.
+    Retorna todas las rutas asociadas a este cliente.
     
     ⚡ **Optimización**: La geometría NO se incluye. Use `GET /rutas/{id}` para geometría completa.
     """
     with Session(engine) as session:
         query = select(Ruta).where(Ruta.id_cliente == id_cliente)
+        
+        # Filtro por estado
+        if status:
+            query = query.where(Ruta.status == status)
+        
+        # ✅ Filtro por fecha de entrega exacta
+        if fecha_entrega:
+            try:
+                fecha_entrega_dt = datetime.strptime(fecha_entrega, "%Y-%m-%d").date()
+                query = query.where(Ruta.fecha_entrega == fecha_entrega_dt)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Formato de fecha_entrega inválido. Use YYYY-MM-DD"
+                )
+        
+        # ✅ Filtros por rango de fechas de entrega
+        if fecha_desde:
+            try:
+                fecha_desde_dt = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+                query = query.where(Ruta.fecha_entrega >= fecha_desde_dt)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Formato de fecha_desde inválido. Use YYYY-MM-DD"
+                )
+        
+        if fecha_hasta:
+            try:
+                fecha_hasta_dt = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+                query = query.where(Ruta.fecha_entrega <= fecha_hasta_dt)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Formato de fecha_hasta inválido. Use YYYY-MM-DD"
+                )
+        
         rutas = session.exec(query).all()
         
         # ✅ Usar schema sin geometría

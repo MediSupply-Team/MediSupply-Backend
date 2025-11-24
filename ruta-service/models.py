@@ -42,6 +42,12 @@ class Ruta(SQLModel, table=True):
         description="UUID del cliente que solicitó la optimización"
     )
     
+    # ✅ NUEVO: Fecha programada de entrega
+    fecha_entrega: Optional[date] = Field(
+        default=None,
+        description="Fecha programada para las entregas de esta ruta"
+    )
+    
     # Datos del optimizador (JSONB completo)
     secuencia_entregas: List[Dict[str, Any]] = Field(
         sa_column=Column(JSON),
