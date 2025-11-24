@@ -359,3 +359,14 @@ BEGIN
     RAISE NOTICE 'Zonas: % registros', zona_count;
     RAISE NOTICE '======================================';
 END $$;
+
+-- ============================================================================
+-- ACTUALIZAR SECUENCIAS DE AUTOINCREMENT
+-- ============================================================================
+-- Actualizar las secuencias para que empiecen después del último ID insertado
+
+SELECT setval('tipo_rol_vendedor_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM tipo_rol_vendedor), false);
+SELECT setval('territorio_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM territorio), false);
+SELECT setval('tipo_plan_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM tipo_plan), false);
+SELECT setval('region_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM region), false);
+SELECT setval('zona_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM zona), false);
